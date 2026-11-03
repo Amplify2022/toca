@@ -1,4 +1,4 @@
-/* TOCÁ v1.8.47 — Google Identity Services for customer accounts only.
+/* TOCÁ v1.8.47b — Google Identity Services for customer accounts only.
  * Google issues an ID token; the Micronaut API verifies it and issues the
  * existing TOCÁ customer session. Admin sessions remain separate.
  */
@@ -7,7 +7,7 @@
   const googleSrc = 'https://accounts.google.com/gsi/client';
   let configPromise, sdkPromise, initialized = false;
   let busy = false;
-  const customerKey = 'toca:customer:session';
+  const returnKey = 'toca:customer:after-login';
   const root = document.getElementById('app') || document.body;
 
   const config = () => configPromise ||= fetch(`${API_URL}/api/customers/google/config`, {
@@ -33,7 +33,7 @@
   }
 
   function feedback(message, error = false) {
-    const auth = document.querySelector('#toca-customer-auth-error');
+    const auth = document.querySelector('.toca-google-feedback') || document.querySelector('#toca-customer-auth-error');
     const link = document.querySelector('#toca-google-link-message');
     const destination = location.hash.startsWith('#/customer/') ? auth : link;
     if (destination) {
@@ -59,16 +59,34 @@
         body: JSON.stringify({ credential: response.credential })
       });
       const json = await result.json().catch(() => ({}));
-      if (!result.ok) throw Error(json._embedded?.errors?.[0]?.message || json.message || 'No se pudo iniciar sesión con Google.');
+      if (!result.ok) {
+        const reason = json._embedded?.errors?.[0]?.message || json.message || 'No se pudo iniciar sesión con Google.';
+        // Never hide a 409 from users with a pre-existing password account.
+        throw Error(result.status === 409 ? `${reason} Iniciá sesión con contraseña y vinculá Google desde tu perfil.` : reason);
+      }
       if (linking) {
         feedback('¡Google quedó vinculado a tu cuenta TOCÁ!');
         typeof toast === 'function' && toast('Google vinculado correctamente');
       } else {
         if (!json.token || !json.user?.id) throw Error('La API no devolvió una sesión de cliente válida.');
-        // Same tab-scoped session storage and lifecycle as the existing email login.
-        sessionStorage.setItem(customerKey, json.token);
-        location.hash = '#/profile';
-        location.reload(); // Reinitialize original auth module with the verified token.
+        // Do NOT reload: the original customer-auth module holds its session in a closure.
+        // Storing the token alone leaves it unauthenticated until the next full page load,
+        // and the SPA router may send the user back to /customer/login in the meantime.
+        if (typeof window.tocaCustomerAcceptGoogleSession !== 'function')
+          throw Error('Actualizá la página de TOCÁ para activar la sesión de Google.');
+        await window.tocaCustomerAcceptGoogleSession(json.token, json.user.id);
+        const pending = sessionStorage.getItem(returnKey);
+        let destination = '#/profile';
+        if (pending && /^#\/request\/[A-Za-z0-9%-]{1,120}(?:\?join=[A-Za-z0-9_-]{1,150})?$/.test(pending)) {
+          destination = pending;
+        }
+        sessionStorage.removeItem(returnKey);
+        if (typeof navigate === 'function') {
+          navigate(destination);
+          if (typeof render === 'function') render();
+        } else {
+          location.hash = destination;
+        }
       }
     } catch (error) {
       feedback(error.message || 'No se pudo validar Google.', true);
@@ -118,7 +136,7 @@
     if (authForm && !authForm.closest('.toca-customer-card')?.querySelector('.toca-google-container')) {
       const container = document.createElement('div');
       container.className = 'toca-google-container';
-      container.innerHTML = '<div class="toca-google-divider"><span>O continuá con</span></div><div class="toca-google-slot"></div>';
+      container.innerHTML = '<div class="toca-google-divider"><span>O continuá con</span></div><div class="toca-google-slot"></div><div class="toca-google-feedback" role="alert" aria-live="polite" hidden></div>';
       authForm.insertAdjacentElement('afterend', container);
       mountGoogle(container.querySelector('.toca-google-slot'));
     }

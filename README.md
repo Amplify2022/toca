@@ -1,5 +1,7 @@
 # TOCÁ v1.2
 
+**Login con Google:** están integrados los parches v1.8.47b y v1.8.47c. Ver [configuración y validación del login](docs/GOOGLE_LOGIN.md).
+
 **Actualización:** leé primero [README-V1.2.md](README-V1.2.md) y [pruebas manuales](docs/PRUEBAS_MANUALES_V1.2.md). Este README contiene también información de la versión inicial.
 
 ---

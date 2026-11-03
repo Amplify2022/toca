@@ -38,12 +38,15 @@
         session.checked = true;
         return null;
       }
+      // An older /me check must never overwrite a newer Google session.
+      const verifyingToken = session.token;
       try {
-        session.user = await customerApi('/me');
+        const verifiedUser = await customerApi('/me');
+        if (session.token === verifyingToken) session.user = verifiedUser;
       } catch (_) {
-        clear();
+        if (session.token === verifyingToken) clear();
       }
-      session.checked = true;
+      if (session.token === verifyingToken) session.checked = true;
       return session.user;
     })();
     try { return await session.checking; }
@@ -51,6 +54,29 @@
   }
   function verified() { return session.checked && !!session.user; }
   function customerHeader() { return verified() && session.token ? `Bearer ${session.token}` : ''; }
+  // Called by Google sign-in AFTER our API has issued a TOCÁ session.
+  // Verify it via /me BEFORE touching the auth module's session closure.
+  // This uses the same in-memory session as the password login, with no reload.
+  window.tocaCustomerAcceptGoogleSession = async (googleToken, expectedId) => {
+    if (typeof googleToken !== 'string' || !googleToken)
+      throw Error('Google no devolvió una sesión de cliente válida.');
+    const result = await fetch(API_URL + '/api/customers/me', {
+      cache: 'no-store',
+      headers: { Authorization: `Bearer ${googleToken}` }
+    });
+    const user = await result.json().catch(() => ({}));
+    if (!result.ok || !user?.id)
+      throw Error(user._embedded?.errors?.[0]?.message || user.message || 'La sesión de TOCÁ no se pudo verificar.');
+    if (expectedId && String(user.id) !== String(expectedId))
+      throw Error('Google devolvió una cuenta diferente a la sesión de TOCÁ.');
+    sessionStorage.setItem(KEY, googleToken);
+    session.token = googleToken;
+    session.user = user;
+    session.checked = true;
+    session.checking = null;
+    return user;
+  };
+
   window.tocaCustomerVerified = verified;
   window.tocaCustomerEnsure = ensure;
   window.tocaCustomerBearer = customerHeader;

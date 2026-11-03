@@ -24,6 +24,7 @@ import java.util.UUID
 class CustomerGoogleAuth(
     private val db: Db,
     private val customerAuth: CustomerAuth,
+    private val roles: RolePolicy,
     @Value("\${GOOGLE_CLIENT_ID:}") private val clientId: String,
 ) {
     // Reuse the verifier; it caches Google's periodically rotating public keys.
@@ -84,6 +85,10 @@ class CustomerGoogleAuth(
             customer = db.one("SELECT id,name,email FROM customer_account WHERE google_sub=?", google.subject)
                 ?: fail(HttpStatus.CONFLICT, "Ese correo ya pertenece a otra cuenta")
         }
+        // Verified Google sub resolves to customer_account (never admin_user).
+        // Grant for first-time Google accounts and repair existing Google accounts
+        // created by v1.8.47 before this role grant was added.
+        roles.grantCustomer(customer.getValue("id") as UUID)
         return customerAuth.issueGoogle(customer)
     }
 
