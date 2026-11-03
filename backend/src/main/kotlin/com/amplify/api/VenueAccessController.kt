@@ -11,7 +11,8 @@ class VenueAccessController(
     private val db: Db,
     private val auth: Auth,
     private val customerAuth: CustomerAuth,
-    private val presence: VenuePresence
+    private val presence: VenuePresence,
+    private val requestCommands: RequestCommands
 ) {
     @Get("/venues/{id}/request-access")
     fun publicPolicy(id: String): Map<String, Any?> = presence.policy(safeUuid(id))
@@ -27,10 +28,11 @@ class VenueAccessController(
     @Post("/venues/{id}/presence")
     fun checkIn(id: String,
         @Header(value="X-TOCA-Customer",defaultValue="") customerAuthorization: String,
+        @Header(value="X-TOCA-Join",defaultValue="") qrToken: String,
         @Body body: Map<String, Any?>
     ): Map<String, Any?> {
         val customerId = customerAuth.user(customerAuthorization)["id"] as java.util.UUID
-        return presence.checkIn(safeUuid(id),customerId,body)
+        return presence.checkIn(safeUuid(id),customerId,body,qrToken)
     }
 
     @Put("/admin/venues/{id}/request-access")
@@ -42,7 +44,16 @@ class VenueAccessController(
         val mode = required(body,"mode",12)
         if (mode !in setOf("NEARBY","ANYWHERE"))
             fail(HttpStatus.BAD_REQUEST,"Modo de acceso inválido")
-        db.exec("UPDATE venue SET request_access_mode=?,updated_at=now() WHERE id=?",mode,safeUuid(id))
-        return presence.policy(safeUuid(id))
+        val venueId = safeUuid(id)
+        return db.transaction {
+            db.one("SELECT id FROM venue WHERE id=? FOR UPDATE",venueId)
+                ?: fail(HttpStatus.NOT_FOUND,"Bar no encontrado")
+            // Share the request admission/mutation protocol so an in-flight
+            // command cannot synchronize against an authorization policy that
+            // the owner changed after it was admitted.
+            requestCommands.requireMutable(venueId)
+            db.exec("UPDATE venue SET request_access_mode=?,updated_at=now() WHERE id=?",mode,venueId)
+            presence.policy(venueId)
+        }
     }
 }

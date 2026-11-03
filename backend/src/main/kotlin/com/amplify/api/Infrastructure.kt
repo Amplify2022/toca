@@ -26,23 +26,54 @@ fun safeUuid(s: String): UUID = try { UUID.fromString(s) } catch (_: Exception) 
 
 @Singleton
 class Db(private val datasource: DataSource) {
+    private class Transaction(val connection: Connection, var rollbackOnly: Boolean = false)
+    private val current = ThreadLocal<Transaction>()
+
+    // Blocking services invoked inside a transaction share its connection. They
+    // must not borrow another pool slot while holding a row lock on the first.
+    private fun <T> connection(block: (Connection) -> T): T {
+        val transaction = current.get()
+        return if (transaction != null) block(transaction.connection)
+        else datasource.connection.use(block)
+    }
     private fun row(rs: ResultSet): Map<String, Any?> {
         val meta = rs.metaData
         return (1..meta.columnCount).associate { i -> meta.getColumnLabel(i) to rs.getObject(i) }
     }
-    fun list(sql: String, vararg args: Any?): List<Map<String, Any?>> = datasource.connection.use { c ->
+    fun list(sql: String, vararg args: Any?): List<Map<String, Any?>> = connection { c ->
         c.prepareStatement(sql).use { s ->
             args.forEachIndexed { i, v -> s.setObject(i+1,v) }
             s.executeQuery().use { r -> buildList { while (r.next()) add(row(r)) } }
         }
     }
     fun one(sql: String, vararg args: Any?): Map<String, Any?>? = list(sql,*args).firstOrNull()
-    fun exec(sql: String, vararg args: Any?): Int = datasource.connection.use { c ->
+    fun exec(sql: String, vararg args: Any?): Int = connection { c ->
         c.prepareStatement(sql).use { s -> args.forEachIndexed { i,v -> s.setObject(i+1,v) }; s.executeUpdate() }
     }
-    fun <T> transaction(block: (Connection)->T): T = datasource.connection.use { c ->
-        val old=c.autoCommit;c.autoCommit=false
-        try { val result=block(c);c.commit();result } catch (t: Throwable) {c.rollback();throw t} finally {c.autoCommit=old}
+    fun <T> transaction(block: (Connection)->T): T {
+        val nested = current.get()
+        if (nested != null) {
+            try { return block(nested.connection) }
+            catch (failure: Throwable) { nested.rollbackOnly = true; throw failure }
+        }
+        return datasource.connection.use { c ->
+            val old = c.autoCommit
+            c.autoCommit = false
+            val transaction = Transaction(c)
+            current.set(transaction)
+            try {
+                val result = block(c)
+                check(!transaction.rollbackOnly) { "La transacción fue cancelada por una operación interna" }
+                c.commit()
+                result
+            } catch (failure: Throwable) {
+                try { c.rollback() } catch (rollback: Throwable) { failure.addSuppressed(rollback) }
+                throw failure
+            } finally {
+                current.remove()
+                c.autoCommit = old
+            }
+        }
     }
 }
 

@@ -21,8 +21,8 @@
       <h3>Quién puede pedir canciones</h3>
       <p>Todos los clientes deben iniciar sesión. Elegí si deben estar cerca del bar.</p>
       <label><input type="radio" name="toca-access-mode" value="NEARBY" checked>
-        <span><strong>Solo clientes a 100 metros</strong>
-        <small>Predeterminado. Ubicación validada al pedir; check-in durante 20 minutos.</small></span></label>
+        <span><strong>QR vigente y ubicación cercana</strong>
+        <small>Predeterminado. Requiere el QR vigente y ubicación orientativa cercana. El acceso dura 20 minutos; GPS no acredita presencia física.</small></span></label>
       <label><input type="radio" name="toca-access-mode" value="ANYWHERE">
         <span><strong>Permitir pedidos desde cualquier ubicación</strong>
         <small>Usuarios registrados, sin necesidad de verificar GPS.</small></span></label>

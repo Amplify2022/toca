@@ -69,18 +69,13 @@ class CustomerAuth(private val db: Db,private val roles:RolePolicy) {
 
     fun login(body: Map<String, Any?>): Map<String, Any?> {
         val (email, password) = credentials(body)
-        val emailHash = hashToken(email)
-        val recent = db.one("""SELECT count(*) AS total FROM customer_login_failure
-            WHERE email_hash=? AND happened_at > now() - interval '15 minutes'""", emailHash)
-        if (((recent?.get("total") as? Number)?.toLong() ?: 0L) >= 10L)
-            fail(HttpStatus.TOO_MANY_REQUESTS, "Demasiados intentos. Volvé a probar en 15 minutos")
+        // HTTP admission is handled by AuthRateLimitFilter using network peer
+        // plus principal. Failed attempts from another IP never lock this email.
         val user = db.one("SELECT id,name,email,password_hash FROM customer_account WHERE email=?", email)
         val ok = user != null && (user["password_hash"] as? String)?.let { BCrypt.checkpw(password, it) } == true
         if (!ok) {
-            db.exec("INSERT INTO customer_login_failure(email_hash) VALUES(?)", emailHash)
             fail(HttpStatus.UNAUTHORIZED, "Correo o contraseña incorrectos")
         }
-        db.exec("DELETE FROM customer_login_failure WHERE email_hash=?", emailHash)
         return issue(user!!)
     }
 

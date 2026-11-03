@@ -268,6 +268,96 @@ document.addEventListener('click',e=>{
  const modal=document.getElementById('toca-delete-dialog');
  if(modal&&e.target===modal)tocaCloseDeleteModal();
 });
+let tocaRequestSyncClient;
+function requestSyncClient() {
+  return tocaRequestSyncClient ||= createTocaRequestSync({
+    api, storage: sessionStorage,
+    customerId: () => window.tocaCustomerUser?.()?.id || 'anonymous',
+    bearer: () => window.tocaCustomerBearer?.() || '',
+    makeId: () => crypto.randomUUID()
+  });
+}
+function requestSyncFeedback(venueId, message) {
+  if (route().path !== '/request/' + venueId) return;
+  let box = document.getElementById('toca-request-sync-feedback');
+  if (!box) {
+    const area = document.getElementById('song-results');
+    if (!area) return;
+    box = document.createElement('p'); box.id = 'toca-request-sync-feedback';
+    box.className = 'notice'; box.setAttribute('role','status');
+    area.before(box);
+  }
+  box.textContent = message;
+}
+async function submitSynchronizedRequest(venueId, track) {
+  requestSyncFeedback(venueId, 'Enviando tu pedido…');
+  const client = requestSyncClient();
+  let result;
+  try {
+    result = await client.submit(venueId, track.id, {
+      trackId: track.id, guestId: GUEST_ID,
+      joinToken: rememberJoin(venueId, state.joinToken)
+    });
+    for (let attempt=0; attempt<8 && ['PENDING','PROCESSING'].includes(result.status); attempt++) {
+      requestSyncFeedback(venueId, 'Pedido recibido. Estamos confirmando la playlist con Spotify…');
+      if (!result.commandId || route().path !== '/request/' + venueId) break;
+      await new Promise(resolve => setTimeout(resolve,1000));
+      result = await client.refresh(venueId, track.id, result.commandId);
+    }
+  } catch (error) {
+    requestSyncFeedback(venueId, 'No pudimos confirmar la respuesta. Volvé a consultar este tema: conservamos el mismo pedido para evitar duplicados.');
+    throw error;
+  }
+  if (result.status === 'DISPATCHED') {
+    toast('¡Playlist actualizada!');
+    if (route().path === '/request/' + venueId)
+      navigate(`#/success/${encodeURIComponent(venueId)}?track=${encodeURIComponent(track.id)}`);
+  } else if (result.status === 'FAILED') {
+    requestSyncFeedback(venueId, result.message || 'El pedido no pudo completarse. Podés intentarlo nuevamente.');
+  } else {
+    requestSyncFeedback(venueId, result.status === 'UNCERTAIN'
+      ? 'Tu pedido necesita revisión del bar. No lo reenviaremos mientras se confirma el resultado en Spotify.'
+      : 'Tu pedido quedó recibido y sigue en proceso. Podés consultar su estado volviendo a elegir este tema.');
+  }
+  return result;
+}
+
+async function tocaLoadRequestCommands(venueId) {
+  const dashboard = document.querySelector('.toca-ad-dashboard');
+  if (!dashboard || state.demo) return;
+  let panel = dashboard.querySelector('#toca-request-commands');
+  if (!panel) {
+    panel = document.createElement('section'); panel.id = 'toca-request-commands';
+    panel.className = 'toca-ad-card'; dashboard.prepend(panel);
+  }
+  panel.dataset.venueId = venueId;
+  panel.innerHTML = '<h2>Estado de pedidos</h2><p role="status">Consultando pedidos pendientes…</p>';
+  try {
+    const commands = await api(`/api/admin/venues/${encodeURIComponent(venueId)}/request-commands`);
+    if (!panel.isConnected || panel.dataset.venueId !== venueId) return;
+    const labels = {PENDING:'Recibido',PROCESSING:'Confirmando',UNCERTAIN:'Requiere revisión',FAILED:'No completado'};
+    panel.innerHTML = `<div class="toca-section-title"><h2>Estado de pedidos</h2><button type="button" class="btn small" data-action="refresh-request-commands" data-venue="${esc(venueId)}">Actualizar</button></div>` +
+      (commands.length ? commands.map(command => `<div class="toca-panel"><strong>${esc(command.title || command.trackId)}</strong><p>${esc(labels[command.status] || command.status)} · ${esc(command.message || '')}</p>${command.status==='UNCERTAIN' ? `<p>Revisá la playlist en Spotify antes de cerrar el pedido.</p><button type="button" class="btn small" data-action="reconcile-request-command" data-venue="${esc(venueId)}" data-command="${esc(command.commandId)}">Comprobar en Spotify</button> <button type="button" class="btn small ghost" data-action="cancel-request-command" data-venue="${esc(venueId)}" data-command="${esc(command.commandId)}">Cerrar tras revisar</button>` : ''}</div>`).join('') : '<p>No hay pedidos pendientes de confirmación.</p>');
+  } catch (error) {
+    if (panel.isConnected) panel.textContent = 'No se pudo consultar el estado de pedidos: ' + error.message;
+  }
+}
+document.addEventListener('click', async event => {
+  const button = event.target.closest('[data-action]');
+  if (!button || !['refresh-request-commands','reconcile-request-command','cancel-request-command'].includes(button.dataset.action)) return;
+  if (button.disabled) return;
+  const venueId = button.dataset.venue;
+  if (button.dataset.action === 'cancel-request-command' && !confirm('Confirmá que ya revisaste la playlist. Cerrar este pedido no elimina canciones de Spotify.')) return;
+  button.disabled = true;
+  try {
+    if (button.dataset.command) await api(`/api/admin/venues/${encodeURIComponent(venueId)}/request-commands/${encodeURIComponent(button.dataset.command)}/${button.dataset.action==='reconcile-request-command'?'reconcile':'cancel'}`, {
+      method:'POST', ...(button.dataset.action==='cancel-request-command'?{body:{acknowledgeProviderState:true}}:{})
+    });
+    await tocaLoadRequestCommands(venueId);
+  } catch (error) { toast(error.message); }
+  finally { if (button.isConnected) button.disabled = false; }
+});
+
 async function render(){const r=route();state.error='';try{if(r.path==='/explore'||r.path==='/'){await explore();return}if(r.path==='/map'){state.venues=await fetchVenues();mount(mapView(),'map');if(!window.L){if(!document.getElementById('leaflet-style')){const s=document.createElement('link');s.id='leaflet-style';s.rel='stylesheet';s.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';document.head.append(s)}const s=document.createElement('script');s.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';s.onload=initMap;s.onerror=()=>console.info('Offline map fallback active');document.head.append(s)}else initMap();return}if(r.path.startsWith('/venue/')){setGuestVenue(decodeURIComponent(r.path.split('/')[2]),r.params.get('join')||'');await viewVenue(decodeURIComponent(r.path.split('/')[2]));return}if(r.path.startsWith('/admin')){state.adminTab=r.path.split('/')[2]||'general';await admin();return}if(r.path==='/login'){loginPage();return}if(r.path==='/register'){loginPage(true);return}if(r.path==='/settings'){settingsView();return}if(r.path==='/my-requests'){requestsView();return}if(r.path==='/about'){aboutView();return}navigate('#/explore')}catch(e){console.error(e);mount(`<div class="card empty"><div class="big">⚠</div><h2>No pudimos cargar esta pantalla</h2><p style="margin:13px auto;max-width:450px">${esc(e.message)}</p><a href="#/settings" class="btn ghost" style="margin-top:20px">Revisar conexión</a></div>`,'explore')}}
 // Event handling: one listener per event type, no handlers injected into dynamic HTML.
 document.addEventListener('input',e=>{if(e.target.id==='toca-confirm-venue-name'){const modal=document.getElementById('toca-delete-dialog');const button=modal?.querySelector('[data-action="confirm-delete-venue"]');if(button)button.disabled=e.target.value!==modal.dataset.venueName;}if(e.target.id==='venue-search'){state.search=e.target.value;refreshDiscoveryResults();}if(e.target.id==='song-search'){clearTimeout(window.searchTimer);window.searchTimer=setTimeout(async()=>{const q=e.target.value.trim(),area=document.getElementById('song-results');if(!area)return;if(q.length<2){area.innerHTML='<div class="empty">Escribí al menos dos caracteres.</div>';return}area.innerHTML='<div class="empty">Buscando música...</div>';try{let data=await fetchCatalog(state.venueId,q);state.catalog=data;area.innerHTML=data.length?data.map((t,i)=>trackRow(t,i+1,'search')).join(''):'<div class="empty">No encontramos canciones para esa búsqueda.</div>'}catch(err){area.innerHTML=`<div class="notice">${esc(err.message)}</div>`}},350)}});
@@ -314,7 +404,21 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-acti
     modal.querySelector('#toca-delete-progress').hidden=true;
   }
   return;
- }if(action==='filter'){state.filter=b.dataset.value;render();return}if(action==='share'){await navigator.clipboard.writeText(location.href);toast('Enlace copiado');return}if(action==='request'){if(!(await window.tocaCustomerRequireForRequest(location.hash)))return;const track=state.catalog.find(t=>t.id===b.dataset.track);if(!track)return;const label=`${track.title} — ${track.artist}`;if(!confirm(`¿Solicitar "${label}"? Se actualizará la playlist de Spotify (sin asegurar la cola activa).`))return;if(!state.demo&&!(await window.tocaPresenceEnsure(state.venueId)))return;b.disabled=true;if(state.demo){demoRequest(state.venueId,track)}else{await api(`/api/venues/${state.venueId}/requests`,{method:'POST',body:{trackId:track.id,title:track.title,artist:track.artist,joinToken:rememberJoin(state.venueId,state.joinToken),guestId:GUEST_ID}})}toast('¡Playlist actualizada!');navigate(`#/success/${encodeURIComponent(state.venueId)}?track=${encodeURIComponent(track.id)}`);return}if(['approve','reject','played'].includes(action)){const targetStatus={approve:'APPROVED',reject:'REJECTED',played:'PLAYED'}[action];if(state.demo){const d=db(),r=d.requests.find(x=>x.id===b.dataset.id);if(r)r.status=targetStatus;saveDemo(d)}else await api(`/api/admin/venues/${state.venueId}/requests/${b.dataset.id}/${action}`,{method:'POST'});toast('Solicitud actualizada');render();return}if(action==='toggle-session'){if(state.demo){let d=db();let v=d.venues.find(x=>x.id===state.venueId);v.active=!v.active;saveDemo(d)}else await api(`/api/admin/venues/${state.venueId}/session`,{method:'POST',body:{active:!state.detail.active}});toast('Estado de la sesión actualizado');render();return}if(action==='toggle-approval'||action==='toggle-curated'){if(state.demo){let d=db();if(action==='toggle-approval')d.settings.requireApproval=!d.settings.requireApproval;else d.curatedOnly=!d.curatedOnly;saveDemo(d)}else await api(`/api/admin/venues/${state.venueId}/policy`,{method:'PUT',body:{requireApproval:action==='toggle-approval'?!state.detail.requireApproval:state.detail.requireApproval,curatedOnly:action==='toggle-curated'?!state.detail.curatedOnly:state.detail.curatedOnly}});render();return}if(['unblock','unallow'].includes(action)){const k=action==='unblock'?'blocks':'allows';if(state.demo){const d=db();d[k]=d[k].filter(x=>!(x.venueId===state.venueId&&x.trackId===b.dataset.id));saveDemo(d)}else await api(`/api/admin/venues/${state.venueId}/${action==='unblock'?'blocked':'allowed'}/${encodeURIComponent(b.dataset.id)}`,{method:'DELETE'});render();return}if(action==='connect-spotify'){if(state.demo){toast('En modo demo Spotify está simulado. Pasá a modo API para OAuth real.');return}let res=await api(`/api/admin/venues/${state.venueId}/spotify/authorize`);location.href=res.url;return}if(action==='disconnect-spotify'){if(state.demo){toast('Cuenta Spotify simulada en modo demo.');return}await api(`/api/admin/venues/${state.venueId}/spotify/disconnect`,{method:'POST'});render();return}if(action==='load-playlists'){if(state.demo){document.getElementById('playlist-container').innerHTML='<select class="input" disabled><option>TOCÁ — Playlist de demostración</option></select>';return}let pls=await api(`/api/admin/venues/${state.venueId}/spotify/playlists`);tocaSetPlaylistSummary(state.venueId,state.spotify.playlistId,pls);document.getElementById('playlist-container').innerHTML=`<div class="row"><select id="playlist-select" class="input"><option value="">Seleccionar...</option>${pls.map(p=>`<option value="${esc(p.id)}" ${p.id===state.spotify.playlistId?'selected':''}>${esc(p.name)}</option>`).join('')}</select><button class="btn small" data-action="select-playlist">Guardar</button></div>`;return}if(action==='load-devices'){
+ }if(action==='filter'){state.filter=b.dataset.value;render();return}if(action==='share'){await navigator.clipboard.writeText(location.href);toast('Enlace copiado');return}if(action==='request'){
+  if(b.disabled)return;
+  if(!(await window.tocaCustomerRequireForRequest(location.hash)))return;
+  const track=state.catalog.find(t=>t.id===b.dataset.track);if(!track)return;
+  const venueId=state.venueId;
+  const label=`${track.title} — ${track.artist}`;
+  if(!confirm(`¿Enviar o consultar el pedido de "${label}"? Solo confirmaremos el éxito cuando Spotify informe el resultado.`))return;
+  if(!state.demo&&!(await window.tocaPresenceEnsure(venueId)))return;
+  b.disabled=true;
+  try {
+    if(state.demo){demoRequest(venueId,track);toast('Pedido demo registrado');navigate(`#/success/${encodeURIComponent(venueId)}?track=${encodeURIComponent(track.id)}`)}
+    else await submitSynchronizedRequest(venueId,track);
+  } finally {if(b.isConnected)b.disabled=false;}
+  return;
+}if(['approve','reject','played'].includes(action)){const targetStatus={approve:'APPROVED',reject:'REJECTED',played:'PLAYED'}[action];if(state.demo){const d=db(),r=d.requests.find(x=>x.id===b.dataset.id);if(r)r.status=targetStatus;saveDemo(d)}else await api(`/api/admin/venues/${state.venueId}/requests/${b.dataset.id}/${action}`,{method:'POST'});toast('Solicitud actualizada');render();return}if(action==='toggle-session'){if(state.demo){let d=db();let v=d.venues.find(x=>x.id===state.venueId);v.active=!v.active;saveDemo(d)}else await api(`/api/admin/venues/${state.venueId}/session`,{method:'POST',body:{active:!state.detail.active}});toast('Estado de la sesión actualizado');render();return}if(action==='toggle-approval'||action==='toggle-curated'){if(state.demo){let d=db();if(action==='toggle-approval')d.settings.requireApproval=!d.settings.requireApproval;else d.curatedOnly=!d.curatedOnly;saveDemo(d)}else await api(`/api/admin/venues/${state.venueId}/policy`,{method:'PUT',body:{requireApproval:action==='toggle-approval'?!state.detail.requireApproval:state.detail.requireApproval,curatedOnly:action==='toggle-curated'?!state.detail.curatedOnly:state.detail.curatedOnly}});render();return}if(['unblock','unallow'].includes(action)){const k=action==='unblock'?'blocks':'allows';if(state.demo){const d=db();d[k]=d[k].filter(x=>!(x.venueId===state.venueId&&x.trackId===b.dataset.id));saveDemo(d)}else await api(`/api/admin/venues/${state.venueId}/${action==='unblock'?'blocked':'allowed'}/${encodeURIComponent(b.dataset.id)}`,{method:'DELETE'});render();return}if(action==='connect-spotify'){if(state.demo){toast('En modo demo Spotify está simulado. Pasá a modo API para OAuth real.');return}let res=await api(`/api/admin/venues/${state.venueId}/spotify/authorize`);location.href=res.url;return}if(action==='disconnect-spotify'){if(state.demo){toast('Cuenta Spotify simulada en modo demo.');return}await api(`/api/admin/venues/${state.venueId}/spotify/disconnect`,{method:'POST'});render();return}if(action==='load-playlists'){if(state.demo){document.getElementById('playlist-container').innerHTML='<select class="input" disabled><option>TOCÁ — Playlist de demostración</option></select>';return}let pls=await api(`/api/admin/venues/${state.venueId}/spotify/playlists`);tocaSetPlaylistSummary(state.venueId,state.spotify.playlistId,pls);document.getElementById('playlist-container').innerHTML=`<div class="row"><select id="playlist-select" class="input"><option value="">Seleccionar...</option>${pls.map(p=>`<option value="${esc(p.id)}" ${p.id===state.spotify.playlistId?'selected':''}>${esc(p.name)}</option>`).join('')}</select><button class="btn small" data-action="select-playlist">Guardar</button></div>`;return}if(action==='load-devices'){
  if(state.demo){document.getElementById('device-container').innerHTML='<span class="pill on">Dispositivo demo simulado</span>';return}
  let dev=await api(`/api/admin/venues/${state.venueId}/spotify/devices`);
  document.getElementById('device-container').innerHTML=dev.length?`<div class="row"><select id="device-select" class="input"><option value="">Seleccionar...</option>${dev.filter(d=>!d.restricted).map(d=>`<option value="${esc(d.id)}" ${d.id===state.spotify.deviceId?'selected':''}>${esc(d.name)} (${esc(d.type)}) ${d.active?'✓':''}</option>`).join('')}</select><button class="btn small" data-action="select-device">Guardar</button></div>`:'<div class="notice">No hay dispositivos Spotify Connect activos.</div>';return

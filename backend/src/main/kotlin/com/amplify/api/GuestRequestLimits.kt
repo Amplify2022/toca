@@ -3,7 +3,7 @@ package com.amplify.api
 import java.time.Duration
 import java.time.Instant
 
-/** Per-guestId limits for a private test session. A guestId is not strong identity. */
+/** Limits applied to authenticated customer + venue admissions, including queued commands. */
 object GuestRequestLimits {
     const val MAX_IN_TEN_MINUTES = 6
     const val MIN_INTERVAL_SECONDS = 15L

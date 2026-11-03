@@ -13,6 +13,7 @@ import java.net.http.HttpResponse
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.security.SecureRandom
+import java.sql.Connection
 import java.time.Duration
 import java.time.Instant
 import java.util.Base64
@@ -38,6 +39,18 @@ class Spotify(
     private val http=HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(7)).build()
     private val cache=ConcurrentHashMap<String,Pair<Instant,Map<String,String>?>>()
     private val musicCache=ConcurrentHashMap<UUID,Pair<Instant,Map<String,Any?>>>()
+    private val requestDeadline=ThreadLocal<Long>()
+
+    // A provider phase must finish well before the durable command's lease.
+    // Individual HTTP calls also retain their existing 12/15 second timeouts.
+    private fun <T> withRequestBudget(block:()->T):T {
+        val previous=requestDeadline.get()
+        val deadline=System.nanoTime()+Duration.ofMinutes(2).toNanos()
+        requestDeadline.set(if(previous==null)deadline else minOf(previous,deadline))
+        return try {block()} finally {
+            if(previous==null)requestDeadline.remove() else requestDeadline.set(previous)
+        }
+    }
     private fun key():SecretKeySpec {
         val decoded=try{Base64.getDecoder().decode(encryptionKey)}catch (_:Exception){ByteArray(0)}
         if(decoded.size!=32) fail(HttpStatus.SERVICE_UNAVAILABLE,"Falta clave AES-256 para tokens Spotify")
@@ -55,6 +68,9 @@ class Spotify(
         return String(c.doFinal(b.copyOfRange(12,b.size)),StandardCharsets.UTF_8)
     }
     private fun execute(req:HttpRequest):Pair<Int,String> {
+        requestDeadline.get()?.let {
+            if(System.nanoTime()-it>=0)fail(HttpStatus.BAD_GATEWAY,"Se agotó el tiempo de sincronización; verificá el resultado del pedido")
+        }
         val res=try{http.send(req,HttpResponse.BodyHandlers.ofString())}catch(e:Exception){fail(HttpStatus.BAD_GATEWAY,"Spotify no responde: ${e.javaClass.simpleName}")}
         if(res.statusCode()>=400) {
             // Endpoint path only: never log Authorization, query parameters, refresh tokens or OAuth codes.
@@ -104,100 +120,153 @@ class Spotify(
 
     data class PlaylistChange(val action:String,val position:Int,val warning:String?,val outsideContext:Boolean=false)
 
-    /**
-     * Private development only. This changes playlist items, NOT the player's
-     * pre-loaded queue. The next song cannot be guaranteed through Spotify API.
-     */
-    /** Ensures any OAuth refresh is complete before holding the venue database lock. */
+    /** Acquire/refresh outside database transactions. Playlist synchronization
+     * never promises a position in Spotify's separately preloaded player queue. */
     fun playlistMutationToken(venueId:UUID):String=access(venueId)
 
-    /**
-     * Reconciles only still-pending requests, not all DISPATCHED rows. Rows
-     * that Spotify has already played must NOT be reinserted on each request.
-     *
-     * This edits the playlist only. It cannot schedule a playlist context
-     * switch at the exact end of a song playing outside it.
-     */
-    fun reconcilePlaylistFifoPrivateTest(venueId:UUID, trackId:String, token:String,
-                                         orderedQueue:List<String>):PlaylistChange {
-        if(!playlistWriteEnabled)
-            fail(HttpStatus.PRECONDITION_FAILED,
-                "Activá SPOTIFY_PRIVATE_TEST_PLAYLIST_WRITES=true solo en pruebas privadas autorizadas")
+    /** Prepare without mutating Spotify. The caller MUST durably save this JSON
+     * before invoking applyRequestPlan; it contains no OAuth credentials. */
+    fun prepareRequestPlan(venueId:UUID, trackId:String, token:String,
+                           orderedQueue:List<String>, expectedPlaylistId:String):String = withRequestBudget {
+        requirePlaylistWrites()
         if(!trackId.matches(Regex("[A-Za-z0-9]{22}")))fail(HttpStatus.BAD_REQUEST,"ID de canción inválido")
         if(orderedQueue.isEmpty() || trackId !in orderedQueue)
             fail(HttpStatus.BAD_REQUEST,"La solicitud no está en la cola de TOCÁ")
         if(orderedQueue.size>100)fail(HttpStatus.CONFLICT,"Máximo 100 solicitudes en la cola de pruebas")
-        val venue=db.one("SELECT playlist_id FROM venue WHERE id=?",venueId)
-            ?: fail(HttpStatus.NOT_FOUND,"Bar no encontrado")
-        val playlistId=(venue["playlist_id"] as? String)?.takeIf {it.isNotBlank()}
-            ?: fail(HttpStatus.PRECONDITION_FAILED,"Seleccioná la playlist del bar en el panel Spotify")
-
-        fun readItems():Pair<MutableList<String?>,String> {
-            val metadata=apiGet("/playlists/$playlistId?fields=snapshot_id,items(total)",token)
-                ?: fail(HttpStatus.BAD_GATEWAY,"Spotify no devolvió datos de la playlist")
-            val total=metadata.path("items").path("total").asInt(-1)
-            if(total<0)fail(HttpStatus.BAD_GATEWAY,"Spotify no devolvió el tamaño de la playlist")
-            if(total>1000)fail(HttpStatus.CONFLICT,"Playlist de más de 1000 canciones: usá una más corta")
-            val ids=mutableListOf<String?>()
-            for(offset in 0 until total step 50) {
-                val page=apiGet("/playlists/$playlistId/items?limit=50&offset=$offset",token)
-                    ?: fail(HttpStatus.BAD_GATEWAY,"Spotify no devolvió los elementos de la playlist")
-                val items=page.path("items")
-                if(!items.isArray)fail(HttpStatus.BAD_GATEWAY,"Formato de playlist inesperado")
-                for(entry in items) {
-                    val item=entry.path("item").takeUnless {it.isNull||it.isMissingNode}
-                        ?: entry.path("track")
-                    ids.add(item.path("id").takeIf {it.isTextual}?.asText())
-                }
-            }
-            if(ids.size!=total)fail(HttpStatus.CONFLICT,"La playlist cambió mientras se consultaba")
-            return ids to metadata.path("snapshot_id").asText("")
-        }
-
-        val (ids,firstSnapshot)=readItems()
-        var snapshot=firstSnapshot
+        requireSelectedPlaylist(venueId,expectedPlaylistId)
+        val before=readRequestSnapshot(expectedPlaylistId,token)
         val playback=apiGet("/me/player",token)
         val context=playback?.path("context")?.path("uri")?.asText("") ?: ""
         val currentTrack=playback?.path("item")?.path("id")?.asText("") ?: ""
-        val samePlaylist=context=="spotify:playlist:$playlistId"
-        val plan=PlaylistPlanner.reconcile(ids,currentTrack,samePlaylist,orderedQueue,trackId)
-        // Ordering a batch is intentionally serialized with the per-venue row
-        // lock in ApiController; each mutation is applied in DB request order.
-        for(step in plan.steps) {
-            val response=when(step.action) {
-                "INSERTED" -> apiJson("POST","/playlists/$playlistId/items",token,
-                    mapOf("uris" to listOf("spotify:track:${step.trackId}"),"position" to step.desiredIndex))
-                "REORDERED" -> {
-                    if(snapshot.isBlank())fail(HttpStatus.BAD_GATEWAY,"Spotify no devolvió snapshot de playlist")
-                    apiJson("PUT","/playlists/$playlistId/items",token,
-                        mapOf("range_start" to step.existingIndex!!,
-                              "insert_before" to step.desiredIndex,"range_length" to 1,
-                              "snapshot_id" to snapshot))
+        val samePlaylist=context=="spotify:playlist:$expectedPlaylistId"
+        val calculated=PlaylistPlanner.reconcile(before.ids,currentTrack,samePlaylist,orderedQueue,trackId)
+        if(calculated.expected.size>1000)
+            fail(HttpStatus.CONFLICT,"La playlist superaría el máximo de 1000 canciones de las pruebas")
+        val plan=RequestPlaylistPlan(expectedPlaylistId,trackId,before.ids,
+            calculated.steps.filter {it.action!="ALREADY_IN_ORDER"},
+            calculated.protectedPrefix+calculated.activeQueue.indexOf(trackId),!samePlaylist)
+        check(plan.states().last()==calculated.expected) { "Saved Spotify plan does not match calculated result" }
+        json.writeValueAsString(mapOf(
+            "version" to 1,"playlistId" to plan.playlistId,"requestedTrack" to plan.requestedTrack,
+            "initialIds" to plan.initialIds,"position" to plan.position,"outsideContext" to plan.outsideContext,
+            "steps" to plan.steps.map {mapOf("trackId" to it.trackId,"desiredIndex" to it.desiredIndex,
+                "existingIndex" to it.existingIndex,"action" to it.action)}))
+    }
+
+    /** Executes a saved command, never a newly calculated insertion point. No
+     * player-queue endpoint is called: that operation has no idempotency key.
+     * The outbox owner handles ambiguous failures and exclusive ownership. */
+    fun applyRequestPlan(venueId:UUID, token:String, planJson:String):PlaylistChange =
+        applyRequestPlan(venueId,token,planJson) {}
+
+    fun applyRequestPlan(venueId:UUID, token:String, planJson:String,
+                         beforeMutation:()->Unit):PlaylistChange = withRequestBudget {
+        requirePlaylistWrites()
+        val plan=savedRequestPlan(planJson)
+        requireSelectedPlaylist(venueId,plan.playlistId)
+        val changed=try {
+            RequestPlaylistReplay.apply(plan,{
+                beforeMutation() // Also fence the initial/final verification reads.
+                readRequestSnapshot(plan.playlistId,token)
+            }) { step,snapshot ->
+                // Durable ownership may have expired while reading provider
+                // state. Renew/check it immediately before issuing each write.
+                beforeMutation()
+                when(step.action) {
+                    "INSERTED" -> apiJson("POST","/playlists/${plan.playlistId}/items",token,
+                        mapOf("uris" to listOf("spotify:track:${step.trackId}"),"position" to step.desiredIndex))
+                    "REORDERED" -> {
+                        if(snapshot.isBlank())fail(HttpStatus.BAD_GATEWAY,"Spotify no devolvió snapshot de playlist")
+                        apiJson("PUT","/playlists/${plan.playlistId}/items",token,
+                            mapOf("range_start" to step.existingIndex!!,"insert_before" to step.desiredIndex,
+                                "range_length" to 1,"snapshot_id" to snapshot))
+                    }
                 }
-                else -> null
+                Unit
             }
-            if(step.action!="ALREADY_IN_ORDER") {
-                snapshot=response?.path("snapshot_id")?.asText("") ?: ""
-                if(snapshot.isBlank())fail(HttpStatus.BAD_GATEWAY,"Spotify no confirmó el cambio de playlist")
-            }
+        } catch (_:RequestPlaylistReplay.Drift) {
+            fail(HttpStatus.CONFLICT,"La playlist cambió fuera del pedido; revisá su sincronización")
         }
-        // Do not silently report FIFO success if the Spotify API returns a
-        // different order. This also identifies UI playlists sorted by added date.
-        val (actual,_)=readItems()
-        val start=plan.protectedPrefix
-        val expected=plan.activeQueue
-        if(actual.drop(start).take(expected.size)!=expected) {
-            System.err.println("TOCA_FIFO_MISMATCH venue=${venueId} expected=${expected.joinToString(",")} " +
-                "actual=${actual.drop(start).take(expected.size).joinToString(",")}")
-            fail(HttpStatus.CONFLICT,"Spotify no confirmó el orden FIFO; revisá el orden personalizado de la playlist")
-        }
+        beforeMutation() // Fence the successful result before its SQL commit.
         musicCache.remove(venueId)
-        val position=start + expected.indexOf(trackId)
-        val changed=plan.steps.any {it.action!="ALREADY_IN_ORDER"}
-        val note=if(!samePlaylist)
-            "Orden FIFO verificado en Spotify. La playlist no está activa en el reproductor: debés retomarla desde Spotify o desde el control del administrador."
-        else "Orden FIFO verificado en la playlist; Spotify puede conservar una cola de reproducción precargada."
-        return PlaylistChange(if(changed)"FIFO_VERIFIED" else "ALREADY_QUEUED",position,note,!samePlaylist)
+        requestPlanResult(plan,changed)
+    }
+
+    /** Read-only recovery: a lost response/DB commit may leave the complete
+     * desired result on Spotify. Partial or unrelated state is not success. */
+    fun verifyRequestPlan(venueId:UUID, token:String, planJson:String):PlaylistChange? = withRequestBudget {
+        val plan=savedRequestPlan(planJson)
+        requireSelectedPlaylist(venueId,plan.playlistId)
+        if(readRequestSnapshot(plan.playlistId,token).ids!=plan.states().last())return@withRequestBudget null
+        musicCache.remove(venueId)
+        requestPlanResult(plan,false)
+    }
+
+    private fun requirePlaylistWrites() {
+        if(!playlistWriteEnabled)
+            fail(HttpStatus.PRECONDITION_FAILED,
+                "Activá SPOTIFY_PRIVATE_TEST_PLAYLIST_WRITES=true solo en pruebas privadas autorizadas")
+    }
+
+    private fun requireSelectedPlaylist(venueId:UUID, playlistId:String) {
+        if(!playlistId.matches(Regex("[A-Za-z0-9]{15,40}")))
+            fail(HttpStatus.PRECONDITION_FAILED,"Seleccioná la playlist del bar en el panel Spotify")
+        val current=db.one("SELECT playlist_id FROM venue WHERE id=?",venueId)
+            ?: fail(HttpStatus.NOT_FOUND,"Bar no encontrado")
+        if(current["playlist_id"]!=playlistId)
+            fail(HttpStatus.CONFLICT,"La playlist del bar cambió antes de sincronizar el pedido")
+    }
+
+    private fun readRequestSnapshot(playlistId:String, token:String):RequestPlaylistSnapshot {
+        val path="/playlists/$playlistId?fields=snapshot_id,items(total)"
+        val metadata=apiGet(path,token) ?: fail(HttpStatus.BAD_GATEWAY,"Spotify no devolvió datos de la playlist")
+        val total=metadata.path("items").path("total").asInt(-1)
+        val snapshot=metadata.path("snapshot_id").asText("")
+        if(total<0 || snapshot.isBlank())fail(HttpStatus.BAD_GATEWAY,"Spotify no devolvió tamaño y snapshot de la playlist")
+        if(total>1000)fail(HttpStatus.CONFLICT,"Playlist de más de 1000 canciones: usá una más corta")
+        val ids=mutableListOf<String?>()
+        for(offset in 0 until total step 50) {
+            val page=apiGet("/playlists/$playlistId/items?limit=50&offset=$offset",token)
+                ?: fail(HttpStatus.BAD_GATEWAY,"Spotify no devolvió los elementos de la playlist")
+            val items=page.path("items")
+            if(!items.isArray)fail(HttpStatus.BAD_GATEWAY,"Formato de playlist inesperado")
+            for(entry in items) {
+                val item=entry.path("item").takeUnless {it.isNull||it.isMissingNode} ?: entry.path("track")
+                ids.add(item.path("id").takeIf {it.isTextual}?.asText())
+            }
+        }
+        // Pagination is not atomic. A snapshot must cover both ends of this read.
+        val after=apiGet(path,token) ?: fail(HttpStatus.BAD_GATEWAY,"Spotify no confirmó el snapshot")
+        if(ids.size!=total || after.path("snapshot_id").asText("")!=snapshot)
+            fail(HttpStatus.CONFLICT,"La playlist cambió mientras se consultaba")
+        return RequestPlaylistSnapshot(ids,snapshot)
+    }
+
+    private fun savedRequestPlan(planJson:String):RequestPlaylistPlan = try {
+        require(planJson.length<=200_000)
+        val node=json.readTree(planJson)
+        require(node.path("version").asInt(-1)==1 && node.path("initialIds").isArray && node.path("steps").isArray)
+        require(node.path("position").isInt && node.path("outsideContext").isBoolean)
+        val initial=node.path("initialIds").map {
+            require(it.isNull || (it.isTextual && it.asText().length<=128))
+            if(it.isNull)null else it.asText()
+        }
+        val steps=node.path("steps").map {
+            require(it.path("desiredIndex").isInt && (it.path("existingIndex").isNull || it.path("existingIndex").isInt))
+            PlaylistPlanner.OrderStep(it.path("trackId").asText(),it.path("desiredIndex").asInt(),
+                if(it.path("existingIndex").isNull)null else it.path("existingIndex").asInt(),it.path("action").asText())
+        }
+        RequestPlaylistPlan(node.path("playlistId").asText(),node.path("requestedTrack").asText(),initial,steps,
+            node.path("position").asInt(),node.path("outsideContext").asBoolean()).also {it.states()}
+    } catch (_:Exception) {
+        fail(HttpStatus.CONFLICT,"El plan guardado del pedido no es válido; revisá su sincronización")
+    }
+
+    private fun requestPlanResult(plan:RequestPlaylistPlan, changed:Boolean):PlaylistChange {
+        val note=if(plan.outsideContext)
+            "Playlist sincronizada. No está activa en el reproductor; retomála desde Spotify o el control del administrador."
+        else "Playlist sincronizada; Spotify puede conservar una cola de reproducción precargada."
+        return PlaylistChange(if(changed)"FIFO_VERIFIED" else "ALREADY_QUEUED",plan.position,note,plan.outsideContext)
     }
 
     fun authorize(venue:Map<String,Any?>,owner:Map<String,Any?>):String {
@@ -260,9 +329,16 @@ class Spotify(
         "deviceId" to (v["spotify_device_id"] ?: ""),
         "controlEnabled" to controlEnabled, "playlistWriteEnabled" to playlistWriteEnabled
     )
-    fun disconnect(id:UUID) { db.exec("""UPDATE venue SET spotify_account_id=NULL,spotify_name=NULL,spotify_premium=false,
+    fun disconnect(id:UUID) {
+        changeVenueWithoutRequest(id) { connection ->
+            connection.prepareStatement("""UPDATE venue SET spotify_account_id=NULL,spotify_name=NULL,spotify_premium=false,
                   spotify_access_encrypted=NULL,spotify_refresh_encrypted=NULL,spotify_expires_at=NULL,playlist_id=NULL,spotify_device_id=NULL,active=false,
-                  updated_at=now() WHERE id=?""",id) }
+                  updated_at=now() WHERE id=?""").use { statement ->
+                statement.setObject(1,id);statement.executeUpdate()
+            }
+        }
+        musicCache.remove(id);cache.remove(id.toString())
+    }
     fun playlists(venueId:UUID):List<Map<String,String>> {
         val root=apiGet("/me/playlists?limit=50",access(venueId))?:return emptyList()
         return root.path("items").map {mapOf("id" to it.path("id").asText(),"name" to it.path("name").asText())}
@@ -283,7 +359,29 @@ class Spotify(
     fun selectPlaylist(venueId:UUID,playlistId:String) {
         if(!playlistId.matches(Regex("[A-Za-z0-9]{15,40}")))fail(HttpStatus.BAD_REQUEST,"Playlist inválida")
         if(playlists(venueId).none {it["id"]==playlistId})fail(HttpStatus.BAD_REQUEST,"Playlist no encontrada en la cuenta")
-        db.exec("UPDATE venue SET playlist_id=?,updated_at=now() WHERE id=?",playlistId,venueId)
+        // Provider validation happens before acquiring the venue lock. Once a
+        // command is accepted its selected playlist must remain immutable.
+        changeVenueWithoutRequest(venueId) { connection ->
+            connection.prepareStatement("UPDATE venue SET playlist_id=?,queue_started_at=now(),updated_at=now() WHERE id=?").use { statement ->
+                statement.setString(1,playlistId);statement.setObject(2,venueId);statement.executeUpdate()
+            }
+        }
+        musicCache.remove(venueId)
+    }
+
+    private fun changeVenueWithoutRequest(venueId:UUID, change:(Connection)->Unit) {
+        db.transaction { connection ->
+            connection.prepareStatement("SELECT id FROM venue WHERE id=? FOR UPDATE").use { statement ->
+                statement.setObject(1,venueId)
+                statement.executeQuery().use { if(!it.next())fail(HttpStatus.NOT_FOUND,"Bar no encontrado") }
+            }
+            val pending=connection.prepareStatement("""SELECT 1 FROM request_command WHERE venue_id=?
+                AND status IN ('PENDING','PREPARING','APPLYING','UNCERTAIN') LIMIT 1""").use { statement ->
+                statement.setObject(1,venueId);statement.executeQuery().use {it.next()}
+            }
+            if(pending)fail(HttpStatus.CONFLICT,"Hay un pedido pendiente de sincronizar; resolvelo antes de cambiar Spotify")
+            change(connection)
+        }
     }
     /** All playlist items for the public view (50 per Spotify request).
      * musicStatus uses maxItems=50 to keep frequent polling lightweight.

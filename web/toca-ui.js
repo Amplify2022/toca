@@ -139,8 +139,8 @@ const pending=rows.filter(x=>x.status==='PENDING'),approved=rows.filter(x=>['APP
     <h3>Quién puede pedir canciones</h3>
     <p>Elegí cómo se habilitan los pedidos. Todos los clientes deben iniciar sesión.</p>
     <label><input type="radio" name="toca-access-mode" value="NEARBY" ${mode!=='ANYWHERE'?'checked':''}/>
-      <span><strong>Solo clientes a 100 metros del bar</strong>
-      <small>Solicitaremos ubicación al hacer un pedido. El check-in dura 20 minutos.</small></span></label>
+      <span><strong>QR vigente del bar y ubicación cercana</strong>
+      <small>El cliente debe escanear el QR vigente y compartir una ubicación orientativa cercana. El acceso dura 20 minutos; GPS no acredita presencia física.</small></span></label>
     <label><input type="radio" name="toca-access-mode" value="ANYWHERE" ${mode==='ANYWHERE'?'checked':''}/>
       <span><strong>Permitir pedidos desde cualquier ubicación</strong>
       <small>Los clientes registrados pueden pedir canciones desde cualquier lugar.</small></span></label>
@@ -148,7 +148,7 @@ const pending=rows.filter(x=>x.status==='PENDING'),approved=rows.filter(x=>['APP
     <span data-toca-access-status role="status"></span>
   </section>`;
  }
- mount(body,'admin')}
+ mount(body,'admin');if(!state.demo)void tocaLoadRequestCommands(v.id)}
 // TOCÁ v1.8.23 — Página «Cómo funciona», reutilizada por el header y Descubrir bares.
 function tocaHowItWorks(){
  const steps=[

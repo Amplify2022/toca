@@ -11,7 +11,7 @@ import java.util.UUID
 
 @Controller("/api")
 @ExecuteOn(TaskExecutors.BLOCKING)
-class ApiController(private val db:Db,private val auth:Auth,private val spotify:Spotify,private val addressGeocoder:AddressGeocoder,private val customerAuth:CustomerAuth,private val presence:VenuePresence) {
+class ApiController(private val db:Db,private val auth:Auth,private val spotify:Spotify,private val addressGeocoder:AddressGeocoder,private val customerAuth:CustomerAuth,private val presence:VenuePresence,private val requestCommands:RequestCommands) {
     private val publicColumns="""id,name,slug,address,city,description,genre,opening_hours AS "openingHours",request_access_mode AS "requestAccessMode",latitude,longitude,active,
         require_approval AS "requireApproval",curated_only AS "curatedOnly",
         spotify_premium AS "spotifyConnected",playlist_id AS "playlistId", instagram_handle AS "instagramHandle"
@@ -178,138 +178,34 @@ class ApiController(private val db:Db,private val auth:Auth,private val spotify:
             !blocked && allowed
         }
     }
-    @Post("/venues/{id}/requests") fun request(id:String,@Body body:Map<String,Any?>,@Header(value="X-TOCA-Customer",defaultValue="") customerAuthorization:String):Map<String,Any?> {
-        // Both a verified customer session and the bar QR are required for a request.
-        val customerId = customerAuth.user(customerAuthorization)["id"] as UUID
-        // Customer session plus venue presence replace the mandatory QR.
-        val v=venueById(id)
-        if(v["active"]!=true || v["spotify_premium"]!=true)
-            fail(HttpStatus.CONFLICT,"La sesión Spotify del bar está cerrada")
-        val venueId=safeUuid(id)
-        presence.requireAllowed(venueId,customerId)
-        val trackId=required(body,"trackId",50)
-        if(db.one("SELECT 1 FROM venue_track_rule WHERE venue_id=? AND track_id=? AND mode='BLOCK'",venueId,trackId)!=null)
-            fail(HttpStatus.FORBIDDEN,"La canción está bloqueada")
-        if(v["curated_only"]==true&&db.one("SELECT 1 FROM venue_track_rule WHERE venue_id=? AND track_id=? AND mode='ALLOW'",venueId,trackId)==null)
-            fail(HttpStatus.FORBIDDEN,"La canción no está en la lista blanca")
-        val guestId=required(body,"guestId",90)
-        if(!guestId.matches(Regex("[A-Za-z0-9_-]{10,90}")))fail(HttpStatus.BAD_REQUEST,"Identificador invitado inválido")
-        // Rate limits are checked inside the per-venue DB lock below. A row in
-        // song_request represents a track, not every request; the events table
-        // preserves each guest submission, including promotions of existing songs.
-        // Spotify OAuth refresh and metadata calls occur outside the DB lock to avoid
-        // deadlocks (refresh updates the venue row on a separate connection).
-        val track=spotify.getTrack(venueId,trackId)
-        val spotifyToken=spotify.playlistMutationToken(venueId)
-        // Serialize requests to this venue across server instances. This lock deliberately
-        // spans the Spotify API mutation; a busy provider causes backpressure, not reordering.
-        return db.transaction { connection ->
-            connection.prepareStatement("SELECT id FROM venue WHERE id=? FOR UPDATE").use { s ->
-                s.setObject(1,venueId)
-                s.executeQuery().use { rs -> if(!rs.next()) fail(HttpStatus.NOT_FOUND,"Bar no encontrado") }
-            }
-            presence.requireAllowed(venueId,customerId)
-            // Repeat authorization checks under the SAME venue row lock that rule
-            // changes acquire. This closes the race between request and blacklist.
-            val blockedInside=connection.prepareStatement("""SELECT 1 FROM venue_track_rule
-                WHERE venue_id=? AND mode='BLOCK' AND (
-                    track_id=? OR (lower(trim(coalesce(title,'')))=lower(trim(?))
-                        AND lower(trim(coalesce(artist,'')))=lower(trim(?))
-                        AND coalesce(title,'')<>'' AND coalesce(artist,'')<>'')
-                ) LIMIT 1""").use { statement ->
-                statement.setObject(1,venueId);statement.setString(2,trackId)
-                statement.setString(3,track["title"].toString());statement.setString(4,track["artist"].toString())
-                statement.executeQuery().use { it.next() }
-            }
-            if(blockedInside)fail(HttpStatus.FORBIDDEN,"La canción está bloqueada por el bar")
-            if(v["curated_only"]==true) {
-                val allowed=connection.prepareStatement("""SELECT 1 FROM venue_track_rule
-                    WHERE venue_id=? AND mode='ALLOW' AND track_id=? LIMIT 1""").use { statement ->
-                    statement.setObject(1,venueId);statement.setString(2,trackId)
-                    statement.executeQuery().use { it.next() }
-                }
-                if(!allowed)fail(HttpStatus.FORBIDDEN,"La canción no está en la lista blanca")
-            }
-            val usage=connection.prepareStatement("""SELECT count(*) AS total, max(created_at) AS last_at
-                 FROM song_request_event WHERE venue_id=? AND guest_id=? AND created_at>now()-interval '10 minutes'""").use { statement ->
-                statement.setObject(1,venueId);statement.setString(2,guestId)
-                statement.executeQuery().use { rs ->
-                    rs.next()
-                    Pair(rs.getInt("total"),rs.getTimestamp("last_at")?.toInstant())
-                }
-            }
-            val restriction=GuestRequestLimits.reason(usage.first,usage.second,Instant.now())
-            if(restriction!=null)fail(HttpStatus.TOO_MANY_REQUESTS,restriction)
-            // Queue is scoped to the current bar session. Old historical
-            // DISPATCHED rows do not reserve positions in new sessions.
-            val startTime=connection.prepareStatement("SELECT queue_started_at FROM venue WHERE id=?").use { statement ->
-                statement.setObject(1,venueId)
-                statement.executeQuery().use { rs -> rs.next();rs.getTimestamp("queue_started_at")?.toInstant() }
-            } ?: Instant.EPOCH
-            val existing=connection.prepareStatement("""SELECT id,playlist_position,queued_at,status FROM song_request
-                WHERE venue_id=? AND track_id=? AND status IN ('PENDING','APPROVED','DISPATCHED') FOR UPDATE""").use { statement ->
-                statement.setObject(1,venueId);statement.setString(2,trackId)
-                statement.executeQuery().use { rs ->
-                    if(rs.next()) Triple(rs.getObject("id",UUID::class.java),
-                        rs.getTimestamp("queued_at")?.toInstant(),rs.getInt("playlist_position"))
-                    else null
-                }
-            }
-            val existingId=existing?.first
-            val alreadyQueued=existing?.second?.let { !it.isBefore(startTime) }==true
-            val queuedIds=connection.prepareStatement("""SELECT track_id FROM song_request
-                WHERE venue_id=? AND status='DISPATCHED' AND queued_at>=?
-                ORDER BY queued_at,id""").use { statement ->
-                statement.setObject(1,venueId)
-                statement.setObject(2,java.sql.Timestamp.from(startTime))
-                statement.executeQuery().use { rs -> buildList { while(rs.next())add(rs.getString("track_id")) } }
-            }
-            // Reconcile the full authoritative queue, including an already
-            // requested track in its original slot. A duplicate never goes last.
-            val desiredOrder=if(alreadyQueued) queuedIds else queuedIds+trackId
-            val changed=spotify.reconcilePlaylistFifoPrivateTest(
-                venueId,trackId,spotifyToken,desiredOrder)
-            // Only in explicitly authorized private tests: while the player is
-            // outside the venue playlist, append new accepted requests to the
-            // actual Spotify playback queue. This does NOT switch playlist
-            // context, and Spotify may have other queued songs before ours.
-            // The per-venue DB lock serializes B then C also for Spotify queue.
-            var queueWarning:String?=null
-            if(!alreadyQueued && changed.outsideContext && spotify.controlEnabled) {
-                try { spotify.enqueuePrivateTest(venueId,trackId) }
-                catch (err:Exception) {
-                    queueWarning="No se pudo agregar a la cola activa de Spotify: ${err.message ?: "error del reproductor"}"
-                }
-            }
-            val requestId=existingId ?: UUID.randomUUID()
-            if(existingId!=null) {
-                connection.prepareStatement("""UPDATE song_request SET status='DISPATCHED',request_count=request_count+1,
-                    playlist_position=?,queued_at=CASE WHEN ? THEN queued_at ELSE now() END,
-                    last_requested_at=now(),updated_at=now(),guest_id=? WHERE id=?""").use { statement ->
-                    statement.setInt(1,changed.position);statement.setBoolean(2,alreadyQueued)
-                    statement.setString(3,guestId);statement.setObject(4,requestId);statement.executeUpdate()
-                }
-            } else {
-                connection.prepareStatement("""INSERT INTO song_request(id,venue_id,track_id,title,artist,status,guest_id,
-                       playlist_position,queued_at,last_requested_at) VALUES(?,?,?,?,?,'DISPATCHED',?,?,now(),now())""").use { statement ->
-                    statement.setObject(1,requestId);statement.setObject(2,venueId)
-                    statement.setString(3,trackId);statement.setString(4,track["title"].toString())
-                    statement.setString(5,track["artist"].toString());statement.setString(6,guestId)
-                    statement.setInt(7,changed.position);statement.executeUpdate()
-                }
-            }
-            connection.prepareStatement("""INSERT INTO song_request_event
-                 (id,venue_id,request_id,guest_id,track_id,customer_id) VALUES(?,?,?,?,?,?)""").use { statement ->
-                statement.setObject(1,UUID.randomUUID());statement.setObject(2,venueId)
-                statement.setObject(3,requestId);statement.setString(4,guestId)
-                statement.setString(5,trackId);statement.setObject(6,customerId);statement.executeUpdate()
-            }
-            mapOf("id" to requestId.toString(),"status" to "DISPATCHED",
-                "title" to (track["title"]?:""),"action" to changed.action,
-                "playlistPosition" to changed.position,"warning" to
-                    listOfNotNull(changed.warning,queueWarning).joinToString(" "),
-                "note" to "Orden FIFO verificado en la playlist. La cola activa de Spotify puede tener temas previos o un contexto distinto.")
-        }
+    @Post("/venues/{id}/requests")
+    fun request(id:String,@Body body:Map<String,Any?>,
+        @Header(value="X-TOCA-Customer",defaultValue="") customerAuthorization:String,
+        @Header(value="Idempotency-Key",defaultValue="") idempotencyKey:String):Map<String,Any?> {
+        val customerId=customerAuth.user(customerAuthorization)["id"] as UUID
+        return requestCommands.submit(safeUuid(id),customerId,body,idempotencyKey)
+    }
+    @Get("/customers/me/request-commands/{commandId}")
+    fun customerCommand(commandId:String,
+        @Header(value="Authorization",defaultValue="") authorization:String):Map<String,Any?> =
+        requestCommands.status(safeUuid(commandId),customerAuth.user(authorization)["id"] as UUID)
+
+    @Get("/admin/venues/{id}/request-commands")
+    fun requestCommands(id:String,@Header(value="Authorization",defaultValue="") authorization:String):List<Map<String,Any?>> {
+        ownerVenue(id,authorization)
+        return requestCommands.listForVenue(safeUuid(id))
+    }
+    @Post("/admin/venues/{id}/request-commands/{commandId}/reconcile")
+    fun reconcileCommand(id:String,commandId:String,
+        @Header(value="Authorization",defaultValue="") authorization:String):Map<String,Any?> {
+        ownerVenue(id,authorization)
+        return requestCommands.reconcile(safeUuid(id),safeUuid(commandId))
+    }
+    @Post("/admin/venues/{id}/request-commands/{commandId}/cancel")
+    fun cancelCommand(id:String,commandId:String,@Body body:Map<String,Any?>,
+        @Header(value="Authorization",defaultValue="") authorization:String):Map<String,Any?> {
+        ownerVenue(id,authorization)
+        return requestCommands.cancel(safeUuid(id),safeUuid(commandId),body["acknowledgeProviderState"]==true)
     }
 
     // Public image delivery; only the owning administrator can mutate photos.
@@ -428,23 +324,39 @@ class ApiController(private val db:Db,private val auth:Auth,private val spotify:
     fun deleteVenue(id:String,
         @Header(value="Authorization",defaultValue="") authorization:String):Map<String,Boolean> {
         val venue=ownerVenue(id,authorization)
-        val deleted=db.exec("DELETE FROM venue WHERE id=? AND owner_id=?",
-            safeUuid(id),venue["owner_id"])
+        val deleted=db.transaction {
+            db.one("SELECT id FROM venue WHERE id=? FOR UPDATE",safeUuid(id))
+            requestCommands.requireMutable(safeUuid(id))
+            db.exec("DELETE FROM venue WHERE id=? AND owner_id=?",safeUuid(id),venue["owner_id"])
+        }
         if(deleted==0)fail(HttpStatus.NOT_FOUND,"Bar no encontrado")
         return mapOf("deleted" to true)
     }
 
     @Post("/admin/venues/{id}/session") fun session(id:String,@Header(value="Authorization",defaultValue="")authorization:String,@Body body:Map<String,Any?>):Map<String,Any?> {
-        val v=ownerVenue(id,authorization);val active=asBoolean(body,"active")
-        if(active&&(v["spotify_premium"]!=true||v["spotify_access_encrypted"]==null))fail(HttpStatus.PRECONDITION_FAILED,"Vinculá Spotify Premium antes de abrir la sesión")
-        db.exec("UPDATE venue SET active=?,queue_started_at=CASE WHEN ? AND NOT active THEN now() ELSE queue_started_at END,updated_at=now() WHERE id=?",
-            active,active,safeUuid(id))
+        ownerVenue(id,authorization)
+        val active=asBoolean(body,"active")
+        db.transaction {
+            val v=db.one("SELECT * FROM venue WHERE id=? FOR UPDATE",safeUuid(id)) ?: fail(HttpStatus.NOT_FOUND,"Bar no encontrado")
+            requestCommands.requireMutable(safeUuid(id))
+            if(active&&(v["spotify_premium"]!=true||v["spotify_access_encrypted"]==null))
+                fail(HttpStatus.PRECONDITION_FAILED,"Vinculá Spotify Premium antes de abrir la sesión")
+            db.exec("""UPDATE venue SET active=?,queue_started_at=CASE WHEN ? AND NOT active THEN now() ELSE queue_started_at END,
+                join_token=CASE WHEN ? AND NOT active THEN ? ELSE join_token END,updated_at=now() WHERE id=?""",
+                active,active,active,randomString(36),safeUuid(id))
+            if(!active)db.exec("DELETE FROM venue_customer_presence WHERE venue_id=?",safeUuid(id))
+        }
         return mapOf("active" to active)
     }
     @Put("/admin/venues/{id}/policy") fun policy(id:String,@Header(value="Authorization",defaultValue="")authorization:String,@Body body:Map<String,Any?>):Map<String,Any?> {
-        val v=ownerVenue(id,authorization)
-        val curated=asBoolean(body,"curatedOnly",v["curated_only"] as Boolean)
-        db.exec("UPDATE venue SET require_approval=false,curated_only=?,updated_at=now() WHERE id=?",curated,safeUuid(id))
+        ownerVenue(id,authorization)
+        val curated=db.transaction {
+            val v=db.one("SELECT * FROM venue WHERE id=? FOR UPDATE",safeUuid(id)) ?: fail(HttpStatus.NOT_FOUND,"Bar no encontrado")
+            requestCommands.requireMutable(safeUuid(id))
+            val selected=asBoolean(body,"curatedOnly",v["curated_only"] as Boolean)
+            db.exec("UPDATE venue SET require_approval=false,curated_only=?,updated_at=now() WHERE id=?",selected,safeUuid(id))
+            selected
+        }
         return mapOf("requireApproval" to false,"curatedOnly" to curated)
     }
     @Get("/admin/venues/{id}/tracks") fun adminTrackSearch(
@@ -475,6 +387,7 @@ class ApiController(private val db:Db,private val auth:Auth,private val spotify:
                 statement.setObject(1,safeUuid(id))
                 statement.executeQuery().use { if(!it.next())fail(HttpStatus.NOT_FOUND,"Bar no encontrado") }
             }
+            requestCommands.requireMutable(safeUuid(id))
             c.prepareStatement("""INSERT INTO venue_track_rule(venue_id,track_id,mode,title,artist)
                 VALUES(?,?,?,?,?) ON CONFLICT (venue_id,track_id,mode) DO UPDATE
                 SET title=EXCLUDED.title, artist=EXCLUDED.artist""").use { statement ->
@@ -489,12 +402,20 @@ class ApiController(private val db:Db,private val auth:Auth,private val spotify:
     @Delete("/admin/venues/{id}/allowed/{track}") fun unallow(id:String,track:String,@Header(value="Authorization",defaultValue="")authorization:String)= removeRule(id,track,authorization,"ALLOW")
     private fun removeRule(id:String,track:String,authorization:String,mode:String):Map<String,Boolean> {
         ownerVenue(id,authorization)
-        db.exec("DELETE FROM venue_track_rule WHERE venue_id=? AND track_id=? AND mode=?",safeUuid(id),track,mode)
+        db.transaction {
+            db.one("SELECT id FROM venue WHERE id=? FOR UPDATE",safeUuid(id))
+            requestCommands.requireMutable(safeUuid(id))
+            db.exec("DELETE FROM venue_track_rule WHERE venue_id=? AND track_id=? AND mode=?",safeUuid(id),track,mode)
+        }
         return mapOf("removed" to true)
     }
     @Post("/admin/venues/{id}/join-token/rotate") fun rotateJoin(id:String,@Header(value="Authorization",defaultValue="")authorization:String):Map<String,Boolean> {
         ownerVenue(id,authorization)
-        db.exec("UPDATE venue SET join_token=?,updated_at=now() WHERE id=?",randomString(36),safeUuid(id))
+        db.transaction {
+            db.one("SELECT id FROM venue WHERE id=? FOR UPDATE",safeUuid(id))
+            requestCommands.requireMutable(safeUuid(id))
+            db.exec("UPDATE venue SET join_token=?,updated_at=now() WHERE id=?",randomString(36),safeUuid(id))
+        }
         return mapOf("rotated" to true)
     }
     @Post("/admin/venues/{id}/requests/{requestId}/approve")
@@ -509,7 +430,11 @@ class ApiController(private val db:Db,private val auth:Auth,private val spotify:
     }
     @Post("/admin/venues/{id}/requests/{requestId}/played") fun played(id:String,requestId:String,@Header(value="Authorization",defaultValue="")authorization:String):Map<String,String> {
         ownerVenue(id,authorization)
-        val changed=db.exec("UPDATE song_request SET status='PLAYED',updated_at=now() WHERE id=? AND venue_id=? AND status IN ('APPROVED','DISPATCHED')",safeUuid(requestId),safeUuid(id))
+        val changed=db.transaction {
+            db.one("SELECT id FROM venue WHERE id=? FOR UPDATE",safeUuid(id))
+            requestCommands.requireMutable(safeUuid(id))
+            db.exec("UPDATE song_request SET status='PLAYED',updated_at=now() WHERE id=? AND venue_id=? AND status IN ('APPROVED','DISPATCHED')",safeUuid(requestId),safeUuid(id))
+        }
         if(changed==0)fail(HttpStatus.CONFLICT,"La canción no estaba en cola")
         return mapOf("status" to "PLAYED")
     }
@@ -571,7 +496,6 @@ class ApiController(private val db:Db,private val auth:Auth,private val spotify:
         ownerVenue(id,authorization)
         val p=required(body,"playlistId",100)
         spotify.selectPlaylist(safeUuid(id),p)
-        db.exec("UPDATE venue SET queue_started_at=now() WHERE id=?",safeUuid(id))
         return mapOf("playlistId" to p)
     }
 }
