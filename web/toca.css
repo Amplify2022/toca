@@ -1,0 +1,572 @@
+/* TOCÁ design system – based on approved vinyl-and-note identity and dark mobile/web/admin mockups. */
+:root{color-scheme:dark;--bg:#080e10;--panel:#0f181b;--panel2:#132023;--soft:#162327;--stroke:#263439;--text:#f4f8f6;--muted:#93a6a7;--lime:#aafa75;--purple:#b8a1ff;--shadow:0 24px 70px #0006;font-family:'DM Sans',sans-serif}
+body{background:#080e10;color:#f4f8f6}h1,h2,h3{font-family:'Outfit',sans-serif;letter-spacing:-.6px}h1{font-size:clamp(28px,3.3vw,50px)}.toca-lime,em{color:var(--lime);font-style:normal}.toca-muted{color:var(--muted);font-size:13px;line-height:1.6}.eyebrow{color:var(--lime);font-size:11px;font-weight:800;letter-spacing:2px}.btn,.toca-btn{background:linear-gradient(100deg,#97fa76,#c1ff78);color:#0b2115}.btn.ghost{background:#18262a;border-color:#304246;color:#f1f6f4}.input{border:1px solid #344245;background:#111e22;color:#f7f9f9}.input:focus{outline:none;border-color:#aafa75}.card{background:#111b1f;border-color:#263438}.pill.on{background:#aafa7512;color:#aafa75;border-color:#aafa7559}.track,.tracknum,.album{border-color:#2b393c}.track{background:#101c20}.trackmeta strong{color:#f4f9f6}.trackmeta small{color:#8c9fa0}.toasty{background:#aafa75;color:#152015}.toca-brand{display:inline-flex;align-items:center;gap:11px;white-space:nowrap;color:#fff}.toca-brand img{width:43px;height:43px;filter:drop-shadow(0 4px 11px #70f87a22)}.toca-brand strong{font-family:'Outfit',sans-serif;letter-spacing:-.9px;font-size:25px;font-weight:800}.toca-brand.compact img{width:30px;height:30px}.toca-brand.compact strong{font-size:19px}.toca-app-shell{min-height:100dvh;background:radial-gradient(ellipse at top left,#10211b 0,transparent 35%),#080e10}.toca-app-header{height:85px;padding:0 max(24px,calc((100vw - 1380px)/2));display:flex;align-items:center;justify-content:space-between;gap:25px;border-bottom:1px solid #23302f;background:#091113eb;position:sticky;top:0;z-index:90;backdrop-filter:blur(18px)}.toca-desktop-menu{display:flex;align-items:center;gap:29px;margin-left:auto;margin-right:30px}.toca-desktop-menu a{font-weight:700;color:#9db0b1;font-size:13px;transition:color .2s}.toca-desktop-menu a:hover,.toca-desktop-menu a.active{color:#b6ff83}.toca-header-end{display:flex;align-items:center;gap:15px}.toca-city{display:inline-flex;align-items:center;gap:5px;font-size:13px;color:#b8c8c2}.toca-city svg{color:var(--lime)}.toca-round-button,.toca-user-button{display:grid;place-items:center;color:#eef4f0;width:37px;height:37px;background:#152126;border:1px solid #2b3b3c;border-radius:50%}.toca-user-button{background:#2c4341}.toca-app-content{width:min(1380px,calc(100% - 48px));margin:0 auto;padding:37px 0 125px}.toca-bottom-nav{display:none}.toca-btn,.toca-outline-cta{display:inline-flex;gap:10px;justify-content:center;align-items:center;border-radius:13px;font-size:13px;font-weight:800;padding:14px 20px;transition:transform .2s,border-color .2s}.toca-btn:hover,.toca-outline-cta:hover{transform:translateY(-2px)}.toca-btn.full{width:100%}.toca-outline-cta{border:1px solid #455655;color:#eaf5ef;background:#10191baa}.toca-demo-note{display:flex;align-items:center;gap:9px;background:#182d2466;border:1px solid #31594788;color:#bed3c9;padding:12px 14px;border-radius:12px;margin:13px 0 25px;font-size:12px;line-height:1.45}.toca-demo-note svg{flex:0 0 auto;color:var(--lime)}.toca-demo-note a{color:var(--lime);font-weight:800;text-decoration:underline;margin-left:auto;white-space:nowrap}.toca-explore-head{display:flex;align-items:center;justify-content:space-between;gap:22px;margin-bottom:27px}.toca-explore-head h1{margin:7px 0 8px;line-height:1.06}.toca-explore-head p{color:#9fadae;font-size:14px;line-height:1.6}.toca-explore-head .toca-outline-cta{align-self:center}.toca-discovery-layout{display:grid;grid-template-columns:minmax(0,1.18fr) minmax(330px,.82fr);gap:24px}.toca-primary-map,.toca-nearby{min-width:0}.toca-section-title{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:17px}.toca-section-title h2{font-size:22px;line-height:1.25}.toca-section-title>a,.toca-section-title>span{font-size:12px;color:var(--lime);display:inline-flex;align-items:center;gap:6px;white-space:nowrap}.toca-section-title>span{color:#8da6a2}.toca-filter-search{display:flex;align-items:center;gap:8px}.toca-search-field{flex:1;display:flex;align-items:center;background:#152024;border:1px solid #324140;border-radius:13px;color:#8fa3a1;padding:0 13px;min-width:0}.toca-search-field .input{width:100%;border:0;background:transparent!important;box-shadow:none;padding:13px 8px;font-size:13px}.toca-search-field:focus-within{border-color:#84d877}.toca-filter-btn{background:#152024;border:1px solid #324140;color:var(--lime);height:45px;width:47px;border-radius:12px;display:grid;place-items:center}.toca-filter-chips{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding:13px 0 17px}.toca-filter-chips .chip{border:1px solid #334341;border-radius:25px;background:#151f22;font-size:12px;white-space:nowrap;padding:8px 15px;color:#d2dcda}.toca-filter-chips .chip.active{background:var(--lime);color:#0c1f12;border-color:var(--lime)}.toca-map-art{height:398px;border-radius:18px;position:relative;overflow:hidden;background:#122225;border:1px solid #344343;isolation:isolate}.toca-map-art svg{width:100%;height:100%;position:absolute;inset:0}.toca-map-pin{position:absolute;display:grid;place-items:center;width:40px;height:40px;border-radius:50%;border:1px solid #7e9b91;box-shadow:0 7px 18px #000a;color:#cedbd4;background:#132625;transform:translate(-50%,-50%);z-index:2;transition:transform .15s}.toca-map-pin.on{border:2px solid var(--lime);color:var(--lime);box-shadow:0 0 0 7px #aafa7517,0 7px 20px #000a}.toca-map-pin:hover{transform:translate(-50%,-50%) scale(1.15)}.toca-map-you{position:absolute;bottom:14px;left:14px;padding:8px 12px;border-radius:99px;backdrop-filter:blur(6px);background:#0a1515e0;font-size:11px;color:#acc3bb;display:flex;align-items:center;gap:8px}.toca-map-you i{width:9px;height:9px;background:#60acff;border:2px solid #e7fcff;border-radius:50%;box-shadow:0 0 0 5px #478be33a}.toca-map-legend{display:flex;gap:17px;align-items:center;margin-top:11px;color:#a0b3ae;font-size:12px}.toca-map-legend span{display:inline-flex;align-items:center;gap:7px}.toca-map-legend i{width:7px;height:7px;border-radius:50%;background:var(--lime)}.toca-map-legend .inactive i{background:#586d68}.toca-map-legend>a{margin-left:auto;color:var(--lime);display:inline-flex;align-items:center;gap:5px}.toca-venues-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}.toca-venue{display:block;border:1px solid #2a3939;border-radius:16px;overflow:hidden;background:#111a1b;min-width:0;transition:transform .2s,border-color .2s}.toca-venue:hover{transform:translateY(-4px);border-color:#aafa7577}.toca-venue-photo{height:152px;position:relative;overflow:hidden;background:linear-gradient(130deg,#1d4a42,#160f2a)}.toca-venue-photo img{width:100%;height:100%;object-fit:cover;filter:saturate(.95) contrast(1.12);transition:transform .3s}.toca-venue:hover img{transform:scale(1.07)}.toca-live{display:inline-flex;padding:5px 9px;border:1px solid #8aff9755;border-radius:999px;background:#0c241cd9;color:#aafa75;font-size:10px;font-weight:800}.toca-live.paused{border-color:#77888466;color:#afbcba;background:#142021cf}.toca-venue-photo .toca-live{position:absolute;left:11px;top:11px}.toca-venue-meta{padding:13px 15px}.toca-venue-meta strong{display:block;font-size:16px}.toca-venue-meta small{display:block;font-size:11px;color:#91a4a1;margin-top:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.venue-foot{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:12px;padding-top:9px;border-top:1px solid #263532;font-size:10px;color:#99ada9}.venue-foot span{display:inline-flex;align-items:center;gap:3px}.venue-foot span:last-child{color:var(--lime)}.toca-explore-bottom{margin-top:38px;border-radius:20px;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:30px 34px;background:linear-gradient(110deg,#152e25,#101b1d 76%);border:1px solid #2a4c3c}.toca-explore-bottom span{color:var(--lime);font-weight:800;font-size:10px;letter-spacing:2px}.toca-explore-bottom h2{font-size:26px;margin:7px 0 5px}.toca-explore-bottom p{color:#a0b8aa;font-size:13px}.toca-inner-heading{margin-bottom:26px}.toca-inner-heading>a{color:#aafa75;font-size:12px;display:inline-flex;align-items:center;gap:6px;margin-bottom:12px}.toca-inner-heading h1{margin-bottom:7px}.toca-inner-heading p{color:#91a6a3}.toca-full-map{grid-template-columns:minmax(0,1.45fr) minmax(280px,.55fr)}.toca-full-map .toca-map-art{height:570px}.toca-full-map aside h2{margin:0 0 17px;font-size:21px}.toca-map-venue-list{display:grid;gap:11px;max-height:570px;overflow:auto}.toca-side-venue{display:flex;align-items:center;gap:11px;background:#121d1f;border:1px solid #293b3a;border-radius:13px;padding:9px}.toca-side-venue img{width:75px;height:65px;object-fit:cover;border-radius:9px}.toca-side-venue>div{flex:1;min-width:0}.toca-side-venue b{font-size:13px;display:block}.toca-side-venue small{font-size:10px;color:#90a39f;display:block;margin:5px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.toca-side-venue span{font-size:10px;color:var(--lime)}.toca-side-venue svg{color:var(--lime);flex:0 0 auto;margin-right:6px}.toca-detail-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,.68fr);gap:27px;max-width:1190px;margin:0 auto}.toca-detail-main,.toca-detail-aside{min-width:0}.toca-detail-cover{height:320px;position:relative;overflow:hidden;border-radius:20px;background:#14252a}.toca-detail-cover>img{width:100%;height:100%;object-fit:cover;filter:contrast(1.05)}.toca-detail-cover:after{content:"";position:absolute;inset:55% 0 0;background:linear-gradient(transparent,#0d1517a6);pointer-events:none}.toca-back,.toca-heart{position:absolute;top:18px;z-index:2;display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:#071112be;border:1px solid #64787155;color:#fff}.toca-back{left:19px}.toca-heart{right:19px}.toca-detail-intro{padding:24px 3px 18px}.toca-detail-intro h1{font-size:42px;margin:11px 0 4px}.toca-detail-intro p{font-size:13px;color:#a7b6b0}.toca-detail-intro p span{margin:0 6px;color:#576d64}.toca-detail-desc{margin-top:12px!important;line-height:1.6}.toca-tabs{display:flex;align-items:center;gap:27px;border-bottom:1px solid #293b38;color:#9cafaa}.toca-tabs>a,.toca-tabs>span{display:block;font-weight:700;font-size:13px;padding:13px 0}.toca-tabs>.active{color:var(--lime);border-bottom:2px solid var(--lime)}.toca-detail-playing{padding:22px 0}.toca-detail-playing h2{font-size:21px;margin-bottom:16px}.toca-playing{display:flex;align-items:center;gap:17px;border:1px solid #355041;border-radius:16px;padding:20px;background:linear-gradient(115deg,#172c24,#111d20 80%);margin-bottom:16px}.toca-playing>div:nth-child(2){flex:1}.toca-playing>div:nth-child(2)>span{display:block;color:var(--lime);font-size:10px;font-weight:800;letter-spacing:1px}.toca-playing h3{font-size:20px;margin:6px 0 3px}.toca-playing p{font-size:12px;color:#a8bcb0}.toca-live-dot{color:var(--lime);font-size:9px;font-weight:800;white-space:nowrap}.toca-equalizer{display:flex;align-items:center;justify-content:center;gap:4px;width:68px;height:68px;background:#152e22;border-radius:12px}.toca-equalizer span{height:24px;width:5px;border-radius:9px;background:var(--lime)}.toca-equalizer span:nth-child(2){height:39px}.toca-equalizer span:nth-child(3){height:51px}.toca-equalizer span:nth-child(4){height:29px}.toca-equalizer span:nth-child(5){height:14px}.toca-no-session{border:1px solid #374a47;border-radius:15px;padding:25px;color:#a5bdb6;margin-bottom:16px;background:#132023}.toca-no-session h3{margin:8px 0}.toca-no-session p{font-size:12px}.toca-panel{padding:23px;background:#101a1c;border-radius:17px;border:1px solid #263b38;margin-bottom:18px}.toca-panel .toca-section-title h2{font-size:19px}.toca-song-row{display:flex;align-items:center;gap:13px;padding:11px 0;border-bottom:1px solid #273431}.toca-song-row:last-child{border-bottom:0}.toca-number{font-size:11px;color:#78918b;width:15px}.toca-track-art{width:47px;height:47px;flex:0 0 auto;border-radius:10px;background:linear-gradient(130deg,#1ea487,#2a4d6a);display:grid;place-items:center;color:#edf7f3;font-size:25px;overflow:hidden}.toca-track-art.variant-1{background:linear-gradient(130deg,#6657ba,#ad5391)}.toca-track-art.variant-2{background:linear-gradient(130deg,#3b8bad,#1b4f59)}.toca-track-art.variant-3{background:linear-gradient(130deg,#d28d52,#6d294c)}.toca-track-art.variant-4{background:linear-gradient(130deg,#344fc1,#2a836b)}.toca-song-meta{flex:1;min-width:0}.toca-song-meta strong{font-size:13px;display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.toca-song-meta small{display:block;font-size:11px;color:#92a7a1;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.toca-song-status{color:#91bd9e;font-size:10px}.toca-text-link{display:inline-flex;align-items:center;gap:6px;margin-top:18px;font-size:12px;color:var(--lime);font-weight:800}.toca-request-page{max-width:700px;margin:0 auto;min-height:65vh}.toca-request-page>header{display:flex;align-items:center;gap:16px;margin-bottom:28px}.toca-request-page>header>a{display:grid;place-items:center;width:40px;height:40px;color:#eff7f4;border:1px solid #314541;border-radius:50%}.toca-request-page>header small{letter-spacing:1.6px;font-size:10px;font-weight:800;color:var(--lime)}.toca-request-page>header h1{font-size:24px;margin-top:4px}.toca-big-search{margin-bottom:21px}.toca-big-search .input{height:52px;font-size:14px}.toca-genre-chips{display:flex;align-items:center;gap:9px;overflow:auto;white-space:nowrap;scrollbar-width:none;margin-bottom:29px}.toca-genre-chips>span:first-child{color:#a7bcb2;font-size:12px;font-weight:800;margin-right:4px}.toca-genre-chip{border:1px solid #395146;color:#b3c9b9;border-radius:99px;padding:7px 13px;font-size:11px}.toca-request-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}.toca-request-head h2{font-size:20px}.toca-request-head span{font-size:11px;color:#90a69c}.toca-results{background:#111b1d;border:1px solid #2b3b39;border-radius:17px;padding:3px 16px}.toca-request-track{display:flex;align-items:center;gap:13px;padding:13px 0;border-bottom:1px solid #273835}.toca-request-track:last-child{border-bottom:0}.toca-add{width:35px;height:35px;display:grid;place-items:center;color:var(--lime);border-radius:50%;background:#203329;border:1px solid #426147}.toca-add:hover{background:var(--lime);color:#07170d}.toca-request-note{display:flex;gap:8px;align-items:flex-start;color:#7f9790;font-size:11px;line-height:1.6;margin-top:23px}.toca-request-note svg{flex:0 0 auto;color:#aafa75}.toca-success{max-width:510px;text-align:center;margin:40px auto;padding:40px 25px;border:1px solid #355148;border-radius:25px;background:radial-gradient(circle at 50% 0,#193d2f 0,transparent 60%),#0e1819}.toca-success-icon{margin:0 auto 23px;width:110px;height:110px;display:grid;place-items:center;border-radius:50%;border:3px solid var(--lime);box-shadow:0 0 0 12px #99ff7120;color:var(--lime)}.toca-success>span{color:var(--lime);font-weight:800;font-size:12px;letter-spacing:2px}.toca-success h1{font-size:33px;margin:12px 0}.toca-success>p{color:#9eb7aa;font-size:13px;line-height:1.7}.toca-success-song{margin:25px 0 20px;background:#1a2825;border:1px solid #345344;padding:14px;border-radius:13px;display:flex;align-items:center;gap:12px;text-align:left}.toca-success-song>div:last-child{display:grid;gap:4px}.toca-success-song small{font-size:11px;color:#93aea0}.toca-success-song span{color:var(--lime);font-size:11px}.toca-success .toca-text-link{display:flex;justify-content:center}.toca-my-songs,.toca-profile,.toca-search-page{max-width:1020px;margin:0 auto}.toca-my-songs h1,.toca-search-page h1{margin:10px 0}.toca-my-songs .toca-panel{margin-top:22px}.toca-my-songs .toca-btn{max-width:320px;margin-top:20px}.toca-toggle-tabs{display:flex;align-items:center;justify-content:space-between;color:#a4b6ac;font-size:13px;margin-top:14px}.toca-toggle-tabs .active{color:var(--lime)}.toca-status-label{font-size:11px;color:#aafa75}.toca-search-page>p{color:#9caeaa;font-size:13px;margin-bottom:25px}.toca-search-page>h2{font-size:23px;margin:25px 0 15px}.toca-genre-tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.toca-genre-tiles>a{min-height:125px;display:flex;flex-direction:column;justify-content:flex-end;gap:8px;padding:17px;border:1px solid #3b4d48;border-radius:16px;background:linear-gradient(135deg,#193d32,#152329);transition:transform .2s}.toca-genre-tiles>a:nth-child(2n){background:linear-gradient(125deg,#3c2541,#142d32)}.toca-genre-tiles>a:hover{transform:translateY(-2px)}.toca-genre-tiles span{font-size:28px}.toca-genre-tiles strong{font-size:17px}.toca-profile-top{text-align:center;border-bottom:1px solid #263a33;padding:30px 0 23px;margin-bottom:24px}.toca-profile-avatar{background:#213d31;color:var(--lime);width:82px;height:82px;border-radius:50%;display:grid;place-items:center;margin:auto auto 15px}.toca-profile-top h1{font-size:30px}.toca-profile-top p{color:#9db7a8;margin-top:8px}.toca-profile-counts{display:flex;justify-content:center;gap:55px;margin-top:26px}.toca-profile-counts div{display:grid;gap:5px}.toca-profile-counts strong{font-size:25px}.toca-profile-counts span{color:#92aea1;font-size:12px}.toca-profile-favorites{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.toca-profile-links{display:grid;gap:10px}.toca-profile-links a{display:flex;align-items:center;gap:13px;padding:16px;background:#111f20;border:1px solid #273c38;border-radius:12px;font-size:13px;font-weight:700}.toca-profile-links a svg:last-child{margin-left:auto;color:var(--lime)}.toca-error,.toca-empty{padding:40px;text-align:center;color:#a4b7ae}.toca-welcome{max-width:440px;margin:0 auto;display:grid;text-align:center;gap:20px;justify-items:center;padding:50px 16px}.toca-welcome-logo .toca-brand{justify-content:center}.toca-welcome-art{height:240px;width:100%;border-radius:25px;background:linear-gradient(#0d2425a0,#06191ae0),url('/assets/venues/bar-1.webp') center/cover}.toca-welcome h1{font-size:38px}.toca-welcome p{color:#a9baaf;font-size:13px}.toca-welcome .toca-outline-cta{width:100%}
+/* Marketing home / public web */
+.toca-landing{min-height:100vh;background:#080e10;color:#f7f9f9}.toca-landing-header{height:85px;max-width:1420px;padding:0 30px;margin:0 auto;display:flex;align-items:center;gap:28px}.toca-landing-header nav{display:flex;align-items:center;gap:32px;margin-left:auto;margin-right:24px}.toca-landing-header nav a{font-size:13px;font-weight:700;color:#bacbc0}.toca-landing-header nav a:first-child{color:var(--lime)}.toca-landing-hero{min-height:640px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:40px;align-items:center;max-width:1420px;padding:60px 30px 80px;margin:auto}.toca-hero-copy h1{font-size:clamp(43px,5.3vw,86px);line-height:1.02;letter-spacing:-3.6px;margin:14px 0 22px;max-width:750px}.toca-hero-copy>p{font-size:17px;line-height:1.7;color:#b0c4b5;max-width:510px}.toca-landing-actions{display:flex;gap:12px;flex-wrap:wrap;margin:32px 0 26px}.toca-landing-actions .toca-btn,.toca-landing-actions .toca-outline-cta{font-size:14px;padding:16px 22px}.toca-trust{display:flex;gap:22px;flex-wrap:wrap}.toca-trust span{font-size:11px;color:#9fb4ab;display:inline-flex;align-items:center;gap:5px}.toca-trust svg{color:var(--lime)}.toca-hero-visual{height:545px;position:relative}.toca-hero-photo{position:absolute;inset:12px 20px 12px 0;overflow:hidden;border-radius:27px;background:linear-gradient(90deg,#07101277,#0c2b1a59),url('/assets/venues/bar-2.webp') center/cover;box-shadow:0 20px 80px #0008}.toca-hero-phone{width:255px;height:487px;position:absolute;left:calc(50% - 90px);top:44px;transform:rotate(6deg);border-radius:40px;background:#091314;border:7px solid #374945;box-shadow:0 30px 80px #000c;padding:19px 14px;overflow:hidden}.toca-mini-header{display:flex;justify-content:space-between;align-items:center;gap:5px;margin-bottom:24px}.toca-mini-header .toca-brand img{width:27px;height:27px}.toca-mini-header .toca-brand strong{font-size:16px}.toca-mini-header span,.toca-hero-phone>span{font-size:9px;color:#b8cdbb}.toca-mini-map .toca-map-art{height:190px;border-radius:15px}.toca-mini-map .toca-map-pin{height:23px;width:23px}.toca-mini-map .toca-map-pin svg{height:12px;width:12px}.toca-mini-map .toca-map-you{display:none}.toca-mini-bar{margin-top:15px;display:flex;gap:10px;background:#162321;padding:10px;border-radius:12px}.toca-mini-bar img{width:72px;height:67px;object-fit:cover;border-radius:9px}.toca-mini-bar>div{display:grid;gap:4px}.toca-mini-bar strong{font-size:12px}.toca-mini-bar small{font-size:10px;color:#90aaa1}.toca-mini-bar span{font-size:9px;color:var(--lime)}.toca-landing-features{display:grid;grid-template-columns:repeat(3,1fr);gap:25px;max-width:1360px;padding:40px 35px 80px;margin:auto}.toca-landing-features>div{border:1px solid #304139;background:#101c1a;border-radius:19px;padding:30px}.toca-landing-features>div>span{color:var(--lime)}.toca-landing-features h2{margin:14px 0 10px;font-size:22px}.toca-landing-features p{color:#a9bcb1;font-size:13px;line-height:1.7}.toca-footer{border-top:1px solid #263832;max-width:1370px;margin:auto;padding:30px 20px 45px;display:flex;align-items:center;gap:25px;color:#879e94;font-size:11px}.toca-footer>span{flex:1}.toca-footer>a:last-child{color:var(--lime)}
+/* Admin portal */
+.toca-admin-frame{display:grid;grid-template-columns:237px minmax(0,1fr);min-height:100vh;background:#080e10}.toca-admin-sidebar{height:100vh;position:sticky;top:0;background:#10191b;border-right:1px solid #263737;padding:25px 15px;display:flex;flex-direction:column}.toca-admin-sidebar>.toca-brand{margin:0 12px 36px}.toca-nav-caption{color:#657c76;font-size:10px;letter-spacing:1.5px;font-weight:800;margin:0 15px 11px}.toca-admin-menu{display:grid;gap:5px}.toca-admin-menu a{display:flex;align-items:center;gap:13px;font-weight:700;font-size:13px;color:#9aada6;padding:13px 15px;border-radius:11px}.toca-admin-menu a:hover,.toca-admin-menu a.selected{background:#1d2f2a;color:var(--lime)}.toca-admin-bottom{margin-top:auto;display:flex;align-items:center;gap:10px;border-top:1px solid #32403e;padding:18px 9px}.toca-admin-avatar{display:grid;place-items:center;border-radius:50%;width:36px;height:36px;flex:0 0 auto;background:#284a37;color:var(--lime);font-size:13px;font-weight:800}.toca-admin-bottom div{display:grid;gap:5px;min-width:0}.toca-admin-bottom strong{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.toca-admin-bottom small{font-size:10px;color:#8ba199}.toca-logout{display:flex;align-items:center;gap:10px;padding:10px 12px;color:#879d95;font-size:12px}.toca-admin-body{min-width:0}.toca-admin-top{height:79px;border-bottom:1px solid #243734;padding:0 34px;display:flex;align-items:center;justify-content:space-between}.toca-admin-breadcrumb{font-size:13px;font-weight:700}.toca-admin-breadcrumb span{color:#648278;margin:0 9px}.toca-admin-user{font-size:12px;display:flex;align-items:center;gap:11px;color:#bacac0}.toca-admin-dot{width:7px;height:7px;background:var(--lime);border-radius:50%}.toca-admin-content{max-width:1550px;padding:31px 35px 80px;margin:auto}.toca-ad-head{display:flex;align-items:center;justify-content:space-between;gap:15px;margin-bottom:24px}.toca-ad-head h1{font-size:32px;margin:9px 0}.toca-ad-head p{color:#9cafaa;font-size:13px}.toca-ad-tools{display:flex;gap:9px}.toca-ad-tools .input{min-width:165px;width:auto}.toca-ad-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}.toca-ad-metric{background:#101c1d;border:1px solid #2b3d39;border-radius:14px;padding:22px 19px;position:relative;display:grid;gap:8px}.toca-ad-metric>span{font-size:12px;color:#9fb4ab}.toca-ad-metric strong{font:800 32px 'Outfit';line-height:1.1}.toca-ad-metric strong.toca-state-text{font-size:23px;color:var(--lime)}.toca-ad-metric small{color:#81a08f;font-size:11px}.toca-ad-metric i{position:absolute;right:18px;top:17px;color:#8cf17d;opacity:.85}.toca-ad-panels{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:16px;margin-top:18px}.toca-ad-card{padding:23px;border:1px solid #293c38;background:#101a1d;border-radius:15px;min-width:0}.toca-ad-card .toca-section-title h2{font-size:19px}.toca-ad-chart{height:234px;display:flex;align-items:flex-end;justify-content:space-evenly;padding:35px 12px 0;background:repeating-linear-gradient(to top,#274139 0,#274139 1px,transparent 1px,transparent 54px);border-bottom:1px solid #2c4137}.toca-ad-chart-col{height:100%;display:flex;align-items:center;flex-direction:column;justify-content:flex-end;width:33px;gap:8px}.toca-ad-chart-col b{width:26px;background:linear-gradient(0deg,#277e58,#9dfa70);border-radius:6px 6px 0 0;min-height:3px}.toca-ad-chart-col span{font-size:11px;color:#8fa9a0;height:22px}.toca-ad-chart-label{display:block;margin-top:13px;color:#7f9d92;font-size:10px}.toca-wide-table{margin-top:18px}.toca-ad-dashboard .track{padding:10px 0}.toca-ad-dashboard .tracknum{color:#719588}.toca-ad-dashboard .btn.small{padding:7px 10px}.toca-admin-frame .admin-header{padding:0 0 18px;border-bottom:1px solid #293c37;margin-bottom:16px}.toca-admin-frame .admin-header h1{font-size:31px}.toca-admin-frame .admin-header p{color:#a2b7ac;margin-top:7px}.toca-admin-frame .panel-tabs{border-bottom:1px solid #34443f;gap:23px}.toca-admin-frame .panel-tabs a{color:#9db3a8;padding-bottom:16px}.toca-admin-frame .panel-tabs .active{color:var(--lime);border-color:var(--lime)}.toca-admin-frame .grid4{grid-template-columns:repeat(4,1fr)}.toca-admin-frame .kpi strong{color:var(--lime)}.toca-admin-frame .card{background:#111c1e;border-color:#293e39}.toca-admin-frame .notice{background:#142a22;color:#abc4b5}.toca-admin-frame .legal-banner{background:#111c1e;border-color:#354a42;color:#92aaa0}
+@media(max-width:1100px){.toca-discovery-layout{grid-template-columns:1fr}.toca-venues-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.toca-primary-map .toca-map-art{height:345px}.toca-detail-layout{grid-template-columns:1fr}.toca-detail-aside{display:grid;grid-template-columns:1fr 1fr;gap:14px}.toca-ad-metrics{grid-template-columns:repeat(2,1fr)}.toca-ad-panels{grid-template-columns:1fr}.toca-landing-header nav{gap:14px}.toca-hero-copy h1{font-size:60px}.toca-desktop-menu{gap:14px;margin-right:10px}}
+@media(max-width:760px){body{font-size:14px}.toca-app-header{height:66px;position:relative;padding:0 18px}.toca-app-header .toca-brand img{height:35px;width:35px}.toca-app-header .toca-brand strong{font-size:21px}.toca-desktop-menu{display:none}.toca-header-end .toca-city{display:none}.toca-header-end{gap:8px}.toca-round-button,.toca-user-button{height:34px;width:34px}.toca-app-content{width:100%;padding:19px 16px 112px}.toca-bottom-nav{display:flex;position:fixed;bottom:0;left:0;right:0;z-index:95;padding:10px 6px max(12px,env(safe-area-inset-bottom));justify-content:space-around;align-items:center;background:#091112f5;border-top:1px solid #284238;backdrop-filter:blur(14px)}.toca-bottom-nav a{display:grid;justify-items:center;gap:4px;color:#91a79d;font-size:10px;font-weight:700;padding:4px 8px}.toca-bottom-nav a.active{color:var(--lime)}.toca-explore-head{margin-bottom:14px}.toca-explore-head h1{font-size:30px;max-width:350px;letter-spacing:-1px}.toca-explore-head p{font-size:12px}.toca-explore-head>.toca-outline-cta{display:none}.toca-demo-note{font-size:10px;margin-bottom:16px;padding:10px}.toca-demo-note a{white-space:normal}.toca-section-title h2{font-size:18px}.toca-filter-chips{margin-right:-16px;padding:11px 0 13px}.toca-filter-chips .chip{padding:8px 12px}.toca-map-art{height:315px}.toca-primary-map .toca-map-art{height:335px}.toca-venues-grid{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;margin-right:-16px;padding-right:16px;scrollbar-width:none}.toca-venues-grid .toca-venue{flex:0 0 215px;scroll-snap-align:start}.toca-nearby{margin-top:5px}.toca-venue-photo{height:118px}.toca-venue-meta strong{font-size:15px}.toca-venue-meta{padding:12px}.toca-explore-bottom{padding:22px;align-items:start;flex-direction:column}.toca-explore-bottom h2{font-size:22px}.toca-explore-bottom p{line-height:1.6}.toca-map-legend{font-size:10px;gap:10px}.toca-full-map .toca-map-art{height:400px}.toca-full-map aside{margin-top:12px}.toca-map-venue-list{max-height:none}.toca-detail-layout{display:block}.toca-detail-cover{height:250px;margin:0 -16px;border-radius:0}.toca-detail-intro{padding:15px 0}.toca-detail-intro h1{font-size:33px;margin:9px 0}.toca-detail-intro .toca-live{font-size:10px}.toca-detail-desc{font-size:12px!important}.toca-tabs{gap:23px}.toca-tabs a,.toca-tabs>span{font-size:12px}.toca-detail-playing{padding:18px 0}.toca-detail-playing h2{font-size:18px}.toca-playing{padding:15px;gap:13px}.toca-playing h3{font-size:18px}.toca-equalizer{width:62px;height:62px}.toca-detail-aside{display:block}.toca-panel{padding:16px}.toca-panel .toca-section-title h2{font-size:18px}.toca-request-page{max-width:none}.toca-request-page>header{margin-bottom:18px}.toca-request-head h2{font-size:18px}.toca-request-track{padding:11px 0}.toca-track-art{width:44px;height:44px}.toca-request-note{margin-bottom:15px}.toca-success{margin:20px auto;padding:30px 18px}.toca-success h1{font-size:28px}.toca-genre-tiles{grid-template-columns:repeat(2,1fr)}.toca-profile-favorites{display:flex;overflow:auto;gap:12px}.toca-profile-favorites .toca-venue{flex:0 0 210px}.toca-landing-header{height:68px;padding:0 17px}.toca-landing-header nav{display:none}.toca-landing-header .toca-btn{padding:11px 12px;font-size:11px}.toca-landing-hero{grid-template-columns:1fr;min-height:unset;gap:15px;padding:45px 18px 35px}.toca-hero-copy h1{font-size:47px;letter-spacing:-2px}.toca-hero-copy>p{font-size:14px}.toca-landing-actions{margin:23px 0}.toca-hero-visual{height:370px}.toca-hero-photo{inset:0}.toca-hero-phone{height:335px;width:205px;left:calc(50% - 90px);top:15px;padding:12px;border-width:5px;border-radius:29px}.toca-hero-phone>span{font-size:8px}.toca-mini-map .toca-map-art{height:125px}.toca-mini-header{margin-bottom:14px}.toca-mini-bar{margin-top:9px}.toca-mini-bar img{height:50px;width:50px}.toca-landing-features{grid-template-columns:1fr;gap:13px;padding:20px 17px 40px}.toca-landing-features>div{padding:22px}.toca-footer{flex-wrap:wrap;padding:25px 17px}.toca-admin-frame{display:block}.toca-admin-sidebar{display:none}.toca-admin-top{height:65px;padding:0 17px}.toca-admin-breadcrumb{font-size:11px}.toca-admin-user{font-size:10px}.toca-admin-content{padding:21px 15px 120px}.toca-ad-head{align-items:start;flex-direction:column}.toca-ad-head h1{font-size:28px}.toca-ad-tools{width:100%}.toca-ad-tools select{flex:1;width:100%;min-width:0!important}.toca-ad-metrics{grid-template-columns:repeat(2,1fr);gap:10px}.toca-ad-metric{padding:17px 13px}.toca-ad-metric strong{font-size:27px}.toca-ad-metric span{font-size:11px}.toca-ad-metric i{top:13px;right:10px}.toca-ad-card{padding:16px}.toca-ad-panels{gap:11px}.toca-ad-chart{height:210px}.toca-admin-mobile-nav{display:flex}.toca-admin-frame .grid2{grid-template-columns:1fr}.toca-admin-frame .grid4{grid-template-columns:repeat(2,1fr)}.toca-admin-frame .admin-header{flex-direction:column;align-items:stretch}.toca-admin-frame .panel-tabs{overflow:auto;white-space:nowrap}.toca-admin-frame .admin-header .row{flex-wrap:wrap}.toca-admin-frame .head-row{flex-direction:column;align-items:start}}
+@media print{.toca-admin-sidebar,.toca-admin-top,.toca-bottom-nav{display:none!important}.toca-admin-frame{display:block}.toca-admin-content{padding:0}}
+
+/* If Leaflet loads, the real OpenStreetMap map replaces the local offline illustration. */
+.toca-map-art #leaflet-map{position:absolute;inset:0;z-index:5}.toca-map-art .leaflet-control-attribution{background:#091415bb!important;color:#b0c4b9;font-size:9px}.toca-map-art .leaflet-control-attribution a{color:#aafa75}.toca-map-art .leaflet-container{background:#102125}.toca-map-art .leaflet-popup-content-wrapper{background:#0f1c1d;color:#eef5ef;border-radius:10px}.toca-map-art .leaflet-popup-tip{background:#0f1c1d}.toca-map-art .leaflet-popup-content a{color:#aafa75;font-weight:800}
+
+/* v1.2 · playback and playlist preview */
+.toca-live-monitor{margin-bottom:18px}
+.toca-live-monitor #toca-live-next{margin-top:14px}
+.toca-live-song{display:flex;align-items:center;gap:13px;padding:13px 2px}
+.toca-live-icon{width:43px;height:43px;flex-shrink:0;border-radius:12px;background:rgba(184,249,133,.13);color:#b8f985;display:grid;place-items:center;font-size:23px}
+.toca-live-icon.muted{background:rgba(255,255,255,.07);color:#d1dbe2}
+.toca-live-song>div{display:flex;flex-direction:column;min-width:0;gap:3px}
+.toca-live-song strong{font-size:17px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.toca-live-song small{color:#9aaab1;font-size:13px}
+.toca-live-kicker{color:#b8f985;font-size:10px;letter-spacing:.09em;font-weight:800}
+.toca-live-disclaimer{color:#9aaab1;font-size:12px;line-height:1.5;margin:3px 0 13px}
+.toca-live-monitor .toca-live-disclaimer{margin-bottom:0}
+.toca-live-placeholder{margin-bottom:16px}
+
+
+/* TOCÁ v1.3 — espacios, navegación y acciones de cuenta */
+.toca-admin-frame .admin-header{
+  padding:25px 28px;
+  background:#11201f;
+  border:1px solid #2b423b;
+  border-radius:16px;
+  margin-bottom:22px;
+  min-height:128px;
+  gap:22px;
+}
+.toca-admin-frame .admin-header h1{margin:0;line-height:1.2;overflow-wrap:anywhere;}
+.toca-admin-frame .admin-header p{line-height:1.5;margin-top:9px;}
+.toca-admin-frame .admin-header .row{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:10px;}
+.toca-admin-frame .admin-header .row .btn,.toca-ad-tools .btn{min-height:42px;padding:10px 16px;white-space:normal;line-height:1.25;text-align:center;}
+.toca-admin-sidebar{gap:0;}
+.toca-admin-session{margin-top:auto;border-top:1px solid #31453e;padding-top:10px;}
+.toca-admin-session .toca-admin-bottom{border-top:0;margin:0;padding:12px 9px 16px;}
+.toca-logout{
+  appearance:none;width:100%;border:1px solid transparent;background:transparent;
+  border-radius:11px;display:flex;align-items:center;gap:11px;
+  padding:12px 14px;color:#b0c3b8;font:600 13px 'DM Sans',sans-serif;
+  text-align:left;cursor:pointer;transition:background .15s,border-color .15s,color .15s;
+}
+.toca-logout:hover{background:#22332f;border-color:#355447;color:#ecf9ef;}
+.toca-logout:focus-visible,.toca-logout-mobile:focus-visible{outline:2px solid var(--lime);outline-offset:2px;}
+.toca-logout-mobile{display:none;}
+.toca-ad-head{padding:5px 2px 0;}
+.toca-ad-head h1{line-height:1.18;overflow-wrap:anywhere;}
+.toca-ad-tools{flex-wrap:wrap;align-items:center;justify-content:flex-end;}
+.toca-ad-tools select{min-height:43px;}
+.toca-auth-frame{min-height:100vh;background:#080e10;display:flex;flex-direction:column;align-items:center;padding:26px 20px 64px;}
+.toca-auth-back{align-self:flex-start;display:inline-flex;gap:9px;align-items:center;color:#a4bdaf;font-weight:700;font-size:13px;margin:0 0 28px;}
+.toca-auth-back:hover{color:var(--lime);}
+.toca-auth-content{width:100%;max-width:540px;}
+.toca-auth-hint{color:#aec5b4;font-size:12px;line-height:1.6;padding:12px;text-align:center;}
+.toca-auth-hint a{text-decoration:underline;color:var(--lime);}
+@media(max-width:760px){
+ .toca-admin-frame .admin-header{padding:20px 17px;gap:15px;min-height:auto;}
+ .toca-admin-frame .admin-header h1{font-size:26px;}
+ .toca-admin-frame .admin-header .row{justify-content:stretch;width:100%;margin-top:15px;}
+ .toca-admin-frame .admin-header .row .input{width:100%;max-width:none!important;}
+ .toca-admin-frame .admin-header .row .btn{width:100%;}
+ .toca-admin-top{gap:12px;}
+ .toca-admin-breadcrumb{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+ .toca-admin-user{flex:0 0 auto;gap:7px;}
+ .toca-logout-mobile{appearance:none;display:grid;place-items:center;width:38px;height:38px;border:1px solid #2d423a;border-radius:10px;color:#bfd4c7;background:#182725;cursor:pointer;}
+ .toca-logout-mobile:hover{color:var(--lime);background:#263d34;}
+ .toca-ad-tools{width:100%;justify-content:stretch;}
+ .toca-ad-tools .btn{flex:1;}
+}
+
+/* TOCÁ v1.4: the landing map is decorative rather than interactive. */
+.toca-mini-map img {display:block;width:100%;height:190px;object-fit:cover;border-radius:15px;pointer-events:none;user-select:none;}
+@media(max-width:760px){.toca-mini-map img{height:125px}}
+
+
+/* TOCÁ 1.5: Admin location editor and de-duplicated dashboard */
+.toca-profile-editor{max-width:1020px;margin:0 auto;min-width:0}
+.toca-profile-editor>.card{width:100%;min-width:0}
+.toca-location-widget{display:grid;gap:12px;margin:12px 0 18px}
+.toca-location-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.toca-location-controls .btn{white-space:nowrap}
+.toca-location-help{color:#a7b8b3;font-size:13px;line-height:1.5;margin:0}
+#toca-location-map{height:340px;max-width:100%;background:#142323;border-radius:15px;border:1px solid #34534b;position:relative;z-index:0}
+.toca-location-feedback{color:#bdd1c9;font-size:13px;min-height:18px;line-height:1.45}
+.toca-location-results{display:grid;gap:6px}
+.toca-location-result{padding:10px 12px;line-height:1.35;text-align:left;background:#172723;color:#e5f8e9;border:1px solid #345a46;border-radius:9px;cursor:pointer}
+.toca-location-result:hover,.toca-location-result:focus-visible{border-color:#b9fc89;background:#223d2c}
+.toca-location-confirmed{color:#b9fc89!important;font-weight:600}
+.toca-location-widget .leaflet-container{font-family:inherit}
+.toca-location-widget .leaflet-control-attribution{font-size:10px}
+@media(max-width:650px){#toca-location-map{height:290px}.toca-profile-editor{margin:0}.toca-location-controls .btn{width:100%}}
+
+.toca-onboarding-card{max-width:760px;margin-inline:auto}
+/* On desktop the admin sidebar is the single navigation source. Keep section tabs
+   available on narrow layouts where the sidebar is hidden. */
+@media (min-width: 981px) {
+  .toca-admin-frame .panel-tabs { display:none; }
+}
+
+/* TOCÁ v1.6: editor aligned with dashboard and meaningful section hierarchy */
+.toca-admin-content{min-width:0}
+.toca-admin-frame .toca-profile-editor{width:100%;max-width:none;margin:0;min-width:0}
+.toca-admin-frame .toca-profile-editor>.card{width:100%;max-width:none;min-width:0}
+.toca-venue-editor-card{padding:clamp(18px,2.8vw,34px)!important}
+.toca-editor-heading{padding:0 0 22px;margin-bottom:24px;border-bottom:1px solid #30453c}
+.toca-editor-heading h2{font-size:clamp(27px,3vw,36px);font-weight:800;margin:5px 0 8px;color:#f4f9f6}
+.toca-editor-heading p{font-size:14px;color:#a7bfb2;line-height:1.65;max-width:760px}
+.toca-editor-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+.toca-editor-fields .field:first-child{grid-column:1/-1}
+.toca-profile-editor form.stack{gap:20px}
+.toca-profile-editor .field label{display:block;margin-bottom:8px;font-size:13px;font-weight:700}
+.toca-location-widget{width:100%;min-width:0;grid-template-columns:minmax(0,1fr);padding:20px 0;margin:0;border-top:1px solid #2d443a;border-bottom:1px solid #2d443a}
+.toca-location-widget>*{min-width:0;width:100%;max-width:100%}
+#toca-location-map{display:block;width:100%;max-width:none;height:clamp(300px,35vw,450px);min-width:0;overflow:hidden}
+.toca-location-searchbar{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:12px}
+.toca-location-searchbar .field{margin:0}
+.toca-location-searchbar .btn{min-height:44px}
+.toca-location-result{width:100%;text-align:left}
+.toca-location-result small{display:block;color:#a7bfb2;margin-top:4px}
+.toca-editor-actions{display:flex;justify-content:flex-end;gap:10px;padding-top:5px}
+.toca-genre-widget{display:grid;gap:10px}
+.toca-genre-suggestions{display:flex;flex-wrap:wrap;gap:8px}
+.toca-genre-chip{padding:9px 13px;min-height:38px;background:#162723;color:#d1e6d6;border:1px solid #365447;border-radius:22px;font-size:12px;font-weight:700}
+.toca-genre-chip[aria-pressed="true"]{background:#b5fa7a;color:#102316;border-color:#b5fa7a}
+.toca-genre-chip:hover{border-color:#aafa75}
+.toca-account-card{max-width:900px!important}
+.toca-account-card form{max-width:600px}
+@media(max-width:760px){.toca-editor-fields{grid-template-columns:1fr}.toca-editor-fields .field:first-child{grid-column:auto}.toca-location-searchbar{grid-template-columns:1fr}.toca-editor-actions .btn{width:100%}#toca-location-map{height:320px}.toca-admin-mobile-nav{overflow-x:auto;gap:8px;justify-content:flex-start}.toca-admin-mobile-nav a{flex:0 0 auto;min-width:65px}}
+
+/* TOCÁ v1.7 — unified dark maps, rules, gallery and location confirmation. */
+#leaflet-map, #toca-location-map { background:#122420!important; }
+#leaflet-map .leaflet-tile-pane, #toca-location-map .leaflet-tile-pane {
+  filter:brightness(.77) invert(1) hue-rotate(175deg) saturate(.72) contrast(1.13);
+}
+/* Attribution belongs to the map and remains readable and clickable. */
+#leaflet-map .leaflet-control-attribution, #toca-location-map .leaflet-control-attribution {
+  background:rgba(8,20,17,.86); color:#b2c8be; font-size:10px;
+}
+#leaflet-map .leaflet-control-attribution a, #toca-location-map .leaflet-control-attribution a {color:#b9fc89;}
+.toca-location-coords{padding:10px 14px;border-radius:12px;background:#153529;color:#c4f8c7;font-size:13px;font-weight:750;}
+.toca-location-feedback.toca-location-confirmed{display:block;padding:12px 16px;background:#173b2d;color:#c9ffd6!important;border:1px solid #47775c;border-radius:13px;}
+.toca-rule-heading{margin-bottom:22px}.toca-rule-heading h2{font-size:clamp(25px,3vw,36px);margin:9px 0}.toca-rule-heading p{color:#b4c6b7;}
+.toca-rule-columns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;margin-top:19px}
+.toca-rule-columns>.card{min-width:0}.toca-rule-policy{max-width:100%}.toca-rule-policy p{margin:8px 0 0}
+.toca-rule-search{display:grid;gap:10px;margin:22px 0}.toca-rule-search label{font-size:13px;font-weight:750}
+.toca-rule-results{display:grid;gap:5px;max-height:280px;overflow-y:auto}.toca-rule-search-result{display:flex;align-items:center;gap:12px;text-align:left;border:1px solid #30483c;background:#12251f;color:#edf6ef;border-radius:10px;padding:10px;cursor:pointer;width:100%;}
+.toca-rule-search-result:hover{border-color:#ade477;background:#1f392b}.toca-rule-search-result:disabled{opacity:.5}
+.toca-rule-result-art{height:42px;width:42px;border-radius:10px;display:grid;place-items:center;background:#294a38;color:#c8fb9c;flex:none}
+.toca-rule-search-result .toca-song-meta{flex:1;min-width:0}.toca-rule-search-result .toca-song-meta small{display:block;white-space:normal}
+.toca-rule-result-action{font-size:12px;font-weight:700;color:#b9fc89}.toca-rule-error{color:#ffb2a1}.toca-rule-list{display:grid;gap:8px;margin-top:20px}
+.toca-rule-item{display:flex;align-items:center;justify-content:space-between;gap:16px;border-top:1px solid #284236;padding:12px 0}
+.toca-rule-item strong{display:block}.toca-rule-item small{display:block;color:#a4b7aa}
+.toca-photos-panel{margin:26px 0 0;padding:24px;background:#111e1b;border:1px solid #2a4437;border-radius:18px;min-width:0}
+.toca-photos-panel .toca-section-title{display:flex;justify-content:space-between;align-items:flex-start;gap:14px}
+.toca-photos-panel h3{margin:0 0 7px}.toca-photos-panel p{margin:0 0 12px}
+.toca-photo-upload{display:flex;align-items:center;gap:12px;border:1px dashed #739c81;background:#172d23;border-radius:12px;padding:18px;cursor:pointer;flex-wrap:wrap;margin:18px 0 8px}
+.toca-photo-upload:hover{background:#224432}.toca-photo-upload>span{font-size:26px;color:#b9fc89}.toca-photo-upload small{color:#afc1b1}
+#toca-photo-input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.toca-photo-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:13px;margin-top:14px}
+.toca-photo-item{border:1px solid #324a3a;background:#101e18;border-radius:12px;overflow:hidden;min-width:0}
+.toca-photo-item>img{width:100%;height:145px;object-fit:cover;display:block}
+.toca-photo-item-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:10px}.toca-photo-item-actions span{font-size:12px;color:#b9fc89;flex:1 1 100%}
+.toca-photo-item-actions .btn{font-size:11px;padding:8px 10px}
+.toca-public-gallery{display:flex;gap:9px;margin:13px 0 17px;overflow-x:auto}
+.toca-public-thumb{border:2px solid #345540;border-radius:10px;padding:0;overflow:hidden;cursor:pointer;background:#11241a;flex:0 0 82px}
+.toca-public-thumb:focus-visible,.toca-public-thumb:hover{border-color:#b9fc89}
+.toca-public-thumb img{width:82px;height:66px;object-fit:cover;display:block}
+@media(max-width:850px){.toca-rule-columns{grid-template-columns:minmax(0,1fr)}.toca-photos-panel{padding:16px}}
+
+
+/* TOCÁ v1.7.1 — preserve original proportions of uploaded venue photos.
+   Legacy illustration images retain the full-bleed cover crop. */
+.toca-photo-item > img {
+  display: block;
+  width: 100%;
+  height: 190px;
+  max-width: 100%;
+  object-fit: contain;
+  object-position: center;
+  background: #0a1412;
+}
+.toca-venue-photo.toca-photo-uncropped {
+  height: 185px;
+  background: radial-gradient(circle at center, #20342b, #0b1513 78%);
+}
+.toca-venue-photo.toca-photo-uncropped > img.toca-user-photo {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+  filter: none;
+  transform: none;
+}
+.toca-venue:hover .toca-venue-photo.toca-photo-uncropped > img.toca-user-photo {
+  transform: none;
+}
+.toca-detail-cover > img.toca-user-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+  filter: none;
+  background: #0a1412;
+}
+.toca-public-thumb img {
+  object-fit: contain;
+  object-position: center;
+  background: #0a1412;
+}
+@media (max-width: 760px) {
+  .toca-venue-photo.toca-photo-uncropped { height: 185px; }
+}
+
+/* TOCÁ 1.7.2 — identidad y preferencias Spotify */
+.toca-ad-brandmark{display:inline-block;width:40px;height:40px;max-width:none;vertical-align:-9px;margin-left:6px;object-fit:contain;filter:drop-shadow(0 3px 10px rgba(161,255,115,.14))}
+.toca-spotify-selected{padding:17px;background:linear-gradient(120deg,#152922,#101d20);border:1px solid #427451;border-radius:16px}
+.toca-spotify-selected-label{display:block;color:#a8fb83;font-size:11px;font-weight:800;letter-spacing:.5px;margin-bottom:12px;text-transform:uppercase}
+.toca-spotify-selected-row{display:flex;align-items:center;gap:13px;min-width:0;flex-wrap:wrap}
+.toca-spotify-selected-icon{width:40px;height:40px;flex:0 0 40px;border-radius:11px;display:grid;place-items:center;background:#aafa7520;color:#baff87;font-size:23px}
+.toca-spotify-selected-info{min-width:0;flex:1 1 170px}
+.toca-spotify-selected-info strong{display:block;font-size:16px;line-height:1.35;overflow-wrap:anywhere}
+.toca-spotify-selected-info small{display:block;color:#adbfba;line-height:1.5;margin-top:3px}
+.toca-spotify-open-link{font-size:12px;color:#c4ffa3;font-weight:700;white-space:nowrap}
+.toca-spotify-device-details{padding:15px 16px;background:#101d20;border:1px solid #304540;border-radius:13px}
+.toca-spotify-device-details>summary{cursor:pointer;font-weight:750;list-style-position:inside;color:#edf7f0}
+.toca-spotify-optional{font-size:10px;font-weight:700;color:#a9bdb8;margin-left:6px}
+.toca-spotify-device-help{margin:13px 0;line-height:1.6;color:#aebeba;font-size:13px}
+.toca-spotify-device-help strong{color:#edf8ee}
+@media(max-width:600px){.toca-ad-brandmark{width:32px;height:32px;vertical-align:-7px;margin-left:2px}.toca-spotify-selected{padding:13px}.toca-spotify-open-link{margin-left:53px}}
+
+
+/* TOCÁ v1.7.3 — Instagram del establecimiento */
+.toca-instagram-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 12px;
+  padding: 9px 13px;
+  border-radius: 12px;
+  background: rgba(185, 255, 76, .09);
+  border: 1px solid rgba(185, 255, 76, .25);
+  color: #b9ff4c;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.toca-instagram-link:hover {
+  background: rgba(185, 255, 76, .17);
+}
+.leaflet-popup-content .toca-instagram-link {
+  color: #173e25;
+  background: #e6f7d9;
+  border-color: #cce3bc;
+}
+
+
+/* TOCÁ v1.7.3.1 — Ajustes visuales de Instagram */
+
+.toca-detail-intro .toca-instagram-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 9px 13px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #d3dcdf;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.toca-detail-intro .toca-instagram-link:hover {
+  background: rgba(255, 255, 255, 0.10);
+  color: #f0f3f3;
+}
+
+.leaflet-popup-content .toca-map-popup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.leaflet-popup-content .toca-map-popup-venue,
+.leaflet-popup-content .toca-instagram-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  box-sizing: border-box;
+  padding: 8px 11px;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-decoration: none;
+  white-space: nowrap;
+  margin: 0;
+}
+
+.leaflet-popup-content .toca-map-popup-venue {
+  background: #e7edef;
+  border: 1px solid #d1dade;
+  color: #253238;
+}
+
+.leaflet-popup-content .toca-map-popup-venue:hover {
+  background: #d7e2e6;
+  color: #253238;
+}
+
+.leaflet-popup-content .toca-instagram-link {
+  background: #ffffff;
+  border: 1px solid #d1dade;
+  color: #35434a;
+}
+
+.leaflet-popup-content .toca-instagram-link:hover {
+  background: #f1f4f5;
+  color: #253238;
+}
+
+/* Guardar datos del bar después de las fotografías. */
+.toca-profile-save {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(255,255,255,0.12);
+}
+
+.toca-profile-save .btn {
+  min-width: 220px;
+}
+
+@media (max-width: 600px) {
+  .toca-profile-save .btn {
+    width: 100%;
+  }
+}
+
+
+/* TOCÁ v1.7.3.7 — Distribución de ficha y opciones avanzadas */
+
+.toca-detail-aside > .toca-detail-playing:first-child {
+  margin-top: 0;
+}
+
+.toca-detail-aside .toca-detail-playing {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+}
+
+.toca-detail-aside .toca-detail-playing .toca-btn {
+  margin-top: 6px;
+}
+
+.toca-dev-settings {
+  margin-top: 26px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(255,255,255,.12);
+}
+
+.toca-dev-settings summary {
+  cursor: pointer;
+  color: #aebdc0;
+  font-size: 14px;
+}
+
+.toca-dev-settings p {
+  color: #9aabad;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.toca-dev-settings a {
+  color: #c5d5d7;
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.toca-dev-settings a:hover {
+  color: #ffffff;
+}
+
+
+/* TOCÁ 1.7.3.8 — Ciudad y encabezados */
+
+.toca-map-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px 14px;
+}
+
+#toca-map-city-label {
+  color: #c5d1d1;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.toca-location-searchbar {
+  display: flex !important;
+  justify-content: flex-end;
+  align-items: center;
+  margin: 8px 0 16px;
+}
+
+.toca-admin-section-heading {
+  margin-bottom: 26px;
+}
+
+.toca-admin-section-heading h2 {
+  font-size: clamp(24px, 2.8vw, 32px);
+  margin: 8px 0;
+  line-height: 1.2;
+}
+
+.toca-admin-section-heading p {
+  margin: 0;
+  color: #9caaad;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* No mostrar flechas decorativas al final de los links */
+.leaflet-popup-content .toca-map-popup-actions a::after,
+.leaflet-popup-content .toca-instagram-link::after,
+.toca-detail-intro .toca-instagram-link::after {
+  content: none !important;
+}
+
+
+/* TOCÁ v1.7.3.9 — Encabezados del administrador */
+
+.toca-admin-content .toca-profile-editor {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch;
+  gap: 0 !important;
+}
+
+.toca-admin-content .toca-profile-editor > .toca-editor-heading,
+.toca-admin-content .toca-rule-heading,
+.toca-admin-content .toca-admin-section-heading,
+.toca-admin-content .toca-ad-head {
+  margin: 0 0 24px !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+.toca-admin-content .toca-profile-editor > .card {
+  margin-top: 0 !important;
+}
+
+.toca-admin-content .toca-editor-heading h2,
+.toca-admin-content .toca-rule-heading h2,
+.toca-admin-content .toca-admin-section-heading h2,
+.toca-admin-content .toca-ad-head h1 {
+  font-family: 'Outfit', sans-serif !important;
+  font-size: clamp(26px, 2.7vw, 32px) !important;
+  font-weight: 700 !important;
+  line-height: 1.2 !important;
+  letter-spacing: -0.025em !important;
+  margin: 6px 0 8px !important;
+}
+
+.toca-admin-content .toca-editor-heading .eyebrow,
+.toca-admin-content .toca-rule-heading .eyebrow,
+.toca-admin-content .toca-admin-section-heading .eyebrow,
+.toca-admin-content .toca-ad-head .eyebrow {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  line-height: 1.4 !important;
+  letter-spacing: 0.13em !important;
+  text-transform: uppercase;
+}
+
+.toca-admin-content .toca-editor-heading p,
+.toca-admin-content .toca-rule-heading p,
+.toca-admin-content .toca-admin-section-heading p,
+.toca-admin-content .toca-ad-head p {
+  font-size: 14px !important;
+  line-height: 1.6 !important;
+  margin: 0 !important;
+}
+
+/* Ciudad y cantidad de resultados con idéntica tipografía */
+
+.toca-section-title .toca-map-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.toca-section-title .toca-map-meta #toca-map-city-label,
+.toca-section-title .toca-map-meta #toca-results-count {
+  display: inline-flex !important;
+  align-items: center !important;
+  color: #b5c4c6 !important;
+  font-family: 'DM Sans', sans-serif !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  line-height: 1.5 !important;
+  letter-spacing: 0 !important;
+  margin: 0 !important;
+}
+
+.toca-section-title #toca-map-city-label::after {
+  content: '·';
+  margin-left: 8px;
+  color: #70878b;
+}
+
+/* TOCÁ — alineación de acciones */
+
+.toca-ad-tools [data-action="toggle-session"] {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 10px !important;
+  min-width: 235px;
+  padding: 12px 16px !important;
+  text-align: left !important;
+}
+
+.toca-ad-tools [data-action="toggle-session"] svg {
+  width: 18px !important;
+  height: 18px !important;
+  flex: 0 0 18px;
+}
+
+.toca-profile-editor .toca-location-searchbar {
+  justify-content: flex-start !important;
+}
+
+
+
+/* Corrección CARTO Dark Matter: no invertir tiles */
+
+.toca-map-art,
+#leaflet-map,
+#toca-location-map,
+#leaflet-map .leaflet-map-pane,
+#toca-location-map .leaflet-map-pane,
+#leaflet-map .leaflet-tile-pane,
+#toca-location-map .leaflet-tile-pane,
+#leaflet-map .leaflet-tile-container,
+#toca-location-map .leaflet-tile-container,
+#leaflet-map img.leaflet-tile,
+#toca-location-map img.leaflet-tile {
+  filter: none !important;
+  mix-blend-mode: normal !important;
+}

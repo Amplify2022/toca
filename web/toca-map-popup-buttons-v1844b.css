@@ -1,0 +1,79 @@
+/* TOCÁ v1.8.44b — ÚNICAMENTE los enlaces Ver bar e Instagram del popup del mapa.
+   Selector independiente de la jerarquía de Leaflet; prevalece sobre estilos anteriores. */
+.toca-popup-card .toca-popup-links {
+  display: flex !important;
+  flex-flow: row nowrap !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 8px !important;
+}
+
+.toca-popup-card .toca-popup-links > a.toca-popup-link {
+  box-sizing: border-box !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  font-weight: 800 !important;
+  font-size: 12px !important;
+  line-height: 1.2 !important;
+  white-space: nowrap !important;
+  text-decoration: none !important;
+  transition: background-color .15s ease, color .15s ease;
+}
+
+/* Botón neón con flecha. No se altera el href original. */
+.toca-popup-card .toca-popup-links > a.toca-popup-link[href^="#/venue/"] {
+  display: inline-flex !important;
+  flex: 0 0 auto !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 7px !important;
+  padding: 10px 14px !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  background: #aaff56 !important;
+  color: #102016 !important;
+  box-shadow: none !important;
+}
+.toca-popup-card .toca-popup-links > a.toca-popup-link[href^="#/venue/"] > span {
+  display: inline !important;
+  font-size: 16px !important;
+  line-height: .85 !important;
+  color: inherit !important;
+}
+.toca-popup-card .toca-popup-links > a.toca-popup-link[href^="#/venue/"]:hover {
+  background: #c4ff87 !important;
+  color: #102016 !important;
+}
+
+/* Instagram: icono y texto, sin rectángulo ni flecha extra. */
+.toca-popup-card .toca-popup-links > a.toca-popup-link[href*="instagram.com/"] {
+  display: inline-flex !important;
+  flex: 0 1 auto !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  padding: 8px 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: #f2faf7 !important;
+  box-shadow: none !important;
+}
+.toca-popup-card .toca-popup-links > a.toca-popup-link[href*="instagram.com/"]::before {
+  content: "" !important;
+  display: inline-block !important;
+  flex: 0 0 17px !important;
+  width: 17px !important;
+  height: 17px !important;
+  background: center / contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23f2faf7' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='2' y='2' width='20' height='20' rx='5'/%3E%3Ccircle cx='12' cy='12' r='4'/%3E%3Ccircle cx='17.5' cy='6.5' r='1' fill='%23f2faf7' stroke='none'/%3E%3C/svg%3E") !important;
+}
+.toca-popup-card .toca-popup-links > a.toca-popup-link[href*="instagram.com/"] > span {
+  display: none !important;
+}
+.toca-popup-card .toca-popup-links > a.toca-popup-link[href*="instagram.com/"]:hover {
+  color: #aaff56 !important;
+}
+.toca-popup-card .toca-popup-links > a.toca-popup-link:focus-visible {
+  outline: 2px solid #aaff56 !important;
+  outline-offset: 3px !important;
+}

@@ -1,0 +1,22 @@
+/* TOCÁ 1.8.10 - Confirmación contextual del pin. No altera controles de mapa. */
+.toca-location-widget .toca-location-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 12px 0 14px;
+}
+.toca-location-widget .toca-location-coords[hidden] { display: none !important; }
+.toca-location-widget .toca-location-coords.toca-location-verified {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9px;
+  padding: 7px 10px;
+  color: #b5f27e;
+  background: rgba(181,242,126,.09);
+  border: 1px solid rgba(181,242,126,.25);
+  font-size: .87rem;
+  font-weight: 600;
+}
+/* Los botones temporales usados para ubicar el pin nunca se muestran. */
+.toca-location-widget .toca-location-result[hidden] { display: none !important; }

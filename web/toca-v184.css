@@ -1,0 +1,20 @@
+/* TOCÁ v1.8.4 — perfil público del bar */
+.toca-instagram-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 100%;
+  text-decoration: none;
+}
+.toca-instagram-link .toca-instagram-icon {
+  display: inline-block;
+  width: 19px;
+  height: 19px;
+  flex: 0 0 19px;
+  stroke: currentColor;
+  vertical-align: middle;
+}
+.toca-instagram-link .toca-instagram-handle { overflow-wrap: anywhere; }
+.toca-detail-desc:empty { display:none; }
+/* Direcciones: la lista es legible incluso en pantallas estrechas */
+.toca-v183-options .toca-v183-empty { line-height: 1.45; }

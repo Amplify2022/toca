@@ -1,0 +1,5 @@
+/* TOCÁ v1.8.11: respetar párrafos y saltos de línea guardados en Mi Bar. */
+.toca-detail-intro .toca-detail-desc {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

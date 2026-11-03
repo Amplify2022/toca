@@ -1,0 +1,119 @@
+/* TOCÁ v1.7.5 - horario semanal, responsive y compacto */
+.toca-hours-editor {
+  margin: 14px 0 0;
+  padding: 17px 18px;
+  border: 1px solid rgba(164, 191, 178, .22);
+  background: rgba(15, 24, 26, .35);
+  border-radius: 14px;
+  min-width: 0;
+}
+.toca-hours-editor legend {
+  padding: 0 6px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #e5f1eb;
+}
+.toca-hours-hint {
+  color: #9eb1ab;
+  font-size: 12px;
+  margin: 2px 0 15px;
+  line-height: 1.5;
+}
+.toca-hours-head, .toca-hours-row {
+  display: grid;
+  grid-template-columns: minmax(112px, 1fr) minmax(0, 112px) minmax(0, 112px);
+  align-items: center;
+  gap: 12px;
+}
+.toca-hours-head {
+  font-size: 11px;
+  color: #8da59e;
+  margin-bottom: 5px;
+  padding: 0 8px;
+}
+.toca-hours-row {
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+.toca-hours-row:nth-child(odd) {
+  background: rgba(255,255,255,.024);
+}
+.toca-hours-day {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #dde8e2;
+}
+.toca-hours-day input[type=checkbox] {
+  accent-color: #b4f77c;
+  height: 17px;
+  width: 17px;
+}
+.toca-hours-row input[type=time] {
+  min-width: 0;
+  width: 100%;
+  padding: 8px 9px;
+  height: 39px;
+  color-scheme: dark;
+  font-size: 13px;
+}
+.toca-hours-row input[type=time]:disabled {
+  opacity: .36;
+  cursor: not-allowed;
+}
+.toca-hours-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin-top: 16px;
+}
+.toca-hours-legacy {
+  font-size: 12px;
+  color: #c6d4c8;
+  line-height: 1.5;
+  margin: 12px 0 0;
+}
+.toca-hours-public {
+  margin-top: 17px;
+  border-top: 1px solid rgba(164,191,178,.15);
+  padding-top: 14px;
+}
+.toca-hours-public h3 {
+  font-size: 14px;
+  margin: 0 0 11px;
+  color: #dde8e2;
+}
+.toca-hours-public-grid {
+  display: grid;
+  gap: 6px;
+  max-width: 360px;
+}
+.toca-hours-public-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 12px;
+  color: #c5d2cc;
+}
+.toca-hours-public-row span:last-child {
+  text-align: right;
+}
+.toca-day-closed {
+  color: #74857d;
+}
+@media(max-width:580px) {
+  .toca-hours-editor {
+    padding: 14px 10px;
+  }
+  .toca-hours-head, .toca-hours-row {
+    grid-template-columns: minmax(87px, 1fr) minmax(0, 102px) minmax(0, 102px);
+    gap: 6px;
+  }
+  .toca-hours-row {
+    padding: 6px 3px;
+  }
+  .toca-hours-day { gap: 5px; font-size: 12px; }
+  .toca-hours-row input[type=time] { font-size: 12px; padding: 6px 3px; }
+}

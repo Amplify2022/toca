@@ -1,0 +1,26 @@
+/* TOCÁ 1.8.15: el encabezado no forma parte de .toca-section-title (decorador con punto). */
+.toca-detail-playing .toca-now-heading {
+  display:block !important;
+  margin:0 0 9px !important;
+  padding:0 !important;
+  text-indent:0 !important;
+  background:none !important;
+  list-style:none !important;
+}
+.toca-detail-playing .toca-now-heading::before,
+.toca-detail-playing .toca-now-heading::after,
+.toca-detail-playing .toca-now-heading > *::before,
+.toca-detail-playing .toca-now-heading > *::after { content:none !important;display:none !important; }
+.toca-detail-playing #toca-live-music { margin:0 !important; padding:0 !important; }
+.toca-detail-playing .toca-playing { margin:0 !important; }
+.toca-detail-playing .toca-playing > .toca-live-dot::before,
+.toca-detail-playing .toca-playing > .toca-live-dot::after {content:none !important;}
+.toca-detail-playing .toca-now-has-cover-v1815 {display:flex;align-items:center;gap:12px;}
+.toca-detail-playing .toca-now-has-cover-v1815 .toca-equalizer,
+.toca-detail-playing .toca-now-has-cover-v1815 .bars {display:none !important;}
+.toca-detail-playing .toca-now-v1815 {
+ display:flex;flex:0 0 68px;width:68px;height:68px;overflow:hidden;
+ border-radius:8px;background:rgba(255,255,255,.06);text-decoration:none;
+}
+.toca-detail-playing .toca-now-v1815 img {width:100%;height:100%;object-fit:contain;display:block;}
+@media(max-width:480px){.toca-detail-playing .toca-now-v1815{flex-basis:56px;width:56px;height:56px;}}

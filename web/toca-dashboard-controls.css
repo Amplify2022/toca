@@ -1,0 +1,22 @@
+/* TOCÁ v1.7.3.6 — dashboard session controls; scoped to the dashboard */
+.toca-ad-tools .toca-session-toggle{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:9px;
+  min-height:43px;
+  min-width:205px;
+  white-space:nowrap;
+  line-height:1.2;
+}
+.toca-ad-tools .toca-session-toggle-icon{
+  width:18px;
+  height:18px;
+  flex:none;
+  display:block;
+  fill:currentColor;
+}
+.toca-ad-tools .toca-session-toggle span{display:inline-block;}
+@media(max-width:760px){
+  .toca-ad-tools .toca-session-toggle{min-width:0;}
+}

@@ -1,0 +1,6 @@
+/* TOCÁ v1.7.7 – acciones destructivas */
+.toca-delete-venue{margin-top:28px;padding:20px;border:1px solid #994a4a;border-radius:14px;background:rgba(130,35,35,.08)}
+.toca-delete-venue h3{color:#f2a5a5;margin:0 0 10px}
+.toca-delete-venue p{margin:0 0 16px;line-height:1.55}
+.toca-delete-venue button{color:#ffb8b8;border-color:#a95555}
+.toca-delete-venue button:hover{background:rgba(160,40,40,.2)}

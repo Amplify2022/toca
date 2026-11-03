@@ -1,0 +1,42 @@
+/* TOCÁ 1.8.45 — hover únicamente para «Ver bar» y los pines de bares.
+   El botón conserva los estilos y colores de la versión 1.8.44e.
+   Outline y filter son necesarios porque el botón tiene box-shadow:none!important inline. */
+a.toca-map-popup-v1844c-primary {
+  outline: 2px solid transparent !important;
+  outline-offset: 2px !important;
+  filter: drop-shadow(0 0 0 rgba(170,255,86,0));
+  transition: outline-color 180ms ease, filter 180ms ease, transform 180ms ease !important;
+  will-change: auto;
+}
+a.toca-map-popup-v1844c-primary:hover,
+a.toca-map-popup-v1844c-primary:focus-visible {
+  outline-color: #caff90 !important;
+  filter: drop-shadow(0 0 7px rgba(170,255,86,.62)) !important;
+  transform: translateY(-1px) !important;
+}
+/* No modifica los estilos ni el SVG del enlace Instagram. */
+
+/* El pin interno del divIcon de Leaflet conserva sus colores normales.
+   Solo se ilumina su borde al hacer hover/focus. */
+#leaflet-map .toca-map-venue-pin-v1845 {
+  cursor: pointer;
+  transition: border-color 180ms ease, box-shadow 180ms ease !important;
+}
+#leaflet-map .leaflet-marker-icon:hover .toca-map-venue-pin-v1845,
+#leaflet-map .leaflet-marker-icon:focus-visible .toca-map-venue-pin-v1845,
+#leaflet-map .toca-map-venue-pin-v1845:hover {
+  border-color: #baff79 !important;
+  box-shadow: 0 0 0 4px rgba(170,255,86,.30),
+              0 0 17px rgba(170,255,86,.75),
+              0 3px 9px rgba(0,0,0,.52) !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  a.toca-map-popup-v1844c-primary,
+  #leaflet-map .toca-map-venue-pin-v1845 {
+    transition: none !important;
+  }
+  a.toca-map-popup-v1844c-primary:hover,
+  a.toca-map-popup-v1844c-primary:focus-visible {
+    transform: none !important;
+  }
+}

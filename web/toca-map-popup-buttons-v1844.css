@@ -1,0 +1,79 @@
+/* TOCÁ v1.8.44 — SOLO botones de las fichas del mapa.
+   Conserva dimensiones, foto, fondo, textos y enlaces existentes. */
+#leaflet-map .toca-popup-card .toca-popup-links {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+#leaflet-map .toca-popup-card .toca-popup-links > .toca-popup-link {
+  box-sizing: border-box;
+  min-width: 0;
+  margin: 0;
+  text-decoration: none;
+  font-weight: 800;
+  font-size: 12px;
+  line-height: 1.2;
+  white-space: nowrap;
+  transition: background-color .15s ease, color .15s ease;
+}
+
+/* «Ver bar»: botón verde con flecha, como el ejemplo aprobado. */
+#leaflet-map .toca-popup-card .toca-popup-links > a[href^="#/venue/"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: #aaff56;
+  color: #102016;
+  flex: 0 0 auto;
+  box-shadow: none;
+}
+#leaflet-map .toca-popup-card .toca-popup-links > a[href^="#/venue/"] > span {
+  display: inline;
+  color: inherit;
+  font-size: 16px;
+  line-height: .8;
+}
+#leaflet-map .toca-popup-card .toca-popup-links > a[href^="#/venue/"]:hover {
+  background: #c4ff87;
+  color: #102016;
+}
+
+/* «Instagram»: enlace con ícono; sin cambiar el texto ni el destino. */
+#leaflet-map .toca-popup-card .toca-popup-links > a[href*="instagram.com/"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 1 auto;
+  gap: 5px;
+  padding: 8px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #f2faf7;
+  box-shadow: none;
+}
+#leaflet-map .toca-popup-card .toca-popup-links > a[href*="instagram.com/"]::before {
+  content: "";
+  display: inline-block;
+  width: 17px;
+  height: 17px;
+  flex: 0 0 17px;
+  background: center / 17px 17px no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23F2FAF7' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='2' y='2' width='20' height='20' rx='5'/%3E%3Ccircle cx='12' cy='12' r='4'/%3E%3Ccircle cx='17.5' cy='6.5' r='1' fill='%23F2FAF7' stroke='none'/%3E%3C/svg%3E");
+}
+#leaflet-map .toca-popup-card .toca-popup-links > a[href*="instagram.com/"] > span {
+  display: none;
+}
+#leaflet-map .toca-popup-card .toca-popup-links > a[href*="instagram.com/"]:hover {
+  color: #aaff56;
+}
+#leaflet-map .toca-popup-card .toca-popup-links > a:focus-visible {
+  outline: 2px solid #aaff56;
+  outline-offset: 3px;
+}

@@ -1,0 +1,12 @@
+const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict'),path=require('path');
+const sandbox={document:{addEventListener(){},getElementById(){return null}},render:async()=>{},state:{demo:true},route:()=>({path:'/explore'}),api:async()=>{},esc:s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),setInterval(){},clearInterval(){},console,Date};
+vm.createContext(sandbox);
+vm.runInContext(fs.readFileSync(path.join(__dirname,'../web/live-music.js'),'utf8'),sandbox);
+const snapshot={active:true,isPlaying:true,now:{title:'Deja De Llorar',artist:'El Polaco',id:'a'},next:{title:'One',artist:'Metallica',id:'b'},samePlaylist:true,playlist:[{id:'a',title:'Deja De Llorar',artist:'El Polaco'},{id:'b',title:'One',artist:'Metallica'}]};
+assert.match(sandbox.renderLiveNow(snapshot),/Deja De Llorar/);
+assert.match(sandbox.renderLiveNext(snapshot),/SIGUIENTE PREVISTA/);
+assert.match(sandbox.renderLivePlaylist(snapshot),/Prevista/);
+assert.match(sandbox.renderLiveNext({...snapshot,next:null,note:'Sin contexto'}),/Sin contexto/);
+assert.doesNotMatch(sandbox.renderLiveNow({...snapshot,now:{title:'<img onerror=alert(1)>',artist:'X'}}),/<img/);
+assert.match(sandbox.renderLiveNow({active:false}),/no tiene sesión/);
+console.log('PASS: Spotify now/next, playlist preview, null context, XSS and inactive session');

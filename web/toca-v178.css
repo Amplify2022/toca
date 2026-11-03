@@ -1,0 +1,6 @@
+/* TOCÁ v1.7.8 — baja de un bar */
+.toca-delete-venue{margin-top:28px;padding:20px;border:1px solid rgba(255,255,255,.14);border-radius:14px;background:rgba(255,255,255,.025)}
+.toca-delete-venue h3{margin:0 0 10px}
+.toca-delete-venue p{margin:0 0 16px;line-height:1.55}
+.toca-delete-venue button{color:#ffb8b8;border-color:#a95555}
+.toca-delete-venue button:hover{background:rgba(160,40,40,.15)}

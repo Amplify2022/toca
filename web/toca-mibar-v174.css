@@ -1,0 +1,170 @@
+/* TOCÁ 1.7.4 · Descubrir + Mi Bar
+   El mapa VersaTiles conserva sus estilos y funcionalidad. */
+
+.toca-discovery-layout:not(.toca-full-map) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 30px;
+  align-items: start;
+}
+
+.toca-discovery-layout:not(.toca-full-map) .toca-primary-map,
+.toca-discovery-layout:not(.toca-full-map) .toca-nearby {
+  grid-column: 1;
+  min-width: 0;
+  width: 100%;
+}
+
+.toca-discovery-layout:not(.toca-full-map) .toca-primary-map .toca-map-art {
+  width: 100%;
+  height: clamp(410px, 56vh, 600px);
+}
+
+.toca-discovery-layout:not(.toca-full-map) .toca-venues-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 255px), 1fr));
+  gap: 18px;
+  width: 100%;
+  overflow: visible;
+  margin: 0;
+  padding: 0;
+}
+
+.toca-discovery-layout:not(.toca-full-map) .toca-venues-grid .toca-venue {
+  min-width: 0;
+  width: 100%;
+  flex: initial;
+  scroll-snap-align: none;
+}
+
+.toca-discovery-layout:not(.toca-full-map) .toca-venue {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.toca-discovery-layout:not(.toca-full-map) .toca-venue-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+  gap: 0;
+}
+
+.toca-venue-meta .toca-card-genre {
+  color: #a4b7b1;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.toca-venue-meta .toca-card-address,
+.toca-venue-meta .toca-card-hours {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  min-width: 0;
+  line-height: 1.45;
+  white-space: normal;
+  font-size: 12px;
+}
+
+.toca-venue-meta .toca-card-address {
+  color: #d1ddd9;
+  margin-top: 12px;
+}
+
+.toca-venue-meta .toca-card-hours {
+  color: #96a9a3;
+  margin-top: 7px;
+}
+
+.toca-card-address svg,
+.toca-card-hours svg {
+  flex: 0 0 14px;
+  margin-top: 1px;
+}
+
+.toca-card-address span,
+.toca-card-hours span {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.toca-detail-intro .toca-detail-hours {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  color: #b9cac3;
+  font-size: 13px;
+  line-height: 1.5;
+  margin-top: 7px;
+}
+
+.toca-detail-hours svg {
+  flex: 0 0 15px;
+  margin-top: 2px;
+}
+
+.toca-field-required {
+  color: #c5f5ac;
+}
+
+.toca-optional {
+  font-size: 12px;
+  font-weight: 500;
+  color: #91a6a1;
+}
+
+.toca-fields-note {
+  font-size: 12px;
+  color: #8fa39e;
+  margin: 8px 0 16px;
+}
+
+.toca-cover-required {
+  padding: 11px 14px;
+  background: rgba(159, 130, 55, 0.10);
+  border: 1px solid rgba(208, 171, 88, 0.29);
+  border-radius: 10px;
+  color: #e4d2a6;
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0 0 18px;
+}
+
+.toca-opening-hours-field .toca-location-help {
+  display: block;
+  margin-top: 6px;
+}
+
+@media (max-width: 1100px) {
+  .toca-discovery-layout:not(.toca-full-map) .toca-primary-map .toca-map-art {
+    height: 440px;
+  }
+}
+
+@media (max-width: 760px) {
+  .toca-discovery-layout:not(.toca-full-map) {
+    gap: 22px;
+  }
+  .toca-discovery-layout:not(.toca-full-map) .toca-primary-map .toca-map-art {
+    height: 360px;
+  }
+  .toca-discovery-layout:not(.toca-full-map) .toca-venues-grid {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr));
+    gap: 13px;
+  }
+  .toca-discovery-layout:not(.toca-full-map) .toca-venues-grid .toca-venue-photo {
+    height: 155px;
+  }
+}
+
+@media (max-width: 520px) {
+  .toca-discovery-layout:not(.toca-full-map) .toca-venues-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

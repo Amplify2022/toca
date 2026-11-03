@@ -1,0 +1,37 @@
+/* TOCÁ v1.8.0 — diálogo de eliminación integrado a la app */
+.toca-delete-venue{margin-top:28px;padding:20px;border:1px solid rgba(255,255,255,.14);border-radius:14px;background:rgba(255,255,255,.025)}
+.toca-delete-venue h3{margin:0 0 10px}.toca-delete-venue p{margin:0 0 16px;line-height:1.55}
+.toca-delete-trigger,.toca-delete-trigger:hover,.toca-delete-trigger:focus-visible{background:#982F3B!important;border:1px solid #982F3B!important;color:#fff!important;font-weight:700}
+.toca-delete-trigger:hover{background:#802733!important}
+body.toca-dialog-open{overflow:hidden}
+.toca-dialog-backdrop{position:fixed;inset:0;z-index:99999;background:rgba(2,6,14,.82);display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(7px)}
+.toca-dialog-panel{position:relative;width:min(100%,490px);max-height:calc(100dvh - 32px);overflow:auto;background:#171e2b;color:#f5f6f8;border:1px solid rgba(210,222,242,.16);border-radius:20px;box-shadow:0 25px 95px rgba(0,0,0,.55);padding:32px;font-family:inherit}
+.toca-dialog-close{position:absolute;right:16px;top:12px;border:0;background:transparent;color:#a9b2c2;font:26px/1 inherit;cursor:pointer;padding:6px 10px}
+.toca-dialog-close:hover{color:#fff}
+.toca-dialog-eyebrow{font-size:11px;letter-spacing:.14em;color:var(--lime,#b5f34b);font-weight:700;margin:0 0 14px}
+.toca-dialog-panel h2{font-size:clamp(22px,4vw,28px);line-height:1.2;margin:0 0 16px;color:#f7f8fa}
+.toca-dialog-lead{font-size:16px;line-height:1.55;color:#eef1f5;margin:0 0 13px}
+.toca-dialog-warning{font-size:13px;line-height:1.65;color:#aeb8c9;margin:0 0 24px}
+.toca-dialog-panel label{display:block;font-size:13px;line-height:1.5;color:#d8deea;margin-bottom:10px}
+.toca-dialog-panel label strong{color:#fff}
+.toca-dialog-input{width:100%;box-sizing:border-box}
+.toca-dialog-input:focus{outline:2px solid var(--lime,#b5f34b);outline-offset:2px}
+.toca-dialog-actions{display:flex;justify-content:flex-end;gap:12px;margin-top:24px;flex-wrap:wrap}
+.toca-danger-btn{background:#982F3B!important;border:1px solid #982F3B!important;color:#fff!important;font-weight:700}
+.toca-danger-btn:hover:not(:disabled){background:#802733!important}
+.toca-danger-btn:disabled{opacity:.4;cursor:not-allowed}
+.toca-dialog-progress{color:#cbd4df;font-size:13px;margin:12px 0 0}
+@media(max-width:520px){.toca-dialog-panel{padding:26px 20px}.toca-dialog-actions>*{flex:1}}
+
+/* Créditos del mapa: compactos, accesibles y visibles al desplegar */
+.leaflet-control-attribution.toca-map-attribution{display:flex!important;align-items:center;gap:7px;padding:3px 7px!important;background:rgba(15,20,29,.86)!important;border-radius:7px 0 0 0;box-shadow:0 2px 12px rgba(0,0,0,.15);font:11px/1.5 inherit!important;color:#d0d4db!important}
+.leaflet-control-attribution.toca-map-attribution>a{color:#dce4ec!important;text-decoration:none!important}
+.toca-map-credits{position:relative;display:inline-flex;align-items:center}
+.toca-map-credits summary{list-style:none;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;width:20px;height:20px;border-radius:50%;border:1px solid #9da5b5;color:#f2f4f6;font-size:12px;font-weight:700;user-select:none}
+.toca-map-credits summary::-webkit-details-marker{display:none}
+.toca-map-credits summary:focus-visible{outline:2px solid #b5f34b;outline-offset:2px}
+.toca-map-credits-full{position:absolute;bottom:calc(100% + 8px);right:0;z-index:900;width:min(80vw,310px);padding:12px 14px;background:#171e2b;color:#e9edf3;box-shadow:0 9px 28px #0009;border:1px solid #505868;border-radius:10px;white-space:normal;font:12px/1.6 Arial,sans-serif}
+.toca-map-credits-full a{color:#b5f34b!important;text-decoration:underline!important}
+/* Atribución MapLibre, si la capa la renderiza por separado */
+.maplibregl-ctrl-attrib{font-size:10px!important;background:rgba(15,20,29,.86)!important;color:#d0d4db!important}
+.maplibregl-ctrl-attrib a{color:#dce4ec!important}

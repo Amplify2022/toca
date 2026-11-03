@@ -1,0 +1,2 @@
+ALTER TABLE venue
+ADD COLUMN IF NOT EXISTS instagram_handle VARCHAR(30);

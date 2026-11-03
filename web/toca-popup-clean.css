@@ -1,0 +1,107 @@
+/* TOCA v1.7.3.3 — Popup neutral y compacto para el mapa.
+   El popup de Leaflet en TOCA es oscuro; evitamos reutilizar .btn.
+   Estilos limitados al mapa publico, sin afectar Mi Bar ni otros botones. */
+
+.toca-map-art #leaflet-map .leaflet-popup-content-wrapper {
+  background: #142427;
+  color: #edf3f2;
+  border: 1px solid #354a4e;
+  border-radius: 14px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .35);
+}
+.toca-map-art #leaflet-map .leaflet-popup-tip {
+  background: #142427;
+}
+.toca-map-art #leaflet-map .leaflet-popup-content {
+  min-width: 214px;
+  max-width: 264px;
+  margin: 15px;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.toca-map-art #leaflet-map .leaflet-popup-content > strong {
+  display: block;
+  color: #f3f6f5;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+.toca-map-art #leaflet-map .leaflet-popup-content > p {
+  margin: 5px 0 12px;
+  color: #a9babe;
+  font-size: 12px;
+  font-weight: 400;
+}
+.toca-map-art #leaflet-map .leaflet-popup-content .toca-map-popup-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  margin-top: 11px;
+}
+
+/* Alta especificidad para neutralizar estilos heredados o parches previos. */
+.toca-map-art #leaflet-map .leaflet-popup-content .toca-map-popup-actions > a.toca-map-popup-venue,
+.toca-map-art #leaflet-map .leaflet-popup-content .toca-map-popup-actions > a.toca-instagram-link {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  box-sizing: border-box !important;
+  width: 100% !important;
+  min-height: 40px !important;
+  margin: 0 !important;
+  padding: 10px 12px !important;
+  border: 1px solid #40555a !important;
+  border-radius: 9px !important;
+  background: #263b3e !important;
+  background-color: #263b3e !important;
+  background-image: none !important;
+  color: #e5eeed !important;
+  -webkit-text-fill-color: #e5eeed !important;
+  font-family: 'DM Sans', system-ui, sans-serif !important;
+  font-weight: 600 !important;
+  font-size: 12px !important;
+  line-height: 1.25 !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+  text-decoration: none !important;
+  text-shadow: none !important;
+  box-shadow: none !important;
+  transform: none !important;
+  opacity: 1 !important;
+  white-space: normal !important;
+  transition: background-color .16s ease, border-color .16s ease;
+}
+.toca-map-art #leaflet-map .leaflet-popup-content .toca-map-popup-actions > a.toca-instagram-link {
+  background: #1b2e31 !important;
+  background-color: #1b2e31 !important;
+  border-color: #354a4f !important;
+  color: #c8d5d5 !important;
+  -webkit-text-fill-color: #c8d5d5 !important;
+  font-weight: 500 !important;
+}
+.toca-map-art #leaflet-map .leaflet-popup-content .toca-map-popup-actions > a.toca-map-popup-venue:hover,
+.toca-map-art #leaflet-map .leaflet-popup-content .toca-map-popup-actions > a.toca-map-popup-venue:focus-visible {
+  background: #334b4f !important;
+  background-color: #334b4f !important;
+  border-color: #617a7b !important;
+  color: #f3f6f6 !important;
+  -webkit-text-fill-color: #f3f6f6 !important;
+}
+.toca-map-art #leaflet-map .leaflet-popup-content .toca-map-popup-actions > a.toca-instagram-link:hover,
+.toca-map-art #leaflet-map .leaflet-popup-content .toca-map-popup-actions > a.toca-instagram-link:focus-visible {
+  background: #273b3e !important;
+  background-color: #273b3e !important;
+  border-color: #556c70 !important;
+  color: #f0f4f4 !important;
+  -webkit-text-fill-color: #f0f4f4 !important;
+}
+.toca-map-art #leaflet-map .leaflet-popup-content .toca-map-popup-actions > a.toca-instagram-link::after {
+  content: '↗';
+  flex: 0 0 auto;
+  margin-left: 8px;
+  color: #9cb0b2;
+  -webkit-text-fill-color: #9cb0b2;
+  font-size: 14px;
+  font-weight: 400;
+}

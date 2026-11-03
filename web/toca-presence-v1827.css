@@ -1,0 +1,13 @@
+/* Venue owner settings: same graphite / TOCÁ neon visual language. */
+.toca-access-settings{margin-top:24px;padding:24px;border-radius:16px;background:#171e1e;border:1px solid rgba(181,250,120,.18);color:#e9f3e8}
+.toca-access-settings h3{color:#f5f9f4;margin:0 0 8px;font-size:20px}
+.toca-access-settings p{color:#acbdb0;line-height:1.6;margin:0 0 17px;font-size:13px}
+.toca-access-settings label{display:flex;align-items:flex-start;gap:12px;cursor:pointer;padding:14px 15px;margin-bottom:10px;border-radius:12px;border:1px solid #304139;background:#111918}
+.toca-access-settings label:has(input:checked){border-color:#b5fa78;background:rgba(181,250,120,.06)}
+.toca-access-settings input{accent-color:#b5fa78;width:18px;height:18px;flex:none;margin-top:2px}
+.toca-access-settings label strong{display:block;color:#f5f9f4;font-size:14px}
+.toca-access-settings label small{display:block;color:#9bb0a1;margin-top:3px;line-height:1.4}
+.toca-access-settings [data-toca-access-save]{min-height:42px;background:#b5fa78;color:#142016;border:none;border-radius:10px;padding:10px 18px;font-weight:750;cursor:pointer;margin-top:4px}
+.toca-access-settings [data-toca-access-save]:disabled{opacity:.6}
+.toca-access-settings [data-toca-access-status]{display:inline-block;color:#b5fa78;margin-left:12px;font-size:13px}
+@media(max-width:600px){.toca-access-settings{padding:18px}.toca-access-settings [data-toca-access-status]{display:block;margin:10px 0 0}}

@@ -1,0 +1,30 @@
+/* TOCÁ v1.8.21 — Scroll interno para la playlist completa del bar.
+ * El encabezado y contador permanecen fuera del área de desplazamiento.
+ */
+.toca-detail-aside .toca-panel.toca-full-playlist-v1820 > .toca-playlist-v1820-list {
+  max-height: 520px;
+  max-height: min(58vh, 520px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(145, 170, 154, .55) transparent;
+  scrollbar-gutter: stable;
+  min-height: 0;
+}
+.toca-detail-aside .toca-panel.toca-full-playlist-v1820 > .toca-playlist-v1820-list > .toca-playlist-v1820-row {
+  flex-shrink: 0;
+}
+.toca-detail-aside .toca-panel.toca-full-playlist-v1820 > .toca-playlist-v1820-list::-webkit-scrollbar {
+  width: 6px;
+}
+.toca-detail-aside .toca-panel.toca-full-playlist-v1820 > .toca-playlist-v1820-list::-webkit-scrollbar-thumb {
+  background: rgba(145, 170, 154, .55);
+  border-radius: 6px;
+}
+@media(max-width:600px) {
+  .toca-detail-aside .toca-panel.toca-full-playlist-v1820 > .toca-playlist-v1820-list {
+    max-height: min(52vh, 420px);
+  }
+}

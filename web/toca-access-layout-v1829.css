@@ -1,0 +1,15 @@
+/* TOCÁ v1.8.29: compact save button in Mi bar, below photo gallery. */
+.toca-venue-editor-card > .toca-access-settings { margin-top:24px; }
+.toca-access-settings .toca-access-save-actions {
+  display:flex; align-items:center; justify-content:flex-start;
+  flex-wrap:wrap; gap:12px; margin-top:12px;
+}
+.toca-access-settings .toca-access-save-actions [data-toca-access-save] {
+  display:inline-flex; align-items:center; justify-content:center;
+  width:auto; max-width:100%; flex:0 0 auto;
+  min-height:42px; margin:0;
+  padding:10px 18px;
+}
+.toca-access-settings .toca-access-save-actions [data-toca-access-status] {
+  margin:0;
+}

@@ -1,0 +1,28 @@
+/* TOCÁ v1.8.26 — Customer login. Graphite + neon-green brand system. */
+.toca-customer-page{min-height:min(76vh,790px);display:grid;place-items:center;padding:48px 16px 64px;color:#f0f5f0}
+.toca-customer-card{position:relative;isolation:isolate;overflow:hidden;width:min(100%,460px);padding:clamp(26px,5vw,40px);background:linear-gradient(155deg,#1b2021 0%,#121719 58%,#101516 100%);border:1px solid rgba(170,218,176,.16);border-radius:22px;box-shadow:0 20px 58px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.045)}
+.toca-customer-card::before{content:'';position:absolute;left:-58px;top:-102px;width:260px;height:210px;background:radial-gradient(ellipse,rgba(164,244,98,.085),transparent 70%);pointer-events:none;z-index:-1}
+.toca-customer-card .eyebrow{color:#b8ee79;letter-spacing:.16em;font-size:11px;font-weight:750}
+.toca-customer-card h1{color:#f3f8f0;font-size:clamp(29px,4.5vw,38px);letter-spacing:-.035em;line-height:1.15;margin:12px 0 14px;font-weight:780}
+.toca-customer-card p,.toca-customer-card .toca-customer-lead{color:#b9c6c0;font-size:14px;line-height:1.65;margin:0}
+.toca-customer-form{display:grid;gap:17px;margin-top:27px}
+.toca-customer-form label{display:grid;gap:8px;color:#e6ede5;font-size:13px;font-weight:660}
+.toca-customer-card .toca-customer-form input.input{box-sizing:border-box;width:100%;height:48px;min-height:48px;padding:0 14px;border-radius:11px;background:#0b1012!important;border:1px solid #33423c!important;color:#f6fbf5!important;box-shadow:none!important;outline:0!important;-webkit-text-fill-color:#f6fbf5}
+.toca-customer-card .toca-customer-form input.input::placeholder{color:#819188}
+.toca-customer-card .toca-customer-form input.input:focus{border-color:#acf76d!important;box-shadow:0 0 0 3px rgba(164,244,98,.13)!important}
+.toca-customer-card .toca-customer-form input.input:-webkit-autofill{transition:background-color 600000s 0s}
+.toca-customer-form small{color:#a5b4ab;font-size:12px}
+.toca-customer-card .toca-customer-form button.toca-btn{display:flex;justify-content:center;align-items:center;gap:9px;width:100%;margin-top:3px;min-height:50px;border:1px solid #b8ff78!important;border-radius:12px!important;background:#b5fa78!important;color:#142016!important;font-size:15px;font-weight:800;box-shadow:0 8px 25px rgba(136,220,74,.12);cursor:pointer;transition:background .18s,transform .18s}
+.toca-customer-card .toca-customer-form button.toca-btn:hover{background:#c7ff98!important;transform:translateY(-1px)}
+.toca-customer-card .toca-customer-form button.toca-btn:disabled{opacity:.6;cursor:wait;transform:none}
+.toca-customer-switch{margin-top:22px;text-align:center;font-size:13px;color:#b8c3bc}
+.toca-customer-switch a,.toca-customer-profile a{color:#b5fa78;text-decoration:none;font-weight:700}
+.toca-customer-switch a:hover,.toca-customer-profile a:hover{text-decoration:underline;text-underline-offset:3px}
+.toca-customer-card .toca-customer-note{padding:15px 0 0;border-top:1px solid rgba(255,255,255,.09);margin-top:26px;color:#9aaba1;font-size:12px;line-height:1.6}
+.toca-customer-error{font-size:13px;color:#ffd6d6;background:rgba(169,46,53,.15);border:1px solid rgba(240,117,124,.28);padding:12px;border-radius:10px}
+.toca-customer-error[hidden]{display:none}
+.toca-customer-profile{display:flex;gap:12px;flex-wrap:wrap;align-items:center;justify-content:center;margin-top:15px}
+.toca-customer-profile button{cursor:pointer;background:transparent;border:1px solid rgba(255,255,255,.25);border-radius:9px;padding:9px 14px;color:inherit}
+.toca-customer-request{padding:10px 4px}
+@media(max-width:600px){.toca-customer-page{padding:24px 12px 38px;min-height:60vh}.toca-customer-card{padding:27px 22px;border-radius:17px}}
+@media(prefers-reduced-motion:reduce){.toca-customer-card .toca-customer-form button.toca-btn{transition:none}}

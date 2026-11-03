@@ -1,0 +1,14 @@
+/* TOCÁ v1.8.47 — Google sign-in accent, compatible with TOCÁ dark/neon theme. */
+.toca-google-container {margin:22px 0 14px;display:grid;gap:16px}
+.toca-google-divider {display:flex;align-items:center;gap:14px;color:#a9bdb4;font-size:12px;letter-spacing:.02em}
+.toca-google-divider:before,.toca-google-divider:after {content:"";flex:1;height:1px;background:rgba(194,231,203,.18)}
+.toca-google-slot {display:flex;align-items:center;justify-content:center;min-height:43px;max-width:100%;overflow:visible}
+.toca-google-slot > div {max-width:100%}
+.toca-google-unavailable {font-size:12px;line-height:1.5;color:#9caea6;text-align:center}
+.toca-google-link-container {margin-top:25px;padding:18px;border:1px solid rgba(173,255,94,.18);border-radius:14px;background:rgba(122,195,86,.045)}
+.toca-google-link-title {font-size:14px;font-weight:700;color:#e9f4ea}
+.toca-google-link-container p {font-size:12px;color:#a9bdb4;margin:7px 0 14px;line-height:1.5}
+#toca-google-link-message {margin-top:10px;font-size:13px;color:#aaff56}
+#toca-google-link-message.is-error {color:#ffc2c2}
+#toca-google-link-message[hidden] {display:none}
+@media(max-width:480px) {.toca-google-container{margin-top:16px}.toca-google-link-container{padding:14px}}

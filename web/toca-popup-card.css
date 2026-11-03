@@ -1,0 +1,145 @@
+/* TOCÁ v1.7.3.4 — Tarjeta del mapa: foto completa, texto y links (sin botones). */
+.toca-map-art #leaflet-map .leaflet-popup-content-wrapper {
+  padding: 0;
+  overflow: hidden;
+  background: #152327;
+  border: 1px solid #34464a;
+  color: #e9efef;
+  border-radius: 15px;
+  box-shadow: 0 14px 38px rgba(0,0,0,.40);
+}
+.toca-map-art #leaflet-map .leaflet-popup-tip {
+  background: #152327;
+  border: 1px solid #34464a;
+}
+.toca-map-art #leaflet-map .leaflet-popup-content {
+  box-sizing: border-box;
+  margin: 0 !important;
+  width: 258px !important;
+  min-width: 0 !important;
+  max-width: 258px !important;
+  line-height: 1.35;
+  font-family: 'DM Sans', system-ui, sans-serif;
+}
+.toca-map-art #leaflet-map .toca-popup-card {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+}
+.toca-map-art #leaflet-map .toca-popup-media {
+  height: 132px;
+  width: 100%;
+  display: grid;
+  place-items: center;
+  background: #0c181b;
+  overflow: hidden;
+}
+.toca-map-art #leaflet-map .toca-popup-cover {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+  border: 0;
+}
+.toca-map-art #leaflet-map .toca-popup-placeholder {
+  display: block;
+  width: 60px;
+  height: 60px;
+  object-fit: contain;
+  opacity: .75;
+}
+.toca-map-art #leaflet-map .toca-popup-copy {
+  padding: 13px 16px 15px;
+}
+.toca-map-art #leaflet-map .toca-popup-name {
+  display: block;
+  margin: 0;
+  color: #f3f6f6;
+  font-family: 'Outfit', 'DM Sans', system-ui, sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.toca-map-art #leaflet-map .toca-popup-meta {
+  display: block;
+  margin-top: 5px;
+  color: #9badaf;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.toca-map-art #leaflet-map .toca-popup-links {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 14px;
+  padding-top: 11px;
+  border-top: 1px solid #304347;
+}
+/* Regla focalizada, de alta especificidad, para neutralizar estilos anteriores.
+   Ni fondo, ni bordes, ni aspecto de botón. */
+.toca-map-art #leaflet-map .leaflet-popup-content .toca-popup-links > a.toca-popup-link,
+.toca-map-art #leaflet-map .leaflet-popup-content .toca-popup-links > a.toca-popup-link:visited {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  width: auto !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  color: #cbdadb !important;
+  -webkit-text-fill-color: #cbdadb !important;
+  text-decoration: none !important;
+  font-family: 'DM Sans', system-ui, sans-serif !important;
+  font-size: 12.5px !important;
+  font-weight: 600 !important;
+  line-height: 1.45 !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+  text-shadow: none !important;
+  white-space: nowrap !important;
+  transform: none !important;
+  opacity: 1 !important;
+  transition: color .14s ease;
+}
+.toca-map-art #leaflet-map .leaflet-popup-content .toca-popup-links > a.toca-popup-link:hover,
+.toca-map-art #leaflet-map .leaflet-popup-content .toca-popup-links > a.toca-popup-link:focus-visible {
+  color: #e5f3e8 !important;
+  -webkit-text-fill-color: #e5f3e8 !important;
+  text-decoration: underline !important;
+  text-underline-offset: 3px;
+}
+.toca-map-art #leaflet-map .toca-popup-link span {
+  color: #839c9f;
+  -webkit-text-fill-color: #839c9f;
+}
+.toca-map-art #leaflet-map .leaflet-popup-close-button {
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  top: 8px;
+  right: 8px;
+  width: 25px;
+  height: 25px;
+  border-radius: 50%;
+  background: rgba(12,22,25,.82);
+  color: #e0ebeb;
+  line-height: 1;
+  font-size: 19px;
+  text-decoration: none;
+}
+.toca-map-art #leaflet-map .leaflet-popup-close-button:hover {
+  background: rgba(12,22,25,.96);
+  color: white;
+}

@@ -1,0 +1,290 @@
+/* TOCÁ v1.8.38 — streamlined Mi bar layout; dark graphite + neon green. */
+.toca-venue-editor-card.toca-v1836-enabled {
+  --toca-mibar-accent:#62f34f;
+  --toca-mibar-muted:#a7b9b3;
+  background:transparent!important;border:0!important;box-shadow:none!important;
+  padding:0!important;overflow:visible!important;font-family:'DM Sans',sans-serif;
+}
+.toca-v1836-enabled .toca-v1836-hero {
+  position:relative;isolation:isolate;min-height:165px;overflow:hidden;display:flex;align-items:center;
+  margin:0 0 18px;border-radius:17px;background:#111b1d;
+  border:1px solid #2b4137;
+}
+.toca-v1836-hero-photo{position:absolute;inset:0;z-index:-2;background:radial-gradient(circle at 85% 30%,#2d5a3d 0,transparent 56%),#111a1d}
+.toca-v1836-hero-photo img{display:block;width:100%;height:100%;object-fit:cover;object-position:center 46%;opacity:.48;filter:saturate(.8)}
+.toca-v1836-hero:after {content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(90deg,#080e0eea,#0b1415ad 65%,#101c16a6);pointer-events:none}
+.toca-v1836-hero-copy{padding:20px 28px;color:#fff;max-width:700px}
+.toca-v1836-kicker{font-size:11px;letter-spacing:.13em;color:#c3f3c6;font-weight:800}
+.toca-v1836-hero h1{font:800 clamp(28px,3vw,40px)/1.1 'Outfit','DM Sans',sans-serif;margin:7px 0 4px;color:#fff}
+.toca-v1836-hero p{font-size:13px;color:#d1dfd6;margin:0 0 10px}
+.toca-v1836-venue-name{display:inline-block;color:#d8ffe2;font-weight:750;font-size:14px;border-left:2px solid var(--toca-mibar-accent);padding-left:10px}
+.toca-v1836-enabled .toca-v1836-grid{
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;align-items:stretch;
+  margin:0;
+}
+.toca-v1836-enabled .toca-v1836-card {
+  min-width:0;overflow:hidden;color:#edf7ef;
+  border:1px solid #30403f;border-radius:16px;
+  background:linear-gradient(142deg,#162021,#10191c 75%);
+  box-shadow:0 5px 22px #0000002b;
+}
+.toca-v1836-enabled .toca-v1836-main{grid-column:1/-1;border-color:#427d52;background:linear-gradient(150deg,#14251d,#11191d 55%,#15251e)}
+.toca-v1836-heading{display:flex;align-items:center;gap:10px;padding:16px 17px 12px;min-width:0}
+.toca-v1836-icon{color:var(--toca-mibar-accent);flex:none;display:grid;place-items:center;width:34px;height:34px;border-radius:10px;background:#173624}
+.toca-v1836-heading-copy{min-width:0}
+.toca-v1836-heading h3{margin:0 0 3px;color:#f3fff4;font:750 17px/1.25 'Outfit','DM Sans',sans-serif}
+.toca-v1836-heading p{margin:0;color:var(--toca-mibar-muted);font-size:12px;line-height:1.45}
+.toca-v1836-body{padding:0 16px 17px;min-width:0}
+.toca-v1836-main .toca-v1836-body{padding:0 17px 19px}
+.toca-v1836-main-layout{display:grid;grid-template-columns:minmax(0,35fr) minmax(0,65fr);gap:22px;align-items:start;min-width:0}
+.toca-v1836-main-fields{min-width:0}
+.toca-v1836-main-fields .toca-editor-fields {display:block!important;grid-template-columns:none!important;gap:0!important;margin:0!important}
+.toca-v1836-main-fields .field{margin-bottom:13px!important;min-width:0}
+.toca-v1836-main-fields .field label{display:block;color:#e7f2e9;font-size:12px;font-weight:700;margin-bottom:5px}
+.toca-v1836-main-fields .input{background:#111d20;color:#f7fef9;border:1px solid #455a5b;border-radius:9px;max-width:100%;width:100%;min-width:0}
+.toca-v1836-main-fields textarea{min-height:94px;resize:vertical;line-height:1.55}
+.toca-v1836-city-hidden{display:none!important}
+.toca-v1836-main-map{border-left:1px solid #364b49;padding-left:18px;min-width:0;}
+.toca-v1836-main-map #toca-location-map{height:330px;min-height:330px;width:100%;border-radius:12px;overflow:hidden}
+.toca-v1836-main-map .toca-location-widget{max-width:100%;width:100%;margin:0;min-width:0}
+.toca-v1836-main-map .toca-location-controls{flex-wrap:wrap;gap:8px}
+.toca-v1836-main-map .toca-location-feedback{font-size:12px}
+.toca-v1836-main-map .toca-location-searchbar{max-width:100%;min-width:0}
+.toca-v1836-main-map .toca-location-searchbar input{max-width:100%;min-width:0}
+.toca-v1836-hours .toca-hours-editor,
+.toca-v1836-genres .toca-genre-widget,
+.toca-v1836-access .toca-access-settings,
+.toca-v1836-photos .toca-photos-panel{margin:0!important;box-shadow:none!important;border:0!important;background:transparent!important;padding:0!important;max-width:100%;min-width:0}
+.toca-v1836-access .toca-access-settings>h3,
+.toca-v1836-access .toca-access-settings>p{display:none}
+.toca-v1836-photos .toca-fields-note{margin:0 0 10px;font-size:12px}
+/* All four functional panels align to explicit grid tracks.
+   Hours spans the two rows; photo occupies the right top row; genre/access
+   share the right bottom row. No empty third-column placeholders. */
+.toca-v1836-hours{grid-column:1;grid-row:2/span 2}
+.toca-v1836-photos{grid-column:2/4;grid-row:2}
+.toca-v1836-genres{grid-column:2;grid-row:3}
+.toca-v1836-access{grid-column:3;grid-row:3}
+.toca-v1836-extra{grid-column:1/-1}
+.toca-v1836-save{grid-column:1/-1;display:flex;align-items:center;gap:12px;justify-content:flex-start;margin:5px 0 6px}
+.toca-v1836-save .toca-profile-save,
+.toca-v1836-save .toca-editor-actions{display:flex;margin:0!important;padding:0!important;width:auto!important;justify-content:flex-start}
+.toca-v1836-save .btn{background:var(--toca-mibar-accent);color:#09150a;border-radius:10px;border:1px solid #74f364;font-weight:800;font-size:14px;width:auto!important;min-width:190px;max-width:100%;padding:12px 18px}
+.toca-v1836-enabled .toca-delete-venue{margin-top:11px;background:linear-gradient(115deg,#251a20,#141b1e);border:1px solid #8f343e;border-radius:15px;padding:16px 19px}
+.toca-v1836-enabled .toca-delete-venue .toca-delete-trigger{background:transparent;color:#ff6672;border:1px solid #a63843;min-height:40px;padding:8px 18px;border-radius:9px;max-width:max-content}
+.toca-v1836-enabled .toca-delete-venue h3{color:#fff}
+.toca-v1836-enabled .toca-delete-venue p{color:#d0bbc0}
+/* Existing admin music tab: Spotify Premium first, then moderation/rules. */
+.toca-v1832-spotify-combined{margin:0 0 20px!important}
+@media (max-width:1300px){
+  .toca-v1836-main-layout{gap:16px}
+  .toca-v1836-main-map{padding-left:14px}
+}
+@media (max-width:1100px){
+  .toca-v1836-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .toca-v1836-main{grid-column:1/-1}
+  .toca-v1836-hours{grid-column:1;grid-row:2/span 2}
+  .toca-v1836-photos{grid-column:2;grid-row:2}
+  .toca-v1836-genres{grid-column:2;grid-row:3}
+  .toca-v1836-access{grid-column:1/-1;grid-row:4}
+  .toca-v1836-save{grid-column:1/-1;grid-row:5}
+}
+@media (max-width:920px){
+  .toca-v1836-main-layout{grid-template-columns:minmax(0,1fr)}
+  .toca-v1836-main-map{grid-column:auto;padding:16px 0 0;border-left:0;border-top:1px solid #364b49}
+}
+@media(max-width:640px){
+  .toca-v1836-grid{display:flex!important;flex-direction:column;gap:12px}
+  .toca-v1836-grid > *{width:100%}
+  .toca-v1836-hero{min-height:155px}
+  .toca-v1836-hero-copy{padding:20px!important}
+  .toca-v1836-main-layout{grid-template-columns:minmax(0,1fr)}
+  .toca-v1836-main-map #toca-location-map{height:290px;min-height:290px}
+  .toca-v1836-hours,.toca-v1836-photos,.toca-v1836-genres,.toca-v1836-access,.toca-v1836-save{grid-column:auto;grid-row:auto}
+  .toca-v1836-heading{padding:14px}
+  .toca-v1836-body{padding:0 14px 15px}
+  .toca-v1836-save .btn{width:100%!important}
+  .toca-v1836-save .toca-profile-save,.toca-v1836-save .toca-editor-actions{width:100%!important}
+}
+
+/* TOCÁ v1.8.36: consistent section kicker on Mi bar and Music. */
+.toca-v1836-kicker,
+.toca-v1836-music-kicker{
+  font-family:'DM Sans',sans-serif;font-size:11px;font-weight:800;
+  text-transform:uppercase;letter-spacing:.14em;color:#a7f5b2;
+}
+.toca-v1836-music-header{padding:8px 0 20px;margin:0 0 9px;}
+.toca-v1836-music-header h1{font:800 clamp(25px,3vw,36px)/1.15 'Outfit','DM Sans',sans-serif;
+  color:#f5fff7;margin:8px 0 7px;}
+.toca-v1836-music-header p{font-size:13px;color:#aec2b9;line-height:1.6;margin:0;}
+/* Do not duplicate CONTROL DE LA PLAYLIST lower down inside Música y reglas. */
+.toca-v1836-music-ready .toca-rule-heading>.eyebrow{display:none!important;}
+.toca-v1836-music-ready>.toca-v1832-spotify-combined{margin:0 0 22px!important;}
+/* Remove only the horizontal separator lines framing the location title;
+   keep the original address suggestion list, Leaflet map and buttons intact. */
+.toca-v1836-enabled .toca-v1836-main-map .toca-location-widget,
+.toca-v1836-enabled .toca-v1836-main-map .toca-location-widget>.field,
+.toca-v1836-enabled .toca-v1836-main-map .toca-location-widget>.field>label {
+  border-top:0!important;border-bottom:0!important;
+  box-shadow:none!important;
+}
+.toca-v1836-enabled .toca-v1836-main-map .toca-location-widget>.field::before,
+.toca-v1836-enabled .toca-v1836-main-map .toca-location-widget>.field::after{display:none!important;}
+.toca-v1836-enabled .toca-v1836-main-map .toca-location-widget>hr{display:none!important;}
+/* Separate destructive action clearly from the editable content. */
+.toca-v1836-enabled .toca-delete-venue{margin-top:36px!important;}
+@media(max-width:640px){
+  .toca-v1836-music-header{padding-top:4px;margin-bottom:8px;}
+  .toca-v1836-enabled .toca-delete-venue{margin-top:30px!important;}
+}
+
+/* v1.8.36 — Approved Mi bar layout, no surrounding hero card. */
+.toca-v1836-enabled .toca-v1836-hero{
+  min-height:0!important;margin:0 0 20px!important;
+  background:transparent!important;border:0!important;border-radius:0!important;
+  box-shadow:none!important;overflow:visible!important;
+}
+.toca-v1836-enabled .toca-v1836-hero-photo,
+.toca-v1836-enabled .toca-v1836-hero::after{display:none!important;content:none!important}
+.toca-v1836-enabled .toca-v1836-hero-copy{padding:4px 0 8px!important;max-width:none}
+.toca-v1836-enabled .toca-v1836-main-layout{
+  grid-template-columns:minmax(0,1fr)!important;gap:19px!important;
+}
+.toca-v1836-enabled .toca-v1836-main-fields,
+.toca-v1836-enabled .toca-v1836-main-map{grid-column:1/-1;min-width:0}
+.toca-v1836-enabled .toca-v1836-details-grid{
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:16px 22px;align-items:start;
+}
+.toca-v1836-enabled .toca-v1836-details-grid>.field{margin:0!important;min-width:0}
+.toca-v1836-enabled .toca-v1836-details-grid .input,
+.toca-v1836-enabled .toca-v1836-details-grid textarea{
+  width:100%;max-width:100%;min-width:0;box-sizing:border-box;
+  background:#111d20;color:#f7fef9;border:1px solid #455a5b;border-radius:9px;
+}
+.toca-v1836-enabled .toca-v1836-details-grid .field label{
+  display:block;color:#e7f2e9;font-size:12px;font-weight:700;margin:0 0 7px;
+}
+.toca-v1836-enabled .toca-v1836-description-field textarea{min-height:110px;resize:vertical;line-height:1.5}
+.toca-v1836-enabled .toca-v1836-main-fields .toca-editor-fields{margin:0!important}
+.toca-v1836-enabled .toca-v1836-main-map{
+  border:0!important;padding:0!important;
+}
+.toca-v1836-enabled .toca-v1836-main-map #toca-location-map{
+  width:100%!important;max-width:100%;height:390px;min-height:390px;
+  border-radius:12px;overflow:hidden;
+}
+.toca-v1836-enabled .toca-v1836-main-map .toca-location-widget{
+  width:100%;max-width:100%;min-width:0;margin:0!important;
+}
+/* Spotify title and subtitle should match other admin sections. */
+.toca-v1836-music-ready .toca-v1832-spotify-heading{
+  display:flex;align-items:flex-start;gap:10px;margin:0 0 20px!important;
+}
+.toca-v1836-music-ready .toca-v1832-spotify-heading h2{
+  font:750 24px/1.25 'Outfit','DM Sans',sans-serif!important;
+  color:#f3fcf5!important;margin:0!important;
+}
+.toca-v1836-music-ready .toca-v1832-spotify-heading p{
+  font:400 13px/1.55 'DM Sans',sans-serif!important;
+  color:#a8bdb6!important;margin:6px 0 0!important;
+}
+.toca-v1836-music-ready > .toca-v1832-spotify-combined{
+  margin-top:0!important;margin-bottom:34px!important;padding-bottom:8px!important;
+}
+@media(max-width:700px){
+  .toca-v1836-enabled .toca-v1836-details-grid{grid-template-columns:minmax(0,1fr)!important;gap:13px}
+  .toca-v1836-enabled .toca-v1836-main-map #toca-location-map{height:310px;min-height:310px}
+}
+
+
+/* TOCÁ v1.8.37 — wide photo gallery and aligned cards. */
+/* Remove Spotify subsection heading only: existing Spotify controls stay visible. */
+.toca-v1836-music-ready .toca-v1832-spotify-heading{display:none!important}
+.toca-v1836-music-ready>.toca-v1832-spotify-combined{margin-top:0!important}
+/* Mi bar: wide photo section immediately below the location editor. */
+.toca-v1836-enabled .toca-v1836-photos{
+  grid-column:1/-1!important;grid-row:2!important;
+}
+.toca-v1836-enabled .toca-v1836-hours{
+  grid-column:1!important;grid-row:3!important;
+}
+.toca-v1836-enabled .toca-v1836-genres{
+  grid-column:2!important;grid-row:3!important;
+}
+.toca-v1836-enabled .toca-v1836-access{
+  grid-column:3!important;grid-row:3!important;
+}
+.toca-v1836-enabled .toca-v1836-save{grid-column:1/-1!important;grid-row:4!important}
+.toca-v1836-enabled .toca-v1836-photos .toca-v1836-body{
+  width:100%;box-sizing:border-box;
+}
+.toca-v1836-enabled .toca-v1836-photos .toca-photos-panel{
+  width:100%!important;max-width:none!important;
+}
+@media (min-width:641px) and (max-width:1100px){
+  .toca-v1836-enabled .toca-v1836-photos{grid-column:1/-1!important;grid-row:2!important}
+  .toca-v1836-enabled .toca-v1836-hours{grid-column:1!important;grid-row:3!important}
+  .toca-v1836-enabled .toca-v1836-genres{grid-column:2!important;grid-row:3!important}
+  .toca-v1836-enabled .toca-v1836-access{grid-column:1/-1!important;grid-row:4!important}
+  .toca-v1836-enabled .toca-v1836-save{grid-column:1/-1!important;grid-row:5!important}
+}
+@media (max-width:640px){
+  .toca-v1836-enabled .toca-v1836-photos,
+  .toca-v1836-enabled .toca-v1836-hours,
+  .toca-v1836-enabled .toca-v1836-genres,
+  .toca-v1836-enabled .toca-v1836-access,
+  .toca-v1836-enabled .toca-v1836-save{
+    grid-column:auto!important;grid-row:auto!important;
+  }
+}
+
+
+/* TOCÁ v1.8.38 — compact location editor and one photo gallery heading. */
+.toca-v1836-enabled .toca-v1836-main-layout{gap:16px!important}
+.toca-v1836-enabled .toca-v1836-main .toca-v1836-body{padding-bottom:18px}
+.toca-v1836-enabled .toca-v1836-details-grid{row-gap:15px!important;column-gap:22px!important}
+.toca-v1836-enabled .toca-v1836-description-field textarea{
+  min-height:76px!important;height:76px;resize:vertical;line-height:1.5
+}
+.toca-v1836-enabled .toca-v1836-instagram-field .toca-location-help{display:none!important}
+.toca-v1838-map-header{
+  display:flex;justify-content:space-between;align-items:center;
+  flex-wrap:wrap;gap:10px 16px;margin:3px 0 12px;
+}
+.toca-v1838-map-intro{min-width:0}
+.toca-v1838-map-intro h4{
+  font:750 16px/1.3 'Outfit','DM Sans',sans-serif;color:#f0fff3;margin:0 0 4px
+}
+.toca-v1838-map-intro p{color:#a8bcb4;font-size:12px;line-height:1.45;margin:0}
+.toca-v1838-map-status{
+  flex:none;max-width:100%;font-size:11px;line-height:1.5;font-weight:700;
+  border:1px solid #496058;color:#bcd5c8;border-radius:99px;padding:5px 11px;
+  background:#14211f;
+}
+.toca-v1838-map-status.toca-v1838-saved{border-color:#43865a;color:#86ef9b;background:#173524}
+/* Keep the original accessibility feedback and bindings without visual repetition. */
+.toca-v1838-original-map-heading,.toca-v1838-original-map-help,
+.toca-v1838-original-feedback{
+  position:absolute!important;clip:rect(0,0,0,0)!important;
+  clip-path:inset(50%)!important;height:1px!important;width:1px!important;
+  overflow:hidden!important;white-space:nowrap!important;padding:0!important;
+  margin:-1px!important;border:0!important;
+}
+.toca-v1836-enabled .toca-v1836-main-map .toca-location-widget>.field{
+  margin:0!important;padding:0!important;min-height:0!important;
+}
+.toca-v1836-enabled .toca-v1836-main-map .toca-location-controls{
+  display:flex;justify-content:flex-end;align-items:center;flex-wrap:wrap;
+  gap:10px;margin:13px 0 0!important;padding:0!important;
+}
+.toca-v1836-enabled .toca-v1836-main-map #toca-location-map{
+  height:390px;min-height:390px;border-radius:12px
+}
+.toca-v1836-enabled .toca-v1836-photos .toca-v1836-heading{padding-bottom:13px}
+.toca-v1836-enabled .toca-v1836-photos .toca-cover-required{margin:2px 0 11px}
+@media (max-width:700px){
+  .toca-v1836-enabled .toca-v1836-details-grid{row-gap:12px!important}
+  .toca-v1836-enabled .toca-v1836-main-map #toca-location-map{height:300px;min-height:300px}
+  .toca-v1838-map-header{align-items:flex-start;gap:8px}
+}

@@ -1,0 +1,52 @@
+/* TOCÁ v1.8.41: customer profile with persisted private photo. */
+.toca-profile-v1841{width:min(100%,1180px);margin:0 auto;padding:22px 0 54px;color:#edf5ef}
+.toca-profile-hero{position:relative;overflow:hidden;isolation:isolate;border:1px solid rgba(156,240,134,.22);border-radius:24px;padding:clamp(22px,4vw,40px);background:radial-gradient(ellipse at 82% -22%,rgba(112,237,108,.15),transparent 45%),linear-gradient(140deg,#172521,#101a19 65%,#0d1616);box-shadow:0 18px 48px rgba(0,0,0,.16)}
+.toca-profile-hero>.eyebrow,.toca-profile-section .eyebrow{font-size:11px;color:#aafb82;letter-spacing:.16em;font-weight:800}
+.toca-profile-identity{display:flex;align-items:center;gap:clamp(20px,3vw,32px);margin-top:24px}
+.toca-profile-photo-area{position:relative;flex-shrink:0;width:116px;height:116px}
+.toca-profile-photo{width:100%;height:100%;display:grid;place-items:center;overflow:hidden;border-radius:50%;border:3px solid #9df467;background:linear-gradient(145deg,#2f5038,#11251f);box-shadow:0 0 0 8px rgba(134,238,107,.08);color:#b7ff84;font:800 49px/1 'Outfit',sans-serif}
+.toca-profile-photo img{width:100%;height:100%;object-fit:cover}
+.toca-profile-photo-edit{position:absolute;right:-5px;bottom:0;width:36px;height:36px;display:grid;place-items:center;border:2px solid #11201c;border-radius:50%;background:#b5ff82;color:#102018;cursor:pointer;box-shadow:0 3px 14px rgba(0,0,0,.35)}
+.toca-profile-photo-edit:hover{background:#d1ffa8}
+.toca-profile-photo-edit input{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden}
+.toca-profile-photo-edit:focus-within{outline:2px solid #baff8e;outline-offset:3px}
+.toca-profile-hero-text{min-width:0}
+.toca-profile-kicker{color:#9bb7a7;letter-spacing:.12em;font-size:11px;font-weight:800}
+.toca-profile-hero-text h1{font-size:clamp(29px,4vw,46px);line-height:1.1;letter-spacing:-.035em;margin:8px 0 10px;color:#f4fbf3}
+.toca-profile-hero-text p{color:#b2c3b8;margin:0;overflow-wrap:anywhere}
+.toca-profile-image-actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:15px;color:#9bb1a4;font-size:12px}
+.toca-profile-image-actions button{border:0;background:none;color:#bbfd89;font-weight:750;cursor:pointer;padding:0}
+.toca-profile-feedback{padding:10px 13px;margin-top:18px;border:1px solid #4d8754;border-radius:10px;background:rgba(124,219,95,.09);color:#baff98;font-size:13px}
+.toca-profile-feedback.is-error{border-color:#985050;background:rgba(180,65,74,.12);color:#ffd1d1}
+.toca-profile-feedback[hidden]{display:none}
+.toca-profile-guest-actions{display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin-top:20px}
+.toca-profile-guest-actions>a:not(.toca-btn){color:#b5fb81;text-decoration:none}
+.toca-profile-stat-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:18px}
+.toca-profile-stat{text-decoration:none;display:flex;flex-direction:column;gap:5px;padding:20px 24px;border:1px solid #2a433a;border-radius:18px;background:#101c1b;color:#eaf4ee;transition:border-color .15s,transform .15s}
+.toca-profile-stat:hover{border-color:#92ec6c;transform:translateY(-2px)}
+.toca-profile-stat span{font-size:13px;color:#aebeb6;font-weight:650}
+.toca-profile-stat strong{font-size:32px;letter-spacing:-.04em;line-height:1.2;color:#bbff88}
+.toca-profile-stat small{font-size:12px;color:#92a79a}
+.toca-profile-bottom-grid{display:grid;grid-template-columns:minmax(0,1.8fr) minmax(240px,1fr);align-items:start;gap:18px;margin-top:18px}
+.toca-profile-section{min-width:0;border:1px solid #2a4039;background:#101b1b;border-radius:18px;padding:clamp(18px,2.5vw,26px)}
+.toca-profile-section h2{font-size:21px;letter-spacing:-.025em;margin:5px 0 0;color:#f0f9f2}
+.toca-profile-section-heading{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:18px}
+.toca-profile-section-heading>a{display:flex;align-items:center;gap:7px;color:#b2fc7c;text-decoration:none;font-size:13px;font-weight:700;white-space:nowrap}
+.toca-profile-favorite-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr));gap:14px}
+.toca-profile-favorite-grid .toca-venue{min-width:0}
+.toca-profile-empty{padding:24px 15px;background:#172420;border:1px dashed #365447;border-radius:12px;color:#b2c2b7;font-size:14px;line-height:1.6}
+.toca-profile-shortcuts{display:flex;flex-direction:column;gap:8px}
+.toca-profile-shortcuts h2{margin:5px 0 14px}
+.toca-profile-shortcuts>a,.toca-profile-shortcuts>button{display:flex;align-items:center;gap:12px;min-height:52px;padding:12px 15px;border:1px solid #31463d;border-radius:11px;color:#e7f0e9;background:#162321;font-weight:700;text-align:left;text-decoration:none;cursor:pointer;font:inherit}
+.toca-profile-shortcuts>a svg:last-child{margin-left:auto;color:#b5fa7e}
+.toca-profile-shortcuts>a:hover{border-color:#86e76d;background:#1d3028}
+.toca-profile-shortcuts>button.toca-profile-logout{margin-top:8px;color:#eacac9;border-color:#624340;background:rgba(104,42,42,.12)}
+.toca-user-has-photo{padding:0!important;overflow:hidden;border-radius:50%}
+.toca-user-has-photo img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+@media(max-width:750px){.toca-profile-bottom-grid{grid-template-columns:1fr}.toca-profile-v1841{padding:10px 0 48px}}
+@media(max-width:500px){.toca-profile-identity{align-items:flex-start;gap:20px;flex-direction:column}.toca-profile-photo-area{width:100px;height:100px}.toca-profile-photo{font-size:40px}.toca-profile-stat-grid{gap:9px}.toca-profile-stat{padding:16px}.toca-profile-section-heading{align-items:flex-start;flex-direction:column}}
+
+/* Remove the thin empty results strip after the obsolete hints are removed.
+   Populated search results remain visible and interactive. */
+.toca-request-page #song-results:empty{display:none!important}
+.toca-request-page .toca-genre-chips,.toca-request-page .toca-request-note{display:none!important}

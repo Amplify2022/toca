@@ -1,0 +1,14 @@
+/* TOCÁ v1.8.5 — ubicación y géneros en líneas separadas en la ficha pública. */
+.toca-detail-intro .toca-detail-address {
+  margin: 9px 0 3px;
+  color: #e3edeb;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.toca-detail-intro .toca-detail-genres {
+  margin: 0 0 12px;
+  color: #a9bfba;
+  line-height: 1.55;
+  font-size: .93rem;
+  overflow-wrap: anywhere;
+}

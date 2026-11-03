@@ -1,0 +1,36 @@
+/* TOCÁ v1.8.40: tighten only the space beneath the map and photos introductions.
+   Requires v1.8.39. Original Leaflet, autocomplete and gallery controls remain untouched. */
+
+/* The older location widget retains an empty help/label wrapper after v1.8.38
+   hides its contents for accessibility. Collapse it ONLY if no interactive UI
+   is contained inside (important: never hide geocode search or suggestions). */
+.toca-v1836-enabled .toca-v1836-main-map .toca-location-widget > .field:has(.toca-v1838-original-map-heading):not(:has(input,textarea,select,button,[role="combobox"])) {
+  display:none!important;
+}
+.toca-v1836-enabled .toca-v1836-main-map .toca-v1838-map-header {
+  margin-bottom:0!important;
+  padding-bottom:0!important;
+}
+.toca-v1836-enabled .toca-v1836-main-map .toca-location-widget {
+  margin-top:7px!important;
+  padding-top:0!important;
+}
+.toca-v1836-enabled .toca-v1836-main-map .toca-location-widget > .field:empty {
+  display:none!important;
+}
+/* Keep actual map, feedback and confirm button dimensions/interactions. */
+
+/* Same visual adjustment for gallery: bring the uploader closer to its subtitle. */
+.toca-v1836-enabled .toca-v1836-photos .toca-v1836-heading {
+  padding-bottom:3px!important;
+}
+.toca-v1836-enabled .toca-v1836-photos .toca-v1836-body {
+  padding-top:0!important;
+}
+.toca-v1836-enabled .toca-v1836-photos .toca-photos-panel {
+  margin-top:-1px!important;
+}
+@media(max-width:640px){
+  .toca-v1836-enabled .toca-v1836-photos .toca-photos-panel {margin-top:-1px!important;}
+  .toca-v1836-enabled .toca-v1836-main-map .toca-location-widget {margin-top:7px!important;}
+}

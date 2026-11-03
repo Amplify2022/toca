@@ -1,0 +1,17 @@
+/* Auth screens inherit TOCÁ's existing dark theme. */
+.toca-customer-page {min-height:65vh;display:grid;place-items:center;padding:38px 16px 60px}
+.toca-customer-card {width:min(100%,470px);background:var(--surface,#11201f);border:1px solid rgba(255,255,255,.12);border-radius:22px;padding:clamp(24px,5vw,38px)}
+.toca-customer-card h1 {font-size:clamp(30px,4vw,42px);line-height:1.1;margin:12px 0 14px}
+.toca-customer-card p {color:#a8bab5;line-height:1.6}
+.toca-customer-form {display:grid;gap:16px;margin-top:25px}
+.toca-customer-form label {display:grid;gap:8px;font-size:14px;font-weight:650}
+.toca-customer-form .input {width:100%;min-height:46px}
+.toca-customer-switch {margin-top:24px;text-align:center;font-size:14px}
+.toca-customer-switch a,.toca-customer-profile a {color:#9df4b1;text-decoration:underline;text-underline-offset:3px}
+.toca-customer-note {font-size:12px;margin-top:26px}
+.toca-customer-error {font-size:14px;color:#ffc2c2;background:rgba(158,33,45,.14);padding:12px;border-radius:10px}
+.toca-customer-error[hidden] {display:none}
+.toca-customer-profile {display:flex;gap:12px;flex-wrap:wrap;align-items:center;justify-content:center;margin-top:15px}
+.toca-customer-profile button {cursor:pointer;background:transparent;border:1px solid rgba(255,255,255,.25);border-radius:9px;padding:9px 14px;color:inherit}
+.toca-customer-request {padding:10px 4px}
+@media(max-width:600px){.toca-customer-page{padding:20px 12px 35px}.toca-customer-card{border-radius:16px}}

@@ -1,0 +1,39 @@
+/* TOCÁ v1.8.3: same dark palette as Mi Bar */
+.toca-v183-address-field { position: relative; min-width: 0; }
+.toca-v183-options[hidden] { display: none !important; }
+.toca-v183-options {
+  position: absolute;
+  z-index: 1600;
+  left: 0; right: 0;
+  top: calc(100% - 1px);
+  max-height: 265px;
+  overflow: auto;
+  background: #171f23;
+  border: 1px solid #3d4d51;
+  border-radius: 0 0 12px 12px;
+  box-shadow: 0 12px 30px #0009;
+  padding: 5px;
+}
+.toca-v183-option {
+  width: 100%;
+  background: transparent;
+  color: #e6efec;
+  padding: 11px 12px;
+  border: 0;
+  border-radius: 8px;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font: inherit;
+}
+.toca-v183-option:hover, .toca-v183-option:focus-visible {
+  background: #29413b;
+  outline: 1px solid #688b7c;
+}
+.toca-v183-option small { color: #abbeb4; font-size: 11px; }
+.toca-v183-empty { color: #b7c5c0; padding: 11px; font-size: 12px; }
+.toca-location-widget .toca-location-controls [data-action='location-confirm']:disabled {
+  opacity: .5; cursor: progress;
+}

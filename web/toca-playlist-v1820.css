@@ -1,0 +1,19 @@
+/* TOCÁ v1.8.20: complete playlist, independent of legacy polling. */
+.toca-detail-aside .toca-panel.toca-next-hidden-v1820 {display:none !important;}
+.toca-detail-aside .toca-panel.toca-full-playlist-v1820 #toca-live-order {display:none !important;}
+.toca-playlist-v1820-list {display:flex; flex-direction:column; gap:3px; max-width:100%;}
+.toca-playlist-v1820-row {gap:10px; min-width:0; align-items:center; padding:9px 8px; border-radius:9px;}
+.toca-playlist-v1820-row .toca-number {min-width:24px; flex:0 0 24px; text-align:center;}
+.toca-playlist-v1820-row .toca-song-meta {flex:1 1 0; min-width:0;}
+.toca-playlist-v1820-row .toca-song-meta strong,
+.toca-playlist-v1820-row .toca-song-meta small {overflow-wrap:anywhere;}
+.toca-playlist-v1820-current {background:rgba(113,234,130,.12); outline:1px solid rgba(113,234,130,.32);}
+.toca-playlist-v1820-next {background:rgba(255,255,255,.055);}
+.toca-playlist-v1820-badge {font-size:10px; font-weight:700; line-height:1.35; white-space:normal; text-align:right; flex:0 0 auto; max-width:110px;}
+.toca-playlist-v1820-badge.is-current {color:#92f0a1;}
+.toca-playlist-v1820-badge.is-next {color:#c9d9cf;}
+.toca-playlist-v1820-muted {margin:12px 0; font-size:13px; color:#adbbb6;}
+@media(max-width:440px){
+  .toca-playlist-v1820-row {gap:7px; padding:8px 4px;}
+  .toca-playlist-v1820-badge {max-width:76px; font-size:9px;}
+}

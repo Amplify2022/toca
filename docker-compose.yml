@@ -1,0 +1,51 @@
+name: toca
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: toca
+      POSTGRES_USER: ${DB_USERNAME:-toca}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - toca_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-toca} -d toca"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  api:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      MICRONAUT_ENVIRONMENTS: docker
+      JDBC_URL: jdbc:postgresql://postgres:5432/toca
+      DB_USERNAME: ${DB_USERNAME:-toca}
+      DB_PASSWORD: ${DB_PASSWORD}
+      FRONTEND_ORIGIN: http://localhost:5173
+      SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID:-}
+      SPOTIFY_REDIRECT_URI: ${SPOTIFY_REDIRECT_URI:-http://127.0.0.1:8080/api/integrations/spotify/callback}
+      SPOTIFY_TOKEN_ENCRYPTION_KEY_BASE64: ${SPOTIFY_TOKEN_ENCRYPTION_KEY_BASE64:-}
+      SPOTIFY_PRIVATE_TEST_CONTROL: ${SPOTIFY_PRIVATE_TEST_CONTROL:-false}
+      SPOTIFY_PRIVATE_TEST_PLAYLIST_WRITES: "true"
+    ports:
+      - "127.0.0.1:8080:8080"
+
+  web:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      - api
+    volumes:
+      - ./web:/usr/share/nginx/html:ro
+    ports:
+      - "127.0.0.1:5173:80"
+
+volumes:
+  toca_pgdata:

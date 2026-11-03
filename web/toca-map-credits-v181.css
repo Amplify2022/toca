@@ -1,0 +1,36 @@
+/* TOCÁ v1.8.1 — atribución fuera del mapa (ambos mapas) */
+/* Ocultar únicamente cuando los créditos ya estén visibles en el pie externo. */
+.toca-credits-relocated .leaflet-control-attribution,
+.toca-credits-relocated .maplibregl-ctrl-attrib {
+  display: none !important;
+}
+/* Fuera del mapa: sin caja, sin leyenda flotante ni botón de información. */
+.toca-map-credit-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 0 5px;
+  margin: 0;
+  padding: 4px 1px 2px;
+  min-height: 16px;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  color: #99a2ab;
+  font: 10px/1.35 'DM Sans', Arial, sans-serif;
+  text-align: right;
+}
+.toca-map-credit-footer a {
+  color: #aab3bc !important;
+  text-decoration: none !important;
+}
+.toca-map-credit-footer a:hover,
+.toca-map-credit-footer a:focus-visible {
+  color: #dce3e9 !important;
+  text-decoration: underline !important;
+}
+.toca-map-credit-footer .toca-credit-dot { color: #777f89; }
+@media (max-width: 440px) {
+  .toca-map-credit-footer { font-size: 9px; }
+}

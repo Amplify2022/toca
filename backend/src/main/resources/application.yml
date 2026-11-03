@@ -1,0 +1,43 @@
+micronaut:
+  application:
+    name: amplify-api
+  server:
+    port: 8080
+    cors:
+      enabled: true
+      configurations:
+        web:
+          allowed-origins:
+            - ${FRONTEND_ORIGIN:`http://localhost:5173`}
+          allowed-methods: [GET, POST, PUT, DELETE, OPTIONS]
+          allowed-headers: [Authorization, Content-Type, X-TOCA-Join, X-TOCA-Customer]
+          exposed-headers: [Location]
+          allow-credentials: false
+          max-age: 3600
+  router:
+    static-resources:
+      swagger:
+        enabled: false
+
+datasources:
+  default:
+    url: ${JDBC_URL:`jdbc:postgresql://localhost:5432/amplify`}
+    driver-class-name: org.postgresql.Driver
+    username: ${DB_USERNAME:amplify}
+    password: ${DB_PASSWORD:amplify_dev_only}
+    dialect: POSTGRES
+    minimum-idle: 1
+    maximum-pool-size: 8
+flyway:
+  datasources:
+    default:
+      enabled: true
+
+amplify:
+  frontend-origin: ${FRONTEND_ORIGIN:`http://localhost:5173`}
+  spotify:
+    client-id: ${SPOTIFY_CLIENT_ID:}
+    redirect-uri: ${SPOTIFY_REDIRECT_URI:`http://127.0.0.1:8080/api/integrations/spotify/callback`}
+    control-enabled: ${SPOTIFY_PRIVATE_TEST_CONTROL:false}
+    playlist-write-enabled: ${SPOTIFY_PRIVATE_TEST_PLAYLIST_WRITES:false}
+    encryption-key: ${SPOTIFY_TOKEN_ENCRYPTION_KEY_BASE64:}

@@ -1,0 +1,85 @@
+/* TOCÁ v1.8.31 — Option 3: visual hero + interactive editing cards. */
+.toca-venue-editor-card.toca-v1831-enabled {
+  --mibar-neon: #66ef48;
+  --mibar-ink: #0b1214;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  overflow: visible !important;
+  font-family: 'DM Sans',sans-serif;
+}
+.toca-v1831-enabled .toca-v1831-hero {
+  position:relative;isolation:isolate;min-height:218px;
+  border-radius:22px;display:flex;align-items:flex-end;overflow:hidden;
+  background:linear-gradient(125deg,#142722,#0a1115 72%);
+  border:1px solid rgba(109,238,88,.25);margin:0 0 21px;
+}
+.toca-v1831-hero-photo {position:absolute;inset:0;z-index:-2;background:radial-gradient(circle at 80% 12%,#165b2d55,transparent 45%),linear-gradient(105deg,#0e2623,#0b1215)}
+.toca-v1831-hero-photo img {width:100%;height:100%;object-fit:cover;opacity:.45;filter:saturate(.84)}
+.toca-v1831-hero::after {content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;background:linear-gradient(90deg,rgba(4,12,13,.95),rgba(4,12,13,.56) 60%,rgba(4,12,13,.2))}
+.toca-v1831-hero-copy {padding:30px 32px;color:#f1f8f2}
+.toca-v1831-kicker {color:var(--mibar-neon);font-size:11px;font-weight:800;letter-spacing:.16em}
+.toca-v1831-hero h2 {font-family:'Outfit','DM Sans',sans-serif;color:#fff;font-size:clamp(30px,3.3vw,45px);margin:9px 0 5px;line-height:1.1;font-weight:800}
+.toca-v1831-hero p {color:#c2d0ca;font-size:14px;margin:0 0 14px;max-width:480px}
+.toca-v1831-hero-name {display:inline-flex;border:1px solid #76e95f80;background:#163623bf;border-radius:100px;padding:6px 13px;font-size:12px;font-weight:700;color:#b5ffab}
+.toca-v1831-enabled .toca-v1831-form {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:0 0 16px;align-items:start}
+.toca-v1831-enabled .toca-v1831-card {
+  min-width:0;background:linear-gradient(140deg,#121c20,#0d1519);
+  border:1px solid #2a3a3d;border-radius:18px;overflow:hidden;
+  color:#eaf5f0;box-shadow:0 8px 26px #00000024;
+}
+.toca-v1831-enabled .toca-v1831-card[open] {border-color:#345347}
+.toca-v1831-enabled .toca-v1831-summary {
+  display:flex;align-items:center;gap:13px;padding:17px 20px;
+  list-style:none;min-height:80px;background:transparent;cursor:pointer;
+}
+.toca-v1831-enabled .toca-v1831-static>.toca-v1831-summary {cursor:default}
+.toca-v1831-enabled .toca-v1831-summary::-webkit-details-marker {display:none}
+.toca-v1831-enabled .toca-v1831-summary::marker {content:""}
+.toca-v1831-enabled .toca-v1831-icon {flex:0 0 43px;width:43px;height:43px;border-radius:13px;color:var(--mibar-neon);background:#1b3a27;display:grid;place-items:center}
+.toca-v1831-enabled .toca-v1831-summary-copy {display:flex;flex-direction:column;gap:3px;flex:1;min-width:0}
+.toca-v1831-enabled .toca-v1831-summary-copy strong {font-family:'Outfit','DM Sans',sans-serif;color:#f4fff7;font-size:17px;line-height:1.15}
+.toca-v1831-enabled .toca-v1831-summary-copy small {font-size:12px;color:#a8bdb6;line-height:1.4}
+.toca-v1831-enabled .toca-v1831-chevron {width:10px;height:10px;border-right:2px solid #a7beaf;border-bottom:2px solid #a7beaf;transform:rotate(45deg);transition:transform .2s;margin:0 5px 5px}
+.toca-v1831-enabled details[open]>.toca-v1831-summary .toca-v1831-chevron {transform:rotate(225deg);margin-bottom:-5px}
+.toca-v1831-enabled .toca-v1831-card-body {padding:0 20px 22px;min-width:0}
+.toca-v1831-enabled .toca-v1831-static .toca-v1831-card-body {padding-top:2px}
+.toca-v1831-enabled .toca-v1831-form .toca-v1831-location {grid-column:2;grid-row:1/span 2}
+.toca-v1831-enabled .toca-v1831-form .toca-v1831-hours {grid-column:1/-1}
+.toca-v1831-enabled .toca-v1831-form .toca-v1831-extra {grid-column:1/-1}
+.toca-v1831-enabled .toca-v1831-city-hidden {display:none!important}
+.toca-v1831-enabled .toca-v1831-card .input {max-width:100%}
+.toca-v1831-enabled .toca-v1831-location #toca-location-map {min-height:300px;height:320px;max-width:100%}
+.toca-v1831-enabled .toca-v1831-location .toca-location-widget {margin:0;width:100%;max-width:100%;overflow:visible}
+.toca-v1831-enabled .toca-v1831-location .toca-location-controls {flex-wrap:wrap}
+.toca-v1831-enabled .toca-v1831-bottom {display:flex;flex-direction:column;gap:16px;margin-bottom:16px}
+.toca-v1831-enabled .toca-v1831-photos .toca-photos-panel {margin:0}
+.toca-v1831-enabled .toca-v1831-photos .toca-fields-note {margin:0 0 13px}
+.toca-v1831-enabled .toca-v1831-access .toca-access-settings {margin:0;background:transparent;box-shadow:none;border:0;padding:0}
+.toca-v1831-enabled .toca-v1831-access .toca-access-settings>h3,
+.toca-v1831-enabled .toca-v1831-access .toca-access-settings>p {display:none}
+.toca-v1831-enabled .toca-v1831-save {display:flex;justify-content:flex-end;padding:4px 0}
+.toca-v1831-enabled .toca-v1831-save .toca-profile-save {display:flex;justify-content:flex-end;margin:0;padding:0;width:auto}
+.toca-v1831-enabled .toca-v1831-save .btn {width:auto;min-width:220px;max-width:100%;background:var(--mibar-neon);color:#0b140d;border-radius:11px;font-weight:800;padding:12px 20px}
+.toca-v1831-enabled .toca-delete-venue {margin-top:12px;border:1px solid #733842;border-radius:18px;background:linear-gradient(125deg,#26191e,#151a1d);padding:20px 24px}
+.toca-v1831-enabled .toca-delete-venue .toca-delete-trigger {background:#5b222c;color:#fff;border:1px solid #982f3b;max-width:max-content;min-height:42px;padding:10px 18px}
+.toca-v1831-enabled .toca-delete-venue h3 {color:#fff}
+.toca-v1831-enabled .toca-delete-venue p {color:#c5afb4}
+@media(max-width:960px) {
+ .toca-v1831-enabled .toca-v1831-form {grid-template-columns:minmax(0,1fr)}
+ .toca-v1831-enabled .toca-v1831-form .toca-v1831-location,
+ .toca-v1831-enabled .toca-v1831-form .toca-v1831-hours,
+ .toca-v1831-enabled .toca-v1831-form .toca-v1831-extra {grid-column:auto;grid-row:auto}
+}
+@media(max-width:600px) {
+ .toca-v1831-hero-copy {padding:22px!important}
+ .toca-v1831-enabled .toca-v1831-hero {min-height:185px}
+ .toca-v1831-enabled .toca-v1831-summary {padding:14px 15px;min-height:75px}
+ .toca-v1831-enabled .toca-v1831-icon {flex-basis:39px;width:39px;height:39px}
+ .toca-v1831-enabled .toca-v1831-card-body {padding:0 15px 17px}
+ .toca-v1831-enabled .toca-v1831-save {justify-content:stretch}
+ .toca-v1831-enabled .toca-v1831-save .btn {width:100%;min-width:0}
+ .toca-v1831-enabled .toca-v1831-save .toca-profile-save {width:100%}
+ .toca-v1831-enabled .toca-v1831-location #toca-location-map {height:280px;min-height:280px}
+}

@@ -1,0 +1,65 @@
+/* TOCÁ v1.8.13 — ficha musical más compacta + portadas originales Spotify */
+.toca-detail-playing .toca-section-title {
+  margin-bottom: 8px !important;
+  padding-bottom: 0 !important;
+  gap: 0 !important;
+}
+.toca-detail-playing .toca-section-title::before,
+.toca-detail-playing .toca-section-title h2::before {
+  display: none !important;
+  content: none !important;
+}
+.toca-detail-playing .toca-section-title h2 { margin: 0 !important; }
+.toca-detail-playing #toca-live-music { margin-top: 0 !important; padding-top: 0 !important; }
+.toca-detail-playing #toca-live-music .toca-playing { margin-top: 0 !important; }
+.toca-track-art.toca-has-artwork,
+.album.toca-has-artwork,
+.toca-now-artwork {
+  background: transparent !important;
+  font-size: 0 !important;
+  overflow: hidden;
+  padding: 0 !important;
+  flex-shrink: 0;
+}
+.toca-spotify-cover-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: inherit;
+  text-decoration: none;
+  background: rgba(255,255,255,.06);
+}
+.toca-spotify-cover-link img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain; /* Spotify: portada sin recortes */
+  background: transparent;
+}
+.toca-track-art.toca-has-artwork { position: relative; }
+.toca-track-art.toca-has-artwork > :not(.toca-spotify-cover-link),
+.album.toca-has-artwork > :not(.toca-spotify-cover-link) { display: none !important; }
+.toca-playing-with-cover { display: flex !important; align-items: center; gap: 12px; }
+.toca-playing-with-cover .toca-equalizer { display: none; }
+.toca-now-artwork { width: 68px; height: 68px; border-radius: 7px; }
+.toca-spotify-credit {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  color: #b1c0b9;
+  margin-top: 5px;
+  text-decoration: none;
+  opacity: .88;
+}
+.toca-spotify-credit:hover { color: #1ed760; opacity: 1; }
+.toca-spotify-credit svg { display: block; }
+.toca-song-meta { min-width: 0; }
+@media(max-width:480px) {
+  .toca-now-artwork { width: 56px; height: 56px; }
+  .toca-detail-playing .toca-section-title { margin-bottom: 6px !important; }
+}
