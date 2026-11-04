@@ -89,16 +89,19 @@ public class P1ServiceProbe {
         var presence=new VenuePresence(db);
         db.exec("UPDATE venue SET request_access_mode='NEARBY' WHERE id=?",v);
         Map<String,Object> gps=Map.of("latitude",-34.90,"longitude",-56.17,"accuracy",1);
-        forbidden(()->presence.checkIn(v,c,gps,""),HttpStatus.FORBIDDEN,"Client GPS without QR must fail");
-        check(!Boolean.TRUE.equals(presence.status(v,c).get("allowed")),"No QR must not grant presence");
-        String qr=(String)db.one("SELECT join_token FROM venue WHERE id=?",v).get("join_token");
-        check(Boolean.TRUE.equals(presence.checkIn(v,c,gps,qr).get("allowed")),"Current QR plus GPS must grant");
-        db.exec("UPDATE venue SET join_token=? WHERE id=?","rotated-"+UUID.randomUUID(),v);
-        check(!Boolean.TRUE.equals(presence.status(v,c).get("allowed")),"Rotating QR must revoke old grant");
-        forbidden(()->presence.checkIn(v,c,gps,qr),HttpStatus.FORBIDDEN,"Old QR must not regrant");
+        check(Boolean.TRUE.equals(presence.checkIn(v,c,gps).get("allowed")),"Nearby coordinates must grant without QR");
+        check(Boolean.TRUE.equals(presence.checkIn(v,c,Map.of("latitude",-34.90+Math.toDegrees(99.0/6371000.0),"longitude",-56.17,"accuracy",1)).get("allowed")),"99 meters must grant without QR");
+        forbidden(()->presence.checkIn(v,c,Map.of("latitude",-34.90+Math.toDegrees(101.0/6371000.0),"longitude",-56.17,"accuracy",1)),HttpStatus.FORBIDDEN,"101 meters must fail");
+        check(Boolean.FALSE.equals(presence.policy(v).get("requiresQr")),"Distance policy must not require QR");
+        forbidden(()->presence.checkIn(v,c,Map.of("latitude",-34.91,"longitude",-56.17,"accuracy",1)),HttpStatus.FORBIDDEN,"Outside 100 meters must fail");
+        forbidden(()->presence.checkIn(v,c,Map.of("latitude",-34.90,"longitude",-56.17,"accuracy",101)),HttpStatus.FORBIDDEN,"Inaccurate GPS must fail");
+        db.exec("UPDATE venue SET join_token=? WHERE id=?","unused-legacy-token",v);
+        check(Boolean.TRUE.equals(presence.status(v,c).get("allowed")),"Legacy QR rotation must not change distance permission");
+        db.exec("UPDATE venue_customer_presence SET expires_at=now()-interval '1 minute' WHERE venue_id=?",v);
+        check(!Boolean.TRUE.equals(presence.status(v,c).get("allowed")),"Expired distance grant must fail");
         db.exec("UPDATE venue SET request_access_mode='ANYWHERE' WHERE id=?",v);
-        check(Boolean.TRUE.equals(presence.checkIn(v,c,Map.of(),"").get("allowed")),"Explicit ANYWHERE remains available");
-        System.out.println("PASS presence: GPS alone refused, QR accepted, rotation revokes, ANYWHERE explicit");
+        check(Boolean.TRUE.equals(presence.checkIn(v,c,Map.of()).get("allowed")),"ANYWHERE must not need location or QR");
+        System.out.println("PASS presence: 100-meter distance without QR, distant/imprecise/expired rejection, ANYWHERE without GPS");
     }
 
     static class FakeSpotify implements RequestSpotifyGateway {

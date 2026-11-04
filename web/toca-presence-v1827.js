@@ -1,15 +1,13 @@
-/* TOCÁ — QR-authorized venue check-ins with advisory browser location.
-   Client coordinates cannot prove physical presence. Neither coordinates nor
-   the QR secret are stored in the presence record; grants bind to its hash. */
+/* Distance-based access, selected by the bar owner: NEARBY or ANYWHERE. */
 (() => {
   'use strict';
   const customerHeader = () => window.tocaCustomerBearer?.() || '';
-  const venueApi = async (venueId, suffix, method = 'GET', body, qrToken = '') => {
+  const venueApi = async (venueId, suffix, method = 'GET', body) => {
     const token = customerHeader();
     if (!token) throw new Error('Iniciá sesión como cliente antes de pedir canciones.');
     const response = await fetch(`${API_URL}/api/venues/${encodeURIComponent(venueId)}/${suffix}`, {
       method, cache: 'no-store',
-      headers: {'X-TOCA-Customer': token, ...(qrToken ? {'X-TOCA-Join': qrToken} : {}),
+      headers: {'X-TOCA-Customer': token,
         ...(body ? {'Content-Type': 'application/json'} : {})},
       ...(body ? {body: JSON.stringify(body)} : {})
     });
@@ -48,15 +46,11 @@
         return false;
       }
       const existing = await venueApi(venueId,'presence');
-      if (existing.allowed) return true; // ANYWHERE or a grant bound to the current QR
-      const qrToken = typeof rememberJoin === 'function'
-        ? rememberJoin(venueId,typeof route === 'function' ? route().params.get('join') || '' : '')
-        : '';
-      if (!qrToken) throw new Error('Escaneá el QR vigente del bar para habilitar tus pedidos.');
+      if (existing.mode === 'ANYWHERE') return true;
       const position = await currentPosition();
-      const result = await venueApi(venueId,'presence','POST',position,qrToken);
+      const result = await venueApi(venueId,'presence','POST',position);
       if (result.allowed) {
-        toast('Acceso al bar habilitado por 20 minutos con el QR vigente.');
+        toast('Ubicación comprobada: estás dentro de los 100 metros del bar.');
         return true;
       }
       return false;

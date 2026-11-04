@@ -100,6 +100,7 @@ Buscar en el mapa
   };
 
   function ensureLeaflet() {
+    if(window.tocaLoadMaps)return window.tocaLoadMaps().then(()=>window.L);
     if(window.L) return Promise.resolve(window.L);
     if (leafletPromise) return leafletPromise;
     leafletPromise = new Promise((resolve, reject) => {
@@ -158,7 +159,7 @@ Buscar en el mapa
       const existing=widget.dataset.initialLat!=='' && widget.dataset.initialLon!=='' && isFiniteLatLon(lat,lon);
       const center=existing?[lat,lon]:DEFAULT_CENTER;
       activeMap=L.map(widget.querySelector('#toca-location-map'),{zoomControl:true}).setView(center,existing?16:13);
-      L.tileLayer('https://api.maptiler.com/maps/streets-v4-dark/256/{z}/{x}/{y}.png?key=cb1_4y2g_1_a4a10b8e7b739d928ae743ceVcMw6bfCHCuqankHeNHl', {minZoom: 1, maxZoom: 19, attribution: '&copy; <a href="https://www.maptiler.com/copyright/">MapTiler</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>', crossOrigin: true}).addTo(activeMap);
+      window.tocaMapLayer().addTo(activeMap);
       if(existing){
         activeMarker=L.marker(center,{draggable:true,title:'Arrastrá el pin para ajustar la ubicación'}).addTo(activeMap);
         activeMarker.on('dragend',()=>{const p=activeMarker.getLatLng();setPending(widget,p.lat,p.lng)});

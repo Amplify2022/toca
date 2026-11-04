@@ -1,3 +1,5 @@
+> Cambio de requisito posterior: QR ya no es obligatorio. NEARBY verifica distancia de 100 metros; ANYWHERE no solicita GPS. Las referencias al QR de este registro son históricas. Ver [comportamiento actual](MAP_DISTANCE_FIX.md).
+
 # Correcciones P1
 
 Este cambio cubre los siete P1 del análisis: conexiones/transacciones, límites de pedidos por cuenta, protección del acceso/registro, reglas vigentes, consistencia Spotify/DB, interruptor de escrituras y autorización de cercanía.

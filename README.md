@@ -1,5 +1,7 @@
 # TOCÁ — desarrollo y despliegue
 
+**Mapa y acceso vigentes:** [100 metros o cualquier ubicación, sin QR](docs/MAP_DISTANCE_FIX.md).
+
 **Actualización amplia:** [pasos de migración, SMTP y HTTPS](docs/UPGRADE_BATCH.md).
 
 **Correcciones P1:** ver [actualización, autorización QR y recuperación de pedidos](docs/P1_FIXES.md).

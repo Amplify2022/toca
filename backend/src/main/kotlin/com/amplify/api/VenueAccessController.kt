@@ -28,11 +28,10 @@ class VenueAccessController(
     @Post("/venues/{id}/presence")
     fun checkIn(id: String,
         @Header(value="X-TOCA-Customer",defaultValue="") customerAuthorization: String,
-        @Header(value="X-TOCA-Join",defaultValue="") qrToken: String,
         @Body body: Map<String, Any?>
     ): Map<String, Any?> {
         val customerId = customerAuth.user(customerAuthorization)["id"] as java.util.UUID
-        return presence.checkIn(safeUuid(id),customerId,body,qrToken)
+        return presence.checkIn(safeUuid(id),customerId,body)
     }
 
     @Put("/admin/venues/{id}/request-access")
@@ -52,6 +51,8 @@ class VenueAccessController(
             // command cannot synchronize against an authorization policy that
             // the owner changed after it was admitted.
             requestCommands.requireMutable(venueId)
+            db.exec("""DELETE FROM venue_customer_presence WHERE venue_id=? AND EXISTS
+                (SELECT 1 FROM venue WHERE id=? AND request_access_mode<>?)""",venueId,venueId,mode)
             db.exec("UPDATE venue SET request_access_mode=?,updated_at=now() WHERE id=?",mode,venueId)
             presence.policy(venueId)
         }

@@ -68,7 +68,7 @@ identity. An API accidentally pointing at a different database fails this guard.
 Coverage:
 
 - Nested Db connection reuse with eight concurrent lock waiters.
-- QR requirement, old QR revocation and explicit ANYWHERE access.
+- Distance-only access without QR, 99/101 meter boundary checks, expiry and explicit ANYWHERE access.
 - Atomic auth limits, denial rollback, mailbox isolation across actual clients,
   ignored spoofed forwarding headers, registration and rotating-email limits.
 - Authenticated customer quotas despite changing guest IDs; cheap rejection.

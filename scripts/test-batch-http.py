@@ -10,6 +10,12 @@ try:
  assert isinstance(call('/api/venues?city=Montevideo&limit=1&offset=0'),list)
  venue=call('/api/admin/venues',dict(name='Test',address='Center',city='Montevideo',latitude=-34.9,longitude=-56.2),token)['id']
  assert call('/api/admin/venues/'+venue+'/stats',token=token)['tracks']==0
+ for mode in ['ANYWHERE','NEARBY']:
+  saved=call('/api/admin/venues/'+venue+'/request-access',dict(mode=mode),token,method='PUT')
+  assert saved['mode']==mode
+  policy=call('/api/venues/'+venue+'/request-access')
+  assert policy['mode']==mode and policy['requiresQr'] is False
+
  call('/api/admin/venues/'+venue,token=token,method='DELETE');venue=None
  call('/api/accounts/admin/delete',dict(password=password,confirmation='ELIMINAR'),token)
  token=None

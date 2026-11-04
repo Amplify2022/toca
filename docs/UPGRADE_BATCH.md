@@ -1,3 +1,5 @@
+> Actualización posterior: el acceso volvió a ser exclusivamente NEARBY (100 metros) o ANYWHERE, configurable en Mi Bar. No se necesita QR. Ver [mapa y acceso por distancia](MAP_DISTANCE_FIX.md).
+
 # Actualización: cuentas, medios, frontend y despliegue
 
 Este lote aborda 11, 13, 14, 18–22, 24, 26–31 y 33–38 del informe. `28.29` se interpreta como dos puntos y el 38 repetido una sola vez.

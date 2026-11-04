@@ -3,12 +3,6 @@
  const settings=settingsView;
  settingsView=function(){if(['localhost','127.0.0.1'].includes(location.hostname)||window.TOCA_CONFIG?.development)return settings();mount('<h1>Preferencias</h1><p>Tus favoritos se sincronizan con tu cuenta.</p><a href="#/account?kind=customer">Acceso y privacidad de la cuenta</a>','profile')};
  setTimeout(()=>{const css=document.createElement('link');css.rel='stylesheet';css.href='https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap';document.head.append(css)},0);
- let mapPromise;
- window.tocaLoadMaps=()=>mapPromise ||= new Promise((resolve,reject)=>{
-  if(window.L){resolve();return}
-  const css=document.createElement('link');css.rel='stylesheet';css.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';document.head.append(css);
-  const script=document.createElement('script');script.id='toca-leaflet-script';script.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';script.onload=resolve;script.onerror=()=>{script.remove();mapPromise=null;reject(Error('Mapa no disponible'))};document.head.append(script);
- });
  const originalEnsure=window.tocaCustomerEnsure;let favoritesUser=null;
  window.tocaCustomerEnsure=async()=>{
   const user=await originalEnsure();

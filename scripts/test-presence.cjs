@@ -36,7 +36,7 @@ function setup(options = {}) {
       const post = request.method === 'POST';
       const status = post ? options.postStatus || 200 : 200;
       return {ok: status < 400, status, json: async () => post
-        ? (status === 200 ? {allowed: true} : {message: 'Escaneá el QR vigente del bar'})
+        ? (status === 200 ? {allowed: true} : {message: 'Tenés que estar dentro de los 100 metros del bar'})
         : {allowed: !!options.allowed, mode: options.mode || 'NEARBY', requiresQr: options.mode !== 'ANYWHERE'}};
     }
   };
@@ -47,33 +47,23 @@ function setup(options = {}) {
 
 (async () => {
   let test = setup();
-  assert.equal(await test.sandbox.tocaPresenceEnsure('bar-1'), false);
-  assert.equal(test.gps(), 0, 'missing QR must not request GPS');
-  assert.equal(test.calls.length, 1, 'GPS alone cannot submit a check-in');
-  assert.match(test.messages[0], /QR vigente/);
-
-  test = setup({mode: 'ANYWHERE', allowed: true});
   assert.equal(await test.sandbox.tocaPresenceEnsure('bar-1'), true);
-  assert.equal(test.gps(), 0, 'explicit ANYWHERE policy needs no GPS or QR');
+  assert.equal(test.gps(),1,'NEARBY checks GPS without QR');
+  const post=test.calls[1];
+  assert.equal(post.method,'POST');assert.equal(post.headers['X-TOCA-Join'],undefined);
+  assert.deepEqual(JSON.parse(post.body),{latitude:-34.9,longitude:-56.2,accuracy:10});
 
-  test = setup({allowed: true});
-  assert.equal(await test.sandbox.tocaPresenceEnsure('bar-1'), true);
-  assert.equal(test.gps(), 0, 'current bound grant can be reused');
+  test=setup({mode:'ANYWHERE',allowed:true,gpsDenied:true});
+  assert.equal(await test.sandbox.tocaPresenceEnsure('bar-1'),true);
+  assert.equal(test.gps(),0,'ANYWHERE never asks location');assert.equal(test.calls.length,1);
 
-  test = setup({qr: 'current-qr'});
-  assert.equal(await test.sandbox.tocaPresenceEnsure('bar-1'), true);
-  assert.equal(test.gps(), 1);
-  const post = test.calls[1];
-  assert.equal(post.method, 'POST');
-  assert.equal(post.headers['X-TOCA-Join'], 'current-qr');
-  assert.equal(post.headers['X-TOCA-Customer'], 'Bearer synthetic-customer');
-  assert(!post.url.includes('current-qr'), 'QR secret must not enter request URLs');
-  assert.deepEqual(JSON.parse(post.body), {latitude: -34.9, longitude: -56.2, accuracy: 10});
-  assert(!test.messages[0].includes('Ubicación verificada'), 'do not claim physical-location proof');
+  test=setup({allowed:true});
+  assert.equal(await test.sandbox.tocaPresenceEnsure('bar-1'),true);
+  assert.equal(test.gps(),1,'A previous check-in must not skip the distance check on a new request');
 
-  test = setup({qr: 'rotated-old-qr', postStatus: 403});
-  assert.equal(await test.sandbox.tocaPresenceEnsure('bar-1'), false);
-  assert.match(test.messages[0], /QR vigente/);
+  test=setup({postStatus:403});
+  assert.equal(await test.sandbox.tocaPresenceEnsure('bar-1'),false);
+  assert.match(test.messages[0],/100 metros/);
 
   test = setup({authenticated: false});
   assert.equal(await test.sandbox.tocaPresenceEnsure('bar-1'), false);
@@ -89,5 +79,5 @@ function setup(options = {}) {
   assert.equal(await test.sandbox.tocaPresenceEnsure('bar-1'), false);
   assert.equal(test.calls.length, 1);
   assert.match(test.messages[0], /permitir/);
-  console.log('PASS: 8 venue-access scenarios (QR required/header-only, ANYWHERE, bound grant, rotated token, auth, GPS availability/permission)');
+  console.log('PASS: distance access without QR, ANYWHERE without GPS, fresh position, outside radius, login and GPS permission errors');
 })().catch(error => { console.error(error); process.exitCode = 1; });
