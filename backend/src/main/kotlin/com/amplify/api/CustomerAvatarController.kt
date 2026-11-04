@@ -46,7 +46,7 @@ class CustomerAvatarController(private val auth: CustomerAuth, private val db: D
             bytes[bytes.size - 2] != 0xFF.toByte() || bytes[bytes.size - 1] != 0xD9.toByte())
             fail(HttpStatus.BAD_REQUEST, "La foto debe ser un JPG válido de hasta 160 KB")
         db.exec("UPDATE customer_account SET avatar_image=?, avatar_content_type=? WHERE id=?",
-            bytes, "image/jpeg", id)
+            ImageValidation.normalize(bytes,"image/jpeg",MAX_IMAGE_BYTES), "image/jpeg", id)
         return mapOf("saved" to true)
     }
 

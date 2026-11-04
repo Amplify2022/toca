@@ -8,25 +8,11 @@
   <title>TOCÁ — La noche suena con vos</title>
   <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="icon" type="image/svg+xml" href="/assets/icon.svg" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/styles.css" />
   <link rel="stylesheet" href="/toca.css?v=carto-dark-fix" />
   <link rel="stylesheet" href="/toca-popup-card.css?v=1734" />
   <link rel="stylesheet" href="/toca-admin-clean.css?v=1735" />
   <link rel="stylesheet" href="/toca-dashboard-controls.css?v=1736" />
-
-<!-- OpenFreeMap Dark / Leaflet + MapLibre -->
-<link rel="stylesheet"
- href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<link rel="stylesheet"
- href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.css">
-
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@maplibre/maplibre-gl-leaflet@0.1.4/leaflet-maplibre-gl.js"></script>
-<script src="/toca-openfreemap-dark.js?v=gray-dark-1"></script>
 
 <style>
 #leaflet-map .leaflet-layer,
@@ -67,6 +53,7 @@
 <body>
   <div id="app"></div>
   <div id="toast" aria-live="polite"></div>
+  <script src="/config.js"></script>
   <script src="/assets/qr.js" defer></script>
   <script src="/toca-hours-v175.js?v=176" defer></script>
   <script src="/request-sync.js?v=p1-1" defer></script>
@@ -89,5 +76,7 @@
   <script src="/toca-mi-bar-cards-v1839.js?v=1839" defer></script>
   <script src="/toca-profile-v1841.js?v=1842" defer></script>
   <script src="/toca-google-v1847.js?v=1847b" defer></script>
+  <script src="/account.js?v=1" defer></script>
+  <script src="/runtime.js?v=2" defer></script>
 </body>
 </html>

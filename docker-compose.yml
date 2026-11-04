@@ -5,30 +5,50 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_DB: toca
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?Set APP_DB_PASSWORD for the restricted application role}
       POSTGRES_USER: ${DB_USERNAME:-toca}
       POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
     ports:
       - "127.0.0.1:5433:5432"
     volumes:
       - toca_pgdata:/var/lib/postgresql/data
+      - ./deployment/init-app-role.sh:/docker-entrypoint-initdb.d/20-app-role.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-toca} -d toca"]
       interval: 5s
       timeout: 3s
       retries: 12
 
+  migrate:
+    build: ./backend
+    entrypoint: ["java", "-cp", "/app/lib/*", "com.amplify.api.MigrateKt"]
+    environment:
+      JDBC_URL: jdbc:postgresql://postgres:5432/toca
+      DB_USERNAME: ${DB_USERNAME:-toca}
+      DB_PASSWORD: ${DB_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   api:
     build: ./backend
     restart: unless-stopped
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     environment:
       MICRONAUT_ENVIRONMENTS: docker
+      AMPLIFY_TRUSTED_PROXY_TOKEN: ${TRUSTED_PROXY_TOKEN:-}
+      FLYWAY_DATASOURCES_DEFAULT_ENABLED: "false"
       JDBC_URL: jdbc:postgresql://postgres:5432/toca
-      DB_USERNAME: ${DB_USERNAME:-toca}
-      DB_PASSWORD: ${DB_PASSWORD}
-      FRONTEND_ORIGIN: http://localhost:5173
+      DB_USERNAME: toca_app
+      DB_PASSWORD: ${APP_DB_PASSWORD}
+      ACCOUNT_SMTP_HOST: ${ACCOUNT_SMTP_HOST:-}
+      ACCOUNT_SMTP_PORT: ${ACCOUNT_SMTP_PORT:-587}
+      ACCOUNT_SMTP_USERNAME: ${ACCOUNT_SMTP_USERNAME:-}
+      ACCOUNT_SMTP_PASSWORD: ${ACCOUNT_SMTP_PASSWORD:-}
+      ACCOUNT_SMTP_FROM: ${ACCOUNT_SMTP_FROM:-}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:5173}
       SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID:-}
       SPOTIFY_REDIRECT_URI: ${SPOTIFY_REDIRECT_URI:-http://127.0.0.1:8080/api/integrations/spotify/callback}
       SPOTIFY_TOKEN_ENCRYPTION_KEY_BASE64: ${SPOTIFY_TOKEN_ENCRYPTION_KEY_BASE64:-}

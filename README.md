@@ -1,4 +1,6 @@
-# TOCÁ v1.2
+# TOCÁ — desarrollo y despliegue
+
+**Actualización amplia:** [pasos de migración, SMTP y HTTPS](docs/UPGRADE_BATCH.md).
 
 **Correcciones P1:** ver [actualización, autorización QR y recuperación de pedidos](docs/P1_FIXES.md).
 

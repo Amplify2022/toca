@@ -19,6 +19,9 @@ import java.util.concurrent.ConcurrentHashMap
  */
 @Singleton
 class AddressGeocoder(private val mapper: ObjectMapper) {
+    @io.micronaut.scheduling.annotation.Scheduled(fixedDelay="1h",initialDelay="1h")
+    fun expireCache(){cache.clear()}
+
     private val client = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(5))
         .followRedirects(HttpClient.Redirect.NORMAL)
@@ -56,6 +59,7 @@ class AddressGeocoder(private val mapper: ObjectMapper) {
                 }
                 val found = parseFeatures(mapper.readTree(response.body()))
                 if (found.isNotEmpty()) {
+                    if(cache.size>=1000)cache.clear()
                     cache[key] = found
                     return found
                 }
@@ -68,7 +72,8 @@ class AddressGeocoder(private val mapper: ObjectMapper) {
         try {
             val found = searchNominatim(street, town)
             if (found.isNotEmpty()) {
-                cache[key] = found
+                if(cache.size>=1000)cache.clear()
+                    cache[key] = found
                 return found
             }
             return emptyList()

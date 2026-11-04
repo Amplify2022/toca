@@ -9,6 +9,7 @@ import io.micronaut.http.annotation.Get
  * Actual request authorization remains in ApiController (customer session,
  * location policy, blacklist and whitelist checks).
  */
+@io.micronaut.scheduling.annotation.ExecuteOn(io.micronaut.scheduling.TaskExecutors.BLOCKING)
 @Controller("/api")
 class VenueAllowedTracksController(private val db: Db) {
     @Get("/venues/{id}/allowed-tracks")

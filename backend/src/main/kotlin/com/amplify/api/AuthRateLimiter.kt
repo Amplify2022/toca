@@ -29,11 +29,11 @@ object AuthRatePolicy {
         "/api/customers/google", "/api/customers/me/google/link"
     )
 
-    fun covers(path: String): Boolean = path.trimEnd('/') in paths
+    fun covers(path: String): Boolean = path.trimEnd('/') in paths || path.trimEnd('/').matches(Regex("/api/accounts/(customer|admin)/(recover|verify-request|consume|password|delete|revoke)"))
 
     fun rules(path: String, peer: String, body: Map<String, Any?>?, authorization: String): List<AuthRateRule> {
         val normalizedPath = path.trimEnd('/')
-        if (normalizedPath !in paths) return emptyList()
+        if (!covers(normalizedPath)) return emptyList()
         val registering = normalizedPath.endsWith("/register")
         val email = (body?.get("email") as? String)?.trim()?.lowercase(Locale.ROOT)?.take(200)
         // Google tokens are opaque and untrusted here. Hashing them limits replay
@@ -57,6 +57,16 @@ object AuthRatePolicy {
             // new rows, bounding cardinality even with rotating identities/IPs.
             add(AuthRateRule("auth-global", "all", 1200, 60))
         }
+    }
+}
+
+object TrustedProxyAddress {
+    fun resolve(actual:String,supplied:String,forwarded:String,expected:String):String {
+        val trusted=expected.length>=32&&java.security.MessageDigest.isEqual(expected.toByteArray(),supplied.toByteArray())
+        val numeric=forwarded.matches(Regex("[0-9]+[.][0-9]+[.][0-9]+[.][0-9]+")) ||
+            (forwarded.contains(':')&&forwarded.matches(Regex("[0-9a-fA-F:.]+")))
+        if(!trusted||!numeric||forwarded.length !in 2..64)return actual
+        return runCatching{java.net.InetAddress.getByName(forwarded).hostAddress}.getOrDefault(actual)
     }
 }
 
@@ -103,10 +113,11 @@ class AuthRateLimiter(private val db: Db) {
 /** Body-aware filter runs on the blocking executor before any password hash or
  * Google verification. Forwarded/X-Forwarded-For are deliberately not trusted.
  */
-@ServerFilter("/api/auth/**", "/api/customers/**")
+@ServerFilter("/api/auth/**", "/api/customers/**", "/api/accounts/**")
 class AuthRateLimitFilter(
     private val limiter: AuthRateLimiter,
     private val bodyParser: FilterBodyParser,
+    @io.micronaut.context.annotation.Value("\${amplify.trusted-proxy-token:}") private val proxyToken:String = "",
 ) {
     @RequestFilter
     @ExecuteOn(TaskExecutors.BLOCKING)
@@ -119,7 +130,10 @@ class AuthRateLimitFilter(
         val body = try { bodyParser.parseBody(request).get(10, TimeUnit.SECONDS) }
         catch (_: TimeoutException) { return HttpResponse.status<Any>(HttpStatus.REQUEST_TIMEOUT) }
         catch (_: ExecutionException) { return HttpResponse.badRequest(mapOf("message" to "Cuerpo de solicitud inválido")) }
-        val peer = request.remoteAddress.address?.hostAddress ?: request.remoteAddress.hostString
+        val actualPeer = request.remoteAddress.address?.hostAddress ?: request.remoteAddress.hostString
+        val supplied=request.headers.get("X-Toca-Proxy-Key").orEmpty()
+        val forwarded=request.headers.get("X-Toca-Client-IP").orEmpty()
+        val peer=TrustedProxyAddress.resolve(actualPeer,supplied,forwarded,proxyToken)
         val retryAfter = limiter.check(request.path, peer, body, request.headers.get("Authorization").orEmpty())
             ?: return continuation.proceed()
         return HttpResponse.status<Map<String, String>>(HttpStatus.TOO_MANY_REQUESTS)

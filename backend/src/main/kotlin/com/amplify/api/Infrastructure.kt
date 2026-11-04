@@ -84,6 +84,7 @@ class Auth(private val db: Db,private val roles:RolePolicy) {
         val email=required(body,"email",200).lowercase()
         val password=required(body,"password",128)
         if (!email.contains('@')||!email.contains('.')) fail(HttpStatus.BAD_REQUEST,"Correo electrónico inválido")
+        if(password.toByteArray(Charsets.UTF_8).size>72) fail(HttpStatus.BAD_REQUEST,"Contraseña de máximo 72 bytes UTF-8")
         if(password.length<10) fail(HttpStatus.BAD_REQUEST,"Contraseña de al menos 10 caracteres")
         if(db.one("SELECT id FROM admin_user WHERE email=?",email)!=null) fail(HttpStatus.CONFLICT,"El correo ya está registrado")
         val id=UUID.randomUUID()
@@ -94,6 +95,7 @@ class Auth(private val db: Db,private val roles:RolePolicy) {
     fun login(body:Map<String,Any?>):Map<String,Any?> {
         val email=required(body,"email",200).lowercase()
         val password=required(body,"password",128)
+        if(password.toByteArray(Charsets.UTF_8).size>72) fail(HttpStatus.BAD_REQUEST,"La contraseña supera 72 bytes; usá recuperación para restablecerla")
         val user=db.one("SELECT id,name,email,password_hash FROM admin_user WHERE email=?",email)
         if(user==null || !BCrypt.checkpw(password,user["password_hash"] as String)) fail(HttpStatus.UNAUTHORIZED,"Credenciales incorrectas")
         return issue(user["id"] as UUID,user["name"] as String,email)

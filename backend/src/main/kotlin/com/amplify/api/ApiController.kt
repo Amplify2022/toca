@@ -11,7 +11,7 @@ import java.util.UUID
 
 @Controller("/api")
 @ExecuteOn(TaskExecutors.BLOCKING)
-class ApiController(private val db:Db,private val auth:Auth,private val spotify:Spotify,private val addressGeocoder:AddressGeocoder,private val customerAuth:CustomerAuth,private val presence:VenuePresence,private val requestCommands:RequestCommands) {
+class ApiController(private val db:Db,private val auth:Auth,private val spotify:Spotify,private val addressGeocoder:AddressGeocoder,private val customerAuth:CustomerAuth,private val presence:VenuePresence,private val requestCommands:RequestCommands,private val media:VenueMediaService) {
     private val publicColumns="""id,name,slug,address,city,description,genre,opening_hours AS "openingHours",request_access_mode AS "requestAccessMode",latitude,longitude,active,
         require_approval AS "requireApproval",curated_only AS "curatedOnly",
         spotify_premium AS "spotifyConnected",playlist_id AS "playlistId", instagram_handle AS "instagramHandle"
@@ -67,6 +67,7 @@ class ApiController(private val db:Db,private val auth:Auth,private val spotify:
         ?: fail(HttpStatus.NOT_FOUND,"Establecimiento no encontrado")
     private fun publicVenue(v:Map<String,Any?>):Map<String,Any?> {
         val id=v["id"]?.toString() ?: ""
+        val photos=venuePhotos(id)
         var now:Map<String,String>?=null
         if(v["active"]==true&&v["spotify_premium"]==true) {
             // A provider failure never creates a fake "now playing" song.
@@ -78,7 +79,7 @@ class ApiController(private val db:Db,private val auth:Auth,private val spotify:
             "genre" to v["genre"],"latitude" to v["latitude"],"longitude" to v["longitude"],
             "active" to v["active"],"requireApproval" to v["require_approval"],
             "curatedOnly" to v["curated_only"],"spotifyConnected" to v["spotify_premium"],
-            "instagramHandle" to v["instagram_handle"],"coverPhotoUrl" to coverPhoto(id),"photos" to venuePhotos(id),"now" to now)
+            "instagramHandle" to v["instagram_handle"],"coverPhotoUrl" to photos.firstOrNull()?.get("url"),"photos" to photos,"now" to now)
     }
     private fun adminVenue(v:Map<String,Any?>):Map<String,Any?> = publicVenue(v)+mapOf(
         "joinToken" to v["join_token"],"playlistId" to v["playlist_id"],"deviceId" to v["spotify_device_id"])
@@ -89,7 +90,7 @@ class ApiController(private val db:Db,private val auth:Auth,private val spotify:
         "id" to image["id"].toString(), "isPrimary" to image["isPrimary"],
         "url" to "/api/venues/$venueId/photos/${image["id"]}"
     ) }
-    private fun coverPhoto(venueId:String):String? = venuePhotos(venueId).firstOrNull()?.get("url") as? String
+    private fun coverPhoto(venueId:String):String? = db.one("SELECT id FROM venue_photo WHERE venue_id=? ORDER BY is_primary DESC,position,created_at LIMIT 1",safeUuid(venueId))?.let { "/api/venues/$venueId/photos/${it["id"]}" }
     private fun ownerVenue(id:String,authorization:String):Map<String,Any?> = auth.ownVenue(id,authorization)
     private fun privateJoin(id:String,token:String) {
         val v=venueById(id)
@@ -111,8 +112,8 @@ class ApiController(private val db:Db,private val auth:Auth,private val spotify:
 
     @Get("/health") fun health():Map<String,String> = mapOf("status" to "ok","service" to "amplify-api")
 
-    @Post("/auth/register") fun register(@Body body:Map<String,Any?>)=auth.register(body)
-    @Post("/auth/login") fun login(@Body body:Map<String,Any?>)=auth.login(body)
+    @Post("/auth/register") fun register(@Body body:RegistrationInput)=auth.register(body.values())
+    @Post("/auth/login") fun login(@Body body:LoginInput)=auth.login(body.values())
     @Get("/auth/me") fun me(@Header(value="Authorization",defaultValue="") authHeader:String):Map<String,Any?> = auth.user(authHeader)
     @Put("/auth/me") fun updateMyProfile(@Header(value="Authorization",defaultValue="") authHeader:String,
         @Body body:Map<String,Any?>):Map<String,Any?> {
@@ -127,9 +128,10 @@ class ApiController(private val db:Db,private val auth:Auth,private val spotify:
         return mapOf("loggedOut" to true)
     }
 
-    @Get("/venues") fun venues(@QueryValue(defaultValue="") city:String):List<Map<String,Any?>> {
-        val list=if(city.isBlank())db.list("SELECT $publicColumns FROM venue WHERE EXISTS (SELECT 1 FROM venue_photo vp WHERE vp.venue_id=venue.id) ORDER BY updated_at DESC LIMIT 150")
-            else db.list("SELECT $publicColumns FROM venue WHERE lower(city)=lower(?) AND EXISTS (SELECT 1 FROM venue_photo vp WHERE vp.venue_id=venue.id) ORDER BY updated_at DESC LIMIT 150",city)
+    @Get("/venues") fun venues(@QueryValue(defaultValue="") city:String,@QueryValue(defaultValue="0") offset:Int,@QueryValue(defaultValue="50") limit:Int):List<Map<String,Any?>> {
+        val columns=publicColumns+""",(SELECT id FROM venue_photo cover WHERE cover.venue_id=venue.id ORDER BY is_primary DESC,position,created_at LIMIT 1) AS "coverPhotoId""""
+        val list=if(city.isBlank())db.list("SELECT $columns FROM venue WHERE EXISTS (SELECT 1 FROM venue_photo vp WHERE vp.venue_id=venue.id) ORDER BY updated_at DESC,id LIMIT ? OFFSET ?",limit.coerceIn(1,150),offset.coerceAtLeast(0))
+            else db.list("SELECT $columns FROM venue WHERE lower(city)=lower(?) AND EXISTS (SELECT 1 FROM venue_photo vp WHERE vp.venue_id=venue.id) ORDER BY updated_at DESC,id LIMIT ? OFFSET ?",city,limit.coerceIn(1,150),offset.coerceAtLeast(0))
         // This list does not call Spotify, avoiding N API calls per map render.
         return list.map {v-> mapOf(
             "id" to v["id"].toString(),"name" to v["name"],"slug" to v["slug"],
@@ -137,13 +139,13 @@ class ApiController(private val db:Db,private val auth:Auth,private val spotify:
             "description" to v["description"],"openingHours" to v["openingHours"],"requestAccessMode" to v["requestAccessMode"],
             "latitude" to v["latitude"],"longitude" to v["longitude"],
             "active" to v["active"],"spotifyConnected" to v["spotifyConnected"],
-            "instagramHandle" to v["instagramHandle"],"coverPhotoUrl" to coverPhoto(v["id"].toString())
+            "instagramHandle" to v["instagramHandle"],"coverPhotoUrl" to v["coverPhotoId"]?.let { "/api/venues/${v["id"]}/photos/$it" }
         ) }
     }
     @Get("/venues/{id}") fun venue(id:String)=publicVenue(venueById(id))
-    @Get("/venues/{id}/requests") fun publicRequests(id:String):List<Map<String,Any?>> {
+    @Get("/venues/{id}/requests") fun publicRequests(id:String,@QueryValue(defaultValue="0") offset:Int,@QueryValue(defaultValue="50") limit:Int):List<Map<String,Any?>> {
         venueById(id)
-        return db.list("SELECT $requestColumns FROM song_request WHERE venue_id=? ORDER BY last_requested_at DESC NULLS LAST LIMIT 50",safeUuid(id))
+        return db.list("SELECT $requestColumns FROM song_request WHERE venue_id=? ORDER BY last_requested_at DESC NULLS LAST,id LIMIT ? OFFSET ?",safeUuid(id),limit.coerceIn(1,200),offset.coerceAtLeast(0))
     }
     @Get("/venues/{id}/playlist") fun publicPlaylist(id:String):List<Map<String,Any?>> {
         val v=venueById(id)
@@ -225,64 +227,26 @@ class ApiController(private val db:Db,private val auth:Auth,private val spotify:
         @Header(value="Authorization",defaultValue="") authorization:String,
         @Body body:Map<String,Any?>):Map<String,Any?> {
         ownerVenue(id,authorization)
-        val venueId=safeUuid(id)
-        val existingPhotos=(db.one("SELECT count(*) AS total FROM venue_photo WHERE venue_id=?",venueId)
-            ?.get("total") as Number).toInt()
-        if(existingPhotos>=8)
-            fail(HttpStatus.CONFLICT,"Máximo 8 fotos por bar")
-        val mime=required(body,"contentType",40).lowercase()
-        if(mime !in setOf("image/jpeg","image/png","image/webp"))
-            fail(HttpStatus.BAD_REQUEST,"Solo se permiten imágenes JPEG, PNG o WebP")
-        val input=required(body,"dataBase64",4500000)
-        val bytes=try { java.util.Base64.getDecoder().decode(input) }
-                  catch (_:IllegalArgumentException) { fail(HttpStatus.BAD_REQUEST,"Imagen codificada inválida") }
-        if(bytes.size>2500000 || bytes.size<24)
-            fail(HttpStatus.BAD_REQUEST,"La foto debe ocupar menos de 2,5 MB")
-        val startsJpeg=bytes.size>3 && bytes[0]==0xFF.toByte() && bytes[1]==0xD8.toByte() && bytes[2]==0xFF.toByte()
-        val startsPng=bytes.size>8 && bytes.copyOfRange(0,8).contentEquals(byteArrayOf(137.toByte(),80,78,71,13,10,26,10))
-        val startsWebp=bytes.size>12 && String(bytes,0,4,Charsets.US_ASCII)=="RIFF" && String(bytes,8,4,Charsets.US_ASCII)=="WEBP"
-        if(!when(mime){"image/jpeg"->startsJpeg;"image/png"->startsPng;else->startsWebp})
-            fail(HttpStatus.BAD_REQUEST,"El formato real de la foto no coincide con el declarado")
-        val total=existingPhotos
-        val photoId=UUID.randomUUID()
-        db.exec("""INSERT INTO venue_photo(id,venue_id,data,content_type,position,is_primary)
-            VALUES(?,?,?,?,?,?)""",photoId,venueId,bytes,mime,total,total==0)
-        return mapOf("photos" to venuePhotos(id),"coverPhotoUrl" to coverPhoto(id))
+        return media.add(safeUuid(id),body)
     }
     @Put("/admin/venues/{id}/photos/{photoId}/primary")
-    fun setPrimaryPhoto(id:String,photoId:String,
-        @Header(value="Authorization",defaultValue="") authorization:String):Map<String,Any?> {
-        ownerVenue(id,authorization)
-        val venueId=safeUuid(id); val imageId=safeUuid(photoId)
-        if(db.one("SELECT id FROM venue_photo WHERE venue_id=? AND id=?",venueId,imageId)==null)
-            fail(HttpStatus.NOT_FOUND,"Foto no encontrada")
-        // Two updates in one transaction avoid the partial-unique-index collision.
-        db.transaction { c ->
-            c.prepareStatement("UPDATE venue_photo SET is_primary=false WHERE venue_id=?").use { statement ->
-                statement.setObject(1,venueId);statement.executeUpdate()
-            }
-            c.prepareStatement("UPDATE venue_photo SET is_primary=true WHERE venue_id=? AND id=?").use { statement ->
-                statement.setObject(1,venueId);statement.setObject(2,imageId);statement.executeUpdate()
-            }
-        }
-        return mapOf("photos" to venuePhotos(id),"coverPhotoUrl" to coverPhoto(id))
+    fun setPrimaryPhoto(id:String,photoId:String,@Header(value="Authorization",defaultValue="") authorization:String):Map<String,Any?> {
+        ownerVenue(id,authorization);return media.primary(safeUuid(id),safeUuid(photoId))
     }
     @Delete("/admin/venues/{id}/photos/{photoId}")
-    fun deletePhoto(id:String,photoId:String,
-        @Header(value="Authorization",defaultValue="") authorization:String):Map<String,Any?> {
-        ownerVenue(id,authorization)
-        val venueId=safeUuid(id)
-        val count=(db.one("SELECT count(*) AS total FROM venue_photo WHERE venue_id=?",venueId)?.get("total") as Number).toInt()
-        if(count<=1)
-            fail(HttpStatus.CONFLICT,"El bar necesita al menos una foto de portada. Subí otra foto antes de eliminar esta.")
-        if(db.exec("DELETE FROM venue_photo WHERE venue_id=? AND id=?",venueId,safeUuid(photoId))==0)
-            fail(HttpStatus.NOT_FOUND,"Foto no encontrada")
-        if(db.one("SELECT id FROM venue_photo WHERE venue_id=? AND is_primary=true",venueId)==null)
-            db.exec("""UPDATE venue_photo SET is_primary=true WHERE id=(
-                SELECT id FROM venue_photo WHERE venue_id=? ORDER BY position,created_at LIMIT 1)""",venueId)
-        return mapOf("photos" to venuePhotos(id),"coverPhotoUrl" to coverPhoto(id))
+    fun deletePhoto(id:String,photoId:String,@Header(value="Authorization",defaultValue="") authorization:String):Map<String,Any?> {
+        ownerVenue(id,authorization);return media.delete(safeUuid(id),safeUuid(photoId))
     }
 
+    @Get("/admin/venues/{id}/stats")
+    fun stats(id:String,@Header(value="Authorization",defaultValue="") authorization:String):Map<String,Any?> {
+        ownerVenue(id,authorization);val venue=safeUuid(id)
+        val totals=db.one("""SELECT count(*) AS tracks,coalesce(sum(request_count-1),0) AS repeats,
+            count(*) FILTER(WHERE status IN ('APPROVED','DISPATCHED')) AS synced FROM song_request WHERE venue_id=?""",venue)!!
+        val days=db.list("""SELECT to_char(created_at AT TIME ZONE 'America/Montevideo','YYYY-MM-DD') AS day,count(*) AS total
+            FROM song_request_event WHERE venue_id=? AND created_at>=now()-interval '7 days' GROUP BY day ORDER BY day""",venue)
+        return totals+mapOf("days" to days)
+    }
     @Get("/admin/venues") fun owned(@Header(value="Authorization",defaultValue="")authorization:String):List<Map<String,Any?>> {
         val user=auth.user(authorization)
         return db.list("SELECT * FROM venue WHERE owner_id=? ORDER BY created_at DESC",user["id"]).map(::adminVenue)
@@ -339,6 +303,7 @@ class ApiController(private val db:Db,private val auth:Auth,private val spotify:
         db.transaction {
             val v=db.one("SELECT * FROM venue WHERE id=? FOR UPDATE",safeUuid(id)) ?: fail(HttpStatus.NOT_FOUND,"Bar no encontrado")
             requestCommands.requireMutable(safeUuid(id))
+            if(active && ((v["playlist_id"] as? String).isNullOrBlank() || !spotify.playlistWriteEnabled)) fail(HttpStatus.PRECONDITION_FAILED,"Seleccioná una playlist y habilitá sus escrituras antes de abrir la sesión")
             if(active&&(v["spotify_premium"]!=true||v["spotify_access_encrypted"]==null))
                 fail(HttpStatus.PRECONDITION_FAILED,"Vinculá Spotify Premium antes de abrir la sesión")
             db.exec("""UPDATE venue SET active=?,queue_started_at=CASE WHEN ? AND NOT active THEN now() ELSE queue_started_at END,

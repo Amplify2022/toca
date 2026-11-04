@@ -340,8 +340,13 @@ class Spotify(
         musicCache.remove(id);cache.remove(id.toString())
     }
     fun playlists(venueId:UUID):List<Map<String,String>> {
-        val root=apiGet("/me/playlists?limit=50",access(venueId))?:return emptyList()
-        return root.path("items").map {mapOf("id" to it.path("id").asText(),"name" to it.path("name").asText())}
+        val token=access(venueId);val result=mutableListOf<Map<String,String>>();var offset=0
+        while(true){
+            val root=apiGet("/me/playlists?limit=50&offset=$offset",token)?:break
+            val items=root.path("items");result+=items.map{mapOf("id" to it.path("id").asText(),"name" to it.path("name").asText())}
+            if(items.size()<50||root.path("next").isNull)break
+            offset+=50;if(offset>=10000)fail(HttpStatus.CONFLICT,"Demasiadas playlists; refiná la cuenta vinculada")
+        };return result
     }
     fun devices(venueId:UUID):List<Map<String,Any?>> {
         val root=apiGet("/me/player/devices",access(venueId))?:return emptyList()
@@ -431,6 +436,7 @@ class Spotify(
         val item=node?.path("item")
         val now=if(item==null || item.isMissingNode||item.isNull) null else mapOf(
             "title" to item.path("name").asText(),"artist" to item.path("artists").joinToString(", "){it.path("name").asText()})
+        if(cache.size>=1000)cache.clear()
         cache[k]=Instant.now() to now
         return now
     }
@@ -466,6 +472,7 @@ class Spotify(
             "repeat" to (playback?.path("repeat_state")?.asText("off") ?: "off"),
             "updatedAt" to Instant.now().toString()
         )
+        if(musicCache.size>=1000)musicCache.clear()
         musicCache[venueId]=Instant.now() to result
         return result
     }

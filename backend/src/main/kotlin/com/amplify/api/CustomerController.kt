@@ -105,21 +105,21 @@ class CustomerAuth(private val db: Db,private val roles:RolePolicy) {
 @Controller("/api/customers")
 @ExecuteOn(TaskExecutors.BLOCKING)
 class CustomerController(private val auth: CustomerAuth, private val db: Db) {
-    @Post("/register") fun register(@Body data: Map<String, Any?>) = auth.register(data)
-    @Post("/login") fun login(@Body data: Map<String, Any?>) = auth.login(data)
+    @Post("/register") fun register(@Body data: RegistrationInput) = auth.register(data.values())
+    @Post("/login") fun login(@Body data: LoginInput) = auth.login(data.values())
     @Get("/me") fun me(@Header(value="Authorization",defaultValue="") authorization: String): Map<String, Any?> =
         auth.user(authorization)
     @Post("/logout") fun logout(@Header(value="Authorization",defaultValue="") authorization: String): Map<String, Boolean> {
         auth.logout(authorization)
         return mapOf("loggedOut" to true)
     }
-    @Get("/me/requests") fun history(@Header(value="Authorization",defaultValue="") authorization: String): List<Map<String, Any?>> {
+    @Get("/me/requests") fun history(@Header(value="Authorization",defaultValue="") authorization: String,@QueryValue(defaultValue="0") offset:Int,@QueryValue(defaultValue="100") limit:Int): List<Map<String, Any?>> {
         val customerId = auth.user(authorization)["id"] as UUID
         return db.list("""SELECT e.id, e.track_id AS "trackId", e.created_at AS "createdAt",
             r.title, r.artist, r.status, v.name AS "venueName", e.venue_id AS "venueId"
             FROM song_request_event e
             JOIN song_request r ON r.id=e.request_id
             JOIN venue v ON v.id=e.venue_id
-            WHERE e.customer_id=? ORDER BY e.created_at DESC LIMIT 100""", customerId)
+            WHERE e.customer_id=? ORDER BY e.created_at DESC,e.id LIMIT ? OFFSET ?""", customerId,limit.coerceIn(1,200),offset.coerceAtLeast(0))
     }
 }

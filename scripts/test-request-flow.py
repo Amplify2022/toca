@@ -40,6 +40,8 @@ def scenario(browser, outcome):
             data = VENUE
         elif path.endswith('/tracks'):
             data = [TRACK]
+        elif path.endswith('/stats'):
+            data = dict(tracks=0,repeats=0,synced=0,days=[])
         elif path.endswith('/music-status'):
             data = dict(active=True, isPlaying=False, now=None, playlist=[])
         elif path.endswith('/requests') and request.method == 'POST':
@@ -110,6 +112,8 @@ def admin_review(browser):
         elif path.endswith('/request-commands'):
             data = [] if reconciled else [dict(commandId='command-test', status='UNCERTAIN',
                                                title='Needs Review', message='Check Spotify')]
+        elif path.endswith('/stats'):
+            data = dict(tracks=0,repeats=0,synced=0,days=[])
         elif path.endswith('/music-status'):
             data = dict(active=True, isPlaying=False, now=None, playlist=[])
         route.fulfill(status=200, content_type='application/json', body=json.dumps(data),

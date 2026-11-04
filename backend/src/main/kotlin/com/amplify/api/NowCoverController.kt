@@ -51,6 +51,7 @@ class NowCoverController(private val db: Db, private val spotify: Spotify) {
         }
         val response = mapOf<String, Any?>("title" to title, "artist" to artist,
             "trackId" to if(trackIdPattern.matches(idValue)) idValue else "")
+        if(cache.size>=1000)cache.clear()
         cache[uuid] = Cached(System.currentTimeMillis(), response)
         return response
     }

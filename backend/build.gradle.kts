@@ -28,7 +28,10 @@ application { mainClass.set("com.amplify.api.ApplicationKt") }
 java { sourceCompatibility = JavaVersion.VERSION_21; targetCompatibility = JavaVersion.VERSION_21 }
 kotlin { jvmToolchain(21) }
 
+dependencyLocking { lockAllConfigurations() }
+
 dependencies {
+    implementation("org.eclipse.angus:jakarta.mail:2.0.3")
     implementation("com.google.api-client:google-api-client:2.9.2")
     kapt("io.micronaut:micronaut-inject-java")
     implementation("io.micronaut.kotlin:micronaut-kotlin-runtime")

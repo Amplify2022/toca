@@ -1,0 +1,17 @@
+services:
+  gateway:
+    image: caddy:2.10-alpine
+    environment:
+      TRUSTED_PROXY_TOKEN: ${TRUSTED_PROXY_TOKEN:?Set a random proxy token of at least 32 characters}
+      TOCA_DOMAIN: ${TOCA_DOMAIN:?Set the public DNS name}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deployment/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./web:/srv:ro
+      - toca_tls:/data
+    depends_on:
+      - api
+volumes:
+  toca_tls:
