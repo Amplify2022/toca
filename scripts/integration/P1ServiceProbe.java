@@ -284,6 +284,59 @@ public class P1ServiceProbe {
         System.out.println("PASS fencing: expired worker lease is checked before provider mutation");
     }
 
+    static class FakeMusic implements MusicEditGateway {
+        boolean lost,enabled=true;int effects;String title="My Bar",snap="s1",created=null;
+        List<Map<String,Object>> tracks=new ArrayList<>(List.of(Map.of("id",TRACK_A),Map.of("id",TRACK_B)));
+        CountDownLatch entered,release;
+        public boolean getEnabled(){return enabled;}
+        public MusicPlaylist snapshot(UUID venue,String playlist){return new MusicPlaylist(playlist,title,snap,new ArrayList<>(tracks));}
+        public String create(UUID venue,String name,String marker){created="CCCCCCCCCCCCCCCCCCCCCC";title=name;effects++;if(lost)throw new RuntimeException("lost response");return created;}
+        public String findCreated(UUID venue,String marker){return created;}
+        public void edit(UUID venue,Map<String,? extends Object> plan){
+            if(entered!=null){entered.countDown();try{if(!release.await(10,TimeUnit.SECONDS))throw new AssertionError("edit did not release");}catch(InterruptedException e){throw new RuntimeException(e);}}
+            var next=new ArrayList<Map<String,Object>>();
+            for(Object id:(List<?>)plan.get("expected")){var item=new HashMap<String,Object>();item.put("id",id);next.add(item);}
+            tracks=next;if(plan.containsKey("name"))title=(String)plan.get("name");snap="s"+(effects+2);effects++;
+            if(lost)throw new RuntimeException("lost response");
+        }
+    }
+    static void adminMusicEdits() throws Exception {
+        UUID v=venue(),c=customer(),id=UUID.randomUUID();var fake=new FakeMusic();
+        var edits=new AdminMusic(db,new com.fasterxml.jackson.databind.ObjectMapper(),fake);
+        var input=Map.<String,Object>of("action","add","snapshot","s1","trackId",TRACK_A);
+        fake.lost=true;
+        check("UNCERTAIN".equals(edits.execute(v,id,input).get("status")),"Lost admin response must remain uncertain");
+        check(fake.effects==1,"Admin effect must happen once");
+        edits.execute(v,id,input);check(fake.effects==1,"Same edit ID must not repeat an uncertain effect");
+        forbidden(()->edits.execute(v,id,Map.of("action","create","name","other")),HttpStatus.CONFLICT,"Edit ID cannot change its input");
+        var commands=new RequestCommands(db,new VenuePresence(db),new FakeSpotify(),false);
+        forbidden(()->commands.submit(v,c,body(TRACK_A,"guest-admin-edits"),key()),HttpStatus.CONFLICT,"Uncertain admin edit must block customer mutation");
+        check("COMPLETED".equals(edits.reconcile(v,id,Map.of()).get("status")),"Read-only recovery must recognize applied admin change");
+        check(fake.effects==1,"Admin recovery must not write to provider");
+        fake.lost=false;
+        check("FAILED".equals(edits.execute(v,UUID.randomUUID(),Map.of("action","remove","snapshot","stale","position",0)).get("status")),"Stale snapshot must fail");
+        check(fake.effects==1,"Stale edit must not perform a provider write");
+        UUID create=UUID.randomUUID();fake.lost=true;
+        check("UNCERTAIN".equals(edits.execute(v,create,Map.of("action","create","name","New playlist")).get("status")),"Lost create response must be uncertain");
+        check("COMPLETED".equals(edits.reconcile(v,create,Map.of()).get("status")),"Create recovery must find operation marker");
+        check(fake.created.equals(db.one("SELECT playlist_id FROM venue WHERE id=?",v).get("playlist_id")),"Recovered playlist must be selected atomically");
+        check(fake.effects==2,"Create recovery cannot create a duplicate playlist");
+        UUID concurrent=UUID.randomUUID();fake.lost=false;fake.entered=new CountDownLatch(1);fake.release=new CountDownLatch(1);
+        var executor=Executors.newSingleThreadExecutor();
+        try {
+            var future=executor.submit(()->edits.execute(v,concurrent,Map.of("action","rename","snapshot",fake.snap,"name","Renamed")));
+            check(fake.entered.await(5,TimeUnit.SECONDS),"Admin edit did not reach gateway");
+            forbidden(()->commands.submit(v,c,body(TRACK_A,"guest-concurrent-admin"),key()),HttpStatus.CONFLICT,"Running admin edit must exclude customer request");
+            forbidden(()->edits.execute(v,UUID.randomUUID(),Map.of("action","create","name","Concurrent")),HttpStatus.CONFLICT,"Concurrent admin edit must be excluded");
+            db.transaction(connection->{forbidden(()->commands.requireMutable(v),HttpStatus.CONFLICT,"Session changes must be excluded while editing");return null;});
+            fake.release.countDown();check("COMPLETED".equals(future.get(5,TimeUnit.SECONDS).get("status")),"Concurrent edit must complete after release");
+        } finally {fake.release.countDown();executor.shutdownNow();}
+        UUID crash=UUID.randomUUID();
+        db.exec("INSERT INTO venue_music_operation(id,venue_id,input_hash,status,updated_at) VALUES(?,?,?,'PREPARING',now()-interval '10 minutes')",crash,v,"fixture");
+        check("FAILED".equals(edits.reconcile(v,crash,Map.of()).get("status")),"Crashed preflight must release safely without provider write");
+        System.out.println("PASS admin music: durable edits, no duplicate create, recovery, snapshot conflicts and request exclusion");
+    }
+
     public static void main(String[] args) throws Exception {
         String jdbc=System.getenv("TOCA_TEST_JDBC_URL");
         String user=System.getenv("TOCA_TEST_DB_USER"), password=System.getenv("TOCA_TEST_DB_PASSWORD");
@@ -296,7 +349,7 @@ public class P1ServiceProbe {
         Flyway.configure().dataSource(datasource).locations("classpath:db/migration").load().migrate();
         db=new Db(datasource);
         try {
-            transactionReuse();presenceEvidence();authAtomicBudgets();requestIdentityAndReplay();authenticatedWindowCap();policyRevalidation();uncertainRemoteEffect();crashedWorkerRecovery();lostOwnershipFencesMutation();
+            transactionReuse();adminMusicEdits();presenceEvidence();authAtomicBudgets();requestIdentityAndReplay();authenticatedWindowCap();policyRevalidation();uncertainRemoteEffect();crashedWorkerRecovery();lostOwnershipFencesMutation();
             System.out.println("PASS P1 regression assertions="+assertions);
         } finally {
             for(UUID owner:owners){db.exec("DELETE FROM venue WHERE owner_id=?",owner);db.exec("DELETE FROM admin_user WHERE id=?",owner);}

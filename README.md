@@ -1,5 +1,7 @@
 # TOCÁ — desarrollo y despliegue
 
+**Nuevo:** [Precarga de datos del bar y reproductor del administrador](docs/ADMIN_STUDIO.md).
+
 **Mapa y acceso vigentes:** [100 metros o cualquier ubicación, sin QR](docs/MAP_DISTANCE_FIX.md).
 
 **Actualización amplia:** [pasos de migración, SMTP y HTTPS](docs/UPGRADE_BATCH.md).

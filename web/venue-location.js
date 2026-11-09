@@ -146,6 +146,13 @@ Buscar en el mapa
     activeMap.setView(point,zoom);
     setPending(widget,lat,lon);
   }
+  window.tocaApplyImportedLocation = (form,lat,lon) => {
+    const widget=form.querySelector('.toca-location-widget');
+    if(!widget || !isFiniteLatLon(lat,lon))return;
+    widget.querySelector('[name="latitude"]').value='';
+    widget.querySelector('[name="longitude"]').value='';
+    setPending(widget,lat,lon);putPin(widget,lat,lon);
+  };
   window.tocaInitVenueLocation = async () => {
     const widget=document.querySelector('.toca-location-widget');
     if(!widget || (widget===activeWidget && activeMap))return;

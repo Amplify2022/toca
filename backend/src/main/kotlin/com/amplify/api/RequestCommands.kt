@@ -60,6 +60,8 @@ class RequestCommands(private val db: Db, private val presence: VenuePresence,
 
     /** Call under the same venue transaction as the mutation. */
     fun requireMutable(venueId: UUID) {
+        if (db.one("SELECT id FROM venue_music_operation WHERE venue_id=? AND status IN ('PREPARING','APPLYING','UNCERTAIN') LIMIT 1",venueId)!=null)
+            fail(HttpStatus.CONFLICT,"Hay una edición de playlist pendiente de revisión.")
         if (db.one("SELECT id FROM request_command WHERE venue_id=? AND status IN ($activeStates) LIMIT 1", venueId) != null)
             fail(HttpStatus.CONFLICT, "Hay un pedido sincronizándose o pendiente de revisión. Resolvelo antes de cambiar la sesión o sus reglas.")
     }
@@ -67,6 +69,8 @@ class RequestCommands(private val db: Db, private val presence: VenuePresence,
     private fun validate(venue: Map<String, Any?>, customerId: UUID, trackId: String,
                          title: String? = null, artist: String? = null) {
         val venueId = venue.getValue("id") as UUID
+        if (db.one("SELECT id FROM venue_music_operation WHERE venue_id=? AND status IN ('PREPARING','APPLYING','UNCERTAIN') LIMIT 1",venueId)!=null)
+            fail(HttpStatus.CONFLICT,"El administrador está actualizando la playlist. Intentá nuevamente en unos momentos.")
         if (venue["active"] != true || venue["spotify_premium"] != true)
             fail(HttpStatus.CONFLICT, "La sesión Spotify del bar está cerrada")
         if ((venue["playlist_id"] as? String).isNullOrBlank())

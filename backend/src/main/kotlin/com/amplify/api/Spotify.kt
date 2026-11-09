@@ -276,7 +276,7 @@ class Spotify(
         val challenge=Base64.getUrlEncoder().withoutPadding().encodeToString(MessageDigest.getInstance("SHA-256").digest(verifier.toByteArray()))
         db.exec("INSERT INTO spotify_oauth_state(state,venue_id,owner_id,verifier,expires_at) VALUES(?,?,?,?,?)",
             state,venue["id"],owner["id"],verifier,java.sql.Timestamp.from(Instant.now().plusSeconds(600)))
-        val scopes="user-read-private user-read-playback-state user-read-currently-playing user-modify-playback-state playlist-read-private playlist-modify-public playlist-modify-private"
+        val scopes="streaming user-read-email user-read-private user-read-playback-state user-read-currently-playing user-modify-playback-state playlist-read-private playlist-modify-public playlist-modify-private"
         val args=mapOf("response_type" to "code","client_id" to clientId,"redirect_uri" to redirectUri,"scope" to scopes,"state" to state,"code_challenge_method" to "S256","code_challenge" to challenge)
         return "https://accounts.spotify.com/authorize?"+args.entries.joinToString("&") { "${enc(it.key)}=${enc(it.value)}" }
     }
@@ -296,10 +296,21 @@ class Spotify(
         if(reportedProduct.isNotBlank() && reportedProduct!="premium")
             fail(HttpStatus.FORBIDDEN,"Se requiere una cuenta Spotify Premium")
         val account=me.path("account_id").asText("").ifEmpty { me.path("id").asText("") }
-        db.exec("""UPDATE venue SET spotify_account_id=?,spotify_name=?,spotify_premium=true,
+        val venueId=st["venue_id"] as UUID
+        val saveConnection = {
+            db.exec("""UPDATE venue SET spotify_account_id=?,spotify_name=?,spotify_premium=true,
                   spotify_access_encrypted=?,spotify_refresh_encrypted=?,spotify_expires_at=?,updated_at=now() WHERE id=?""",
-            account,me.path("display_name").asText("Spotify Premium"),seal(access),seal(refresh),
-            java.sql.Timestamp.from(Instant.now().plusSeconds(token.path("expires_in").asLong(3600))),st["venue_id"])
+                account,me.path("display_name").asText("Spotify Premium"),seal(access),seal(refresh),
+                java.sql.Timestamp.from(Instant.now().plusSeconds(token.path("expires_in").asLong(3600))),venueId)
+        }
+        db.transaction {
+            val existing=db.one("SELECT spotify_account_id FROM venue WHERE id=? FOR UPDATE",venueId)
+                ?:fail(HttpStatus.NOT_FOUND,"Bar no encontrado")
+            // Reauthorizing the SAME account must remain possible to recover a
+            // lost edit after token revocation; changing accounts still fences edits.
+            if(account.isNotBlank() && existing["spotify_account_id"]==account)saveConnection()
+            else changeVenueWithoutRequest(venueId) { saveConnection() }
+        }
         return "$frontendOrigin/#/admin/spotify"
     }
     @Synchronized
@@ -385,6 +396,8 @@ class Spotify(
                 statement.setObject(1,venueId);statement.executeQuery().use {it.next()}
             }
             if(pending)fail(HttpStatus.CONFLICT,"Hay un pedido pendiente de sincronizar; resolvelo antes de cambiar Spotify")
+            if(db.one("SELECT id FROM venue_music_operation WHERE venue_id=? AND status IN ('PREPARING','APPLYING','UNCERTAIN') LIMIT 1",venueId)!=null)
+                fail(HttpStatus.CONFLICT,"Hay una edición de playlist pendiente de revisión")
             change(connection)
         }
     }
@@ -519,5 +532,115 @@ class Spotify(
         val deviceId=venue?.get("spotify_device_id") as? String
         val path="/me/player/queue?uri=${enc("spotify:track:$trackId")}" + (if(deviceId.isNullOrBlank())"" else "&device_id=${enc(deviceId)}")
         apiPost(path,access(venueId))
+    }
+
+    fun adminPlaylist(venue:UUID,playlist:String):MusicPlaylist = withRequestBudget {
+        val token=access(venue)
+        val metadata=apiGet("/playlists/${enc(playlist)}",token)?:fail(HttpStatus.BAD_GATEWAY,"Playlist no disponible")
+        val snapshot=metadata.path("snapshot_id").asText("")
+        val total=metadata.path("items").path("total").asInt(-1)
+        if(snapshot.isBlank() || total !in 0..1000)fail(HttpStatus.CONFLICT,"La playlist debe tener hasta 1000 canciones y un snapshot válido")
+        val tracks=mutableListOf<Map<String,Any?>>()
+        for(offset in 0 until total step 50) {
+            val page=apiGet("/playlists/${enc(playlist)}/items?limit=50&offset=$offset",token)?:fail(HttpStatus.BAD_GATEWAY,"Playlist incompleta")
+            for(entry in page.path("items")) {
+                val item=entry.path("item").takeUnless {it.isNull||it.isMissingNode}?:entry.path("track")
+                tracks.add(if(item.path("type").asText()=="track")track(item) else mapOf("id" to null,"title" to "Elemento no disponible","artist" to ""))
+            }
+        }
+        val after=apiGet("/playlists/${enc(playlist)}?fields=snapshot_id",token)
+        if(tracks.size!=total || after?.path("snapshot_id")?.asText()!=snapshot)fail(HttpStatus.CONFLICT,"La playlist cambió mientras se cargaba. Actualizá.")
+        return@withRequestBudget MusicPlaylist(playlist,metadata.path("name").asText("Playlist"),snapshot,tracks)
+    }
+    fun createAdminPlaylist(venue:UUID,name:String,marker:String):String {
+        requirePlaylistWrites()
+        val response=apiJson("POST","/me/playlists",access(venue),mapOf("name" to name,"public" to false,"description" to "Creada desde TOCÁ [$marker]"))
+        return response?.path("id")?.asText()?.takeIf {it.matches(Regex("[A-Za-z0-9]{15,40}"))}
+            ?:fail(HttpStatus.BAD_GATEWAY,"Spotify no confirmó el ID de la playlist")
+    }
+    fun findAdminPlaylist(venue:UUID,marker:String):String? = withRequestBudget {
+        val token=access(venue)
+        for(offset in 0 until 10000 step 50) {
+            val page=apiGet("/me/playlists?limit=50&offset=$offset",token)?:break
+            val items=page.path("items")
+            items.firstOrNull {it.path("description").asText("").contains("[$marker]") }?.let {return@withRequestBudget it.path("id").asText()}
+            if(items.size()<50)return@withRequestBudget null
+        }
+        fail(HttpStatus.CONFLICT,"La cuenta tiene demasiadas playlists para verificar la creación")
+    }
+    fun editAdminPlaylist(venue:UUID,plan:Map<String,Any?>) {
+        requirePlaylistWrites()
+        val playlist=plan["playlistId"] as String
+        // Recheck immediately before the single write; snapshot-aware edits are fenced remotely too.
+        if(adminPlaylist(venue,playlist).snapshot!=plan["snapshot"])fail(HttpStatus.CONFLICT,"La playlist cambió antes de editar")
+        val token=access(venue);val path="/playlists/${enc(playlist)}"
+        when(plan["action"]) {
+            "rename" -> apiJson("PUT",path,token,mapOf("name" to plan["name"]!!))
+            "add" -> apiJson("POST","$path/items",token,mapOf("uris" to listOf("spotify:track:${plan["trackId"]}")))
+            "remove" -> apiJson("DELETE","$path/items",token,mapOf("items" to listOf(mapOf("uri" to "spotify:track:${plan["trackId"]}","positions" to listOf(plan["position"]))),"snapshot_id" to plan["snapshot"]!!))
+            "move" -> {
+                val from=(plan["from"] as Number).toInt();val to=(plan["to"] as Number).toInt()
+                apiJson("PUT","$path/items",token,mapOf("range_start" to from,"range_length" to 1,"insert_before" to if(to>from)to+1 else to,"snapshot_id" to plan["snapshot"]!!))
+            }
+        }
+        musicCache.remove(venue)
+    }
+    fun browserToken(venue:UUID):Map<String,Any> {
+        requirePlayerControl()
+        return mapOf("accessToken" to access(venue),"expiresIn" to 60)
+    }
+    private fun requirePlayerControl() {
+        if(!controlEnabled)fail(HttpStatus.PRECONDITION_FAILED,"El control de reproducción está desactivado en este entorno")
+    }
+    fun adminPlayer(venue:UUID):Map<String,Any?> {
+        val player=apiGet("/me/player",access(venue))
+        val item=player?.path("item")
+        return mapOf("isPlaying" to (player?.path("is_playing")?.asBoolean()?:false),
+            "now" to item?.takeIf {it.path("type").asText()=="track"}?.let(::track),
+            "progressMs" to (player?.path("progress_ms")?.asLong()?:0),
+            "device" to player?.path("device")?.let {mapOf("id" to it.path("id").asText(),"name" to it.path("name").asText(),"volume" to it.path("volume_percent").asInt())},
+            "shuffle" to (player?.path("shuffle_state")?.asBoolean()?:false),"repeat" to (player?.path("repeat_state")?.asText()?:"off"))
+    }
+    fun playerCommand(venue:UUID,body:Map<String,Any?>):Map<String,Boolean> {
+        requirePlayerControl()
+        val token=access(venue)
+        val v=db.one("SELECT playlist_id,spotify_device_id FROM venue WHERE id=?",venue)?:fail(HttpStatus.NOT_FOUND,"Bar no encontrado")
+        val device=(v["spotify_device_id"] as? String).orEmpty()
+        val suffix=if(device.isBlank())"" else "?device_id=${enc(device)}"
+        val action=required(body,"action",20)
+        fun bounded(key:String,max:Int):Int {
+            val n=body[key] as? Number?:fail(HttpStatus.BAD_REQUEST,"Valor requerido")
+            val i=n.toInt();if(n.toDouble()!=i.toDouble() || i !in 0..max)fail(HttpStatus.BAD_REQUEST,"Valor fuera de rango")
+            return i
+        }
+        when(action) {
+            "transfer" -> {
+                if(device.isBlank())fail(HttpStatus.PRECONDITION_FAILED,"Seleccioná un dispositivo")
+                apiJson("PUT","/me/player",token,mapOf("device_ids" to listOf(device),"play" to false))
+            }
+            "start" -> {
+                val playlist=(v["playlist_id"] as? String)?.takeIf {it.isNotBlank()}?:fail(HttpStatus.PRECONDITION_FAILED,"Creá o seleccioná una playlist")
+                apiJson("PUT","/me/player/play$suffix",token,mapOf("context_uri" to "spotify:playlist:$playlist","offset" to mapOf("position" to bounded("position",999)),"position_ms" to 0))
+            }
+            "resume" -> apiPutEmpty("/me/player/play$suffix",token)
+            "pause" -> apiPutEmpty("/me/player/pause$suffix",token)
+            "next","previous" -> apiPost("/me/player/$action$suffix",token)
+            "seek","volume" -> {
+                val param=if(action=="seek")"position_ms=${bounded("positionMs",86_400_000)}" else "volume_percent=${bounded("volume",100)}"
+                apiPutEmpty("/me/player/$action?$param"+(if(device.isBlank())"" else "&device_id=${enc(device)}"),token)
+            }
+            "shuffle" -> {
+                val value=body["enabled"] as? Boolean?:fail(HttpStatus.BAD_REQUEST,"Estado requerido")
+                apiPutEmpty("/me/player/shuffle?state=$value"+(if(device.isBlank())"" else "&device_id=${enc(device)}"),token)
+            }
+            "repeat" -> {
+                val value=body["state"] as? String
+                if(value !in listOf("off","track","context"))fail(HttpStatus.BAD_REQUEST,"Repetición inválida")
+                apiPutEmpty("/me/player/repeat?state=$value"+(if(device.isBlank())"" else "&device_id=${enc(device)}"),token)
+            }
+            else -> fail(HttpStatus.BAD_REQUEST,"Control inválido")
+        }
+        cache.remove(venue.toString());musicCache.remove(venue)
+        return mapOf("accepted" to true)
     }
 }

@@ -78,3 +78,5 @@ Coverage:
   event, worker crash/lease recovery, and ownership fencing before mutations.
 
 These are integration regressions, not live-provider OAuth/playback validation.
+
+La sonda también verifica las ediciones del administrador (V17): exclusión con pedidos, snapshots desactualizados, respuestas perdidas, recuperación de creación y reintentos sin escrituras duplicadas.

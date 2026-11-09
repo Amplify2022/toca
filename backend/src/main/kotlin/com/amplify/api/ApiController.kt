@@ -260,9 +260,13 @@ class ApiController(private val db:Db,private val auth:Auth,private val spotify:
         val lat=(body["latitude"] as? Number)?.toDouble()?:fail(HttpStatus.BAD_REQUEST,"Latitud requerida")
         val lon=(body["longitude"] as? Number)?.toDouble()?:fail(HttpStatus.BAD_REQUEST,"Longitud requerida")
         if(lat !in -90.0..90.0||lon !in -180.0..180.0)fail(HttpStatus.BAD_REQUEST,"Coordenadas inválidas")
+        val openingHours=(body["openingHours"] as? String)?.trim().orEmpty()
+        if(openingHours.length>180)fail(HttpStatus.BAD_REQUEST,"Horario demasiado largo")
+        val instagram=normalizeInstagram(body["instagramHandle"])
         val id=UUID.randomUUID();val slug="bar-"+id.toString().take(8)
-        db.exec("""INSERT INTO venue(id,owner_id,name,slug,address,city,genre,latitude,longitude,join_token)
-              VALUES(?,?,?,?,?,?,?,?,?,?)""",id,user["id"],name,slug,address,city,genre,lat,lon,randomString(36))
+        db.exec("""INSERT INTO venue(id,owner_id,name,slug,address,city,genre,latitude,longitude,join_token,description,opening_hours,instagram_handle)
+              VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",id,user["id"],name,slug,address,city,genre,lat,lon,randomString(36),
+            (body["description"] as? String)?.take(2000)?:"",openingHours,instagram)
         return adminVenue(venueById(id.toString()))
     }
     @Put("/admin/venues/{id}") fun editVenue(id:String,@Header(value="Authorization",defaultValue="")authorization:String,@Body body:Map<String,Any?>):Map<String,Any?> {
