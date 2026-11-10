@@ -3,6 +3,8 @@ No provider account is used and no real audio is played by this test.
 """
 from playwright.sync_api import sync_playwright
 import json
+from urllib.parse import parse_qs,urlsplit
+BIO='Clásico de Montevideo, desde 2008 con amor.\nViernes & Sábados 20 Hs.\nTodos los Miércoles = Jazz Club\nEntrada libre\nCanelones 760, esquina Ciudadela.'
 ID='77777777-7777-4777-8777-777777777777';A='A'*22;B='B'*22
 with sync_playwright() as p:
  browser=p.chromium.launch(executable_path='/usr/bin/chromium',args=['--no-sandbox'])
@@ -23,7 +25,11 @@ with sync_playwright() as p:
    elif path.endswith('/spotify/playlists'):data=[dict(id=playlist['id'],name=playlist['name'])]
    elif path.endswith('/google/search'):data=[dict(id='google-place-1',name='Imported Bar',address='New address 123')]
    elif path.endswith('/google/preview'):data=dict(source='Google Maps',fields=dict(name='Imported Bar',address='New address 123',city='Montevideo',description='Google description',latitude=-34.91,longitude=-56.18,openingHours='W2|18:00-02:00|-|-|-|-|-|-'),warnings=[],details=dict(phone='+598 12345678'),sourceUrl='https://maps.google.com/?cid=123')
-   elif path.endswith('/instagram/preview'):data=dict(source='Instagram',fields=dict(name='IG Bar',description='Instagram biography',instagramHandle='bar.ig'),warnings=['Completá los horarios y la dirección.'],details={})
+   elif path.endswith('/instagram/preview'):
+    profile=parse_qs(urlsplit(route.request.url).query).get('profile',[''])[0]
+    if profile=='missing.profile':
+     route.fulfill(status=503,content_type='application/json',body=json.dumps(dict(message='El proveedor no está disponible. Intentá nuevamente.')),headers={'Access-Control-Allow-Origin':'*'});return
+    data=dict(source='Instagram',fields=dict(name='BLUZZ BAR',description=BIO,instagramHandle='bar.ig'),warnings=['Instagram no publica dirección ni horarios estructurados mediante esta API. Revisá la biografía y completá los campos faltantes.'],details={},sourceUrl='https://www.instagram.com/bar.ig/')
    elif path.endswith('/music/playlist'):data=dict(playlist=playlist,operation=None)
    elif path.endswith('/music/player'):
     if method=='POST':controls.append(body);data=dict(accepted=True)
@@ -46,19 +52,61 @@ with sync_playwright() as p:
    window.Spotify={Player:class {constructor(options){this.o=options;this.listeners={}}addListener(k,v){this.listeners[k]=v}activateElement(){return Promise.resolve()}disconnect(){}connect(){this.o.getOAuthToken(t=>{if(t!=='synthetic-spotify-access-token')throw Error('wrong token');this.listeners.ready({device_id:'browser-device'})});return Promise.resolve(true)}}};window.onSpotifyWebPlaybackSDKReady();
   """))
   page.goto('http://localhost:5173/#/admin/profile')
-  box=page.locator('[data-venue-import]');box.wait_for();box.locator('[data-import-query]').fill('My bar Montevideo');box.locator('[data-import-search]').click()
+  box=page.locator('[data-venue-import]');box.wait_for();box.screenshot(path=f'/tmp/toca-import-idle-{width}.png');box.locator('[data-import-query]').fill('My bar Montevideo');box.locator('[data-import-search]').click()
   box.locator('[data-import-place]').click();box.locator('[data-import-apply]').wait_for()
   assert not box.locator('[data-import-field="name"]').is_checked()
   assert box.locator('[data-import-field="description"]').is_checked()
+  box.screenshot(path=f'/tmp/toca-import-google-{width}.png')
   box.locator('[data-import-field="address"]').check();box.locator('[data-import-apply]').click()
   assert page.locator('#venue-update [name="name"]').input_value()=='Existing Bar'
   assert page.locator('#venue-update [name="address"]').input_value()=='New address 123'
   assert page.locator('#venue-update [name="description"]').input_value()=='Google description'
   assert page.locator('.toca-location-widget').get_attribute('data-confirmed')=='false'
   assert not writes,'Import must not save automatically'
-  box.locator('[data-import-source]').select_option('instagram');box.locator('[data-import-query]').fill('@bar.ig');box.locator('[data-import-search]').click();box.locator('[data-import-apply]').wait_for()
-  box.locator('[data-import-field="description"]').check();box.locator('[data-import-apply]').click()
-  assert page.locator('#venue-update [name="description"]').input_value()=='Instagram biography'
+  box.get_by_role('radio',name='Instagram',exact=True).check()
+  box.get_by_role('radio',name='Instagram',exact=True).press('ArrowLeft')
+  assert box.get_by_role('radio',name='Google Maps',exact=True).is_checked()
+  box.get_by_role('radio',name='Google Maps',exact=True).press('ArrowRight')
+  assert box.get_by_role('radio',name='Instagram',exact=True).is_checked()
+  assert box.locator('[data-import-results]').inner_text()==''
+  assert 'Perfil de Instagram' in box.locator('[data-import-query-label]').inner_text()
+  # A late provider response must not restore a preview after switching source.
+  page.evaluate("""()=>{
+   window.__importOriginalFetch=window.fetch;
+   window.fetch=(url,options)=>String(url).includes('profile=slow.profile')?new Promise(resolve=>{
+    window.__finishSlowImport=()=>resolve(new Response(JSON.stringify({source:'Instagram',fields:{name:'STALE PROFILE',instagramHandle:'wrong.bar'},warnings:[],details:{}}),{headers:{'Content-Type':'application/json'}}));
+   }):window.__importOriginalFetch(url,options);
+  }""")
+  box.locator('[data-import-query]').fill('slow.profile');box.locator('[data-import-search]').click()
+  page.wait_for_function("typeof window.__finishSlowImport==='function'")
+  assert box.locator('[data-import-search]').is_disabled()
+  box.screenshot(path=f'/tmp/toca-import-loading-{width}.png')
+  box.get_by_role('radio',name='Google Maps',exact=True).check()
+  page.evaluate("""async()=>{window.__finishSlowImport();await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));window.fetch=window.__importOriginalFetch;}""")
+  assert box.locator('[data-import-results]').inner_text()==''
+  assert not box.locator('[data-import-search]').is_disabled()
+  box.get_by_role('radio',name='Instagram',exact=True).check()
+  box.locator('[data-import-query]').fill('missing.profile');box.locator('[data-import-search]').click()
+  box.get_by_role('heading',name='No pudimos traer los datos').wait_for()
+  box.screenshot(path=f'/tmp/toca-import-error-{width}.png')
+  box.locator('[data-import-query]').fill('@bar.ig');box.locator('[data-import-query]').press('Enter')
+  box.locator('[data-import-apply]').wait_for()
+  for checkbox in box.locator('[data-import-field]').all():checkbox.uncheck()
+  assert box.locator('[data-import-apply]').is_disabled()
+  assert '0 datos' in box.locator('[data-import-count]').inner_text()
+  box.locator('[data-import-field="description"]').check()
+  assert '1 dato seleccionado' in box.locator('[data-import-count]').inner_text()
+  assert not box.locator('[data-import-apply]').is_disabled()
+  page.locator('#toast').evaluate('el=>el.replaceChildren()')
+  box.screenshot(path=f'/tmp/toca-import-instagram-{width}.png')
+  assert page.evaluate('document.documentElement.scrollWidth<=window.innerWidth'), 'Import horizontal overflow'
+  assert 'estructurados mediante esta API' not in box.inner_text()
+  box.locator('[data-import-apply]').click()
+  assert page.locator('#venue-update [name="description"]').input_value()==BIO
+  assert page.locator('#venue-update [name="name"]').input_value()=='Existing Bar'
+  assert not writes,'Import must not save automatically'
+  box.locator('[data-import-review]').click()
+  assert page.locator('#venue-update [name="name"]').evaluate('el=>el===document.activeElement')
   page.screenshot(path=f'/tmp/toca-import-{width}.png',full_page=True)
   page.goto('http://localhost:5173/#/admin/music');root=page.locator('[data-admin-studio]');root.locator('[data-studio-tracks] .toca-studio-track').first.wait_for()
   root.locator('[data-studio-search]').fill('Search')
