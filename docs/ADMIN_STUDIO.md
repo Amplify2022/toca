@@ -5,7 +5,7 @@
 En **Mi Bar** y en el alta del primer bar aparece «Traé los datos de tu bar».
 
 - **Google Maps:** buscá nombre y ciudad, seleccioná el establecimiento y revisá nombre, dirección, ciudad, coordenadas y horarios. Teléfono y web se muestran como información de referencia. Los horarios nocturnos conservan el cierre del día siguiente. Los horarios partidos o continuos se muestran para revisión manual porque el editor actual admite un intervalo diario.
-- **Instagram:** ingresá @usuario o un enlace de perfil profesional. Business Discovery aporta nombre, biografía y usuario; la API no entrega dirección y horarios estructurados. No se deducen ni inventan a partir de la biografía.
+- **Instagram:** ingresá @usuario o un enlace de perfil profesional. Business Discovery aporta nombre, biografía y usuario. TOCÁ busca patrones de días y horas en la biografía y muestra una sugerencia editable, sin seleccionarla automáticamente. Las horas faltantes quedan en blanco y las sugerencias requieren revisión.
 - Los campos vacíos se seleccionan por defecto; reemplazar datos existentes requiere seleccionarlos. Aplicar sólo actualiza el borrador. Revisá el pin, confirmá ubicación y guardá el bar. No se copian fotos de terceros automáticamente.
 
 En **Música y Spotify → Cabina del bar**, el administrador puede:
@@ -18,6 +18,16 @@ En **Música y Spotify → Cabina del bar**, el administrador puede:
 Los clientes mantienen sus pedidos. Mi Bar sigue ofreciendo **NEARBY (100 metros, sin QR)** y **ANYWHERE (sin GPS)**.
 
 La playlist se administra desde TOCÁ, pero la cola precargada de Spotify sigue siendo independiente. Editar el orden no promete cambiar inmediatamente lo que ya esté en esa cola. «Reproducir playlist» inicia explícitamente la playlist seleccionada desde el comienzo.
+
+## Horarios sugeridos desde la biografía
+
+La opción B compara los datos actuales y los importados. Si la biografía incluye horarios, aparece un editor con los días detectados, apertura/cierre y el texto que dio origen a la sugerencia.
+
+Por ejemplo, «Viernes & Sábados 20 Hs.» propone viernes y sábado a las 20:00, con el cierre en blanco. Para incluir la sugerencia se marca **Usar estos horarios**; el botón de aplicar espera a que los días marcados tengan horas completas y distintas. Se pueden corregir las horas o excluir días. Los días no mencionados o desmarcados conservan la configuración del formulario.
+
+Se reconocen nombres y abreviaturas habituales en español, listas/rangos de días, horas de 24 horas o AM/PM explícitas, cierres después de medianoche y días cerrados explícitos. Las fechas puntuales y menciones de eventos reconocidas, así como los horarios contradictorios/partidos, se dejan para revisión. Por ejemplo, «Miércoles = Jazz Club» no crea un horario de atención. No se resuelven expresiones ambiguas como «hasta tarde».
+
+Se usa reconocimiento local de patrones; no requiere otro proveedor ni otra credencial. La biografía original se conserva. Aplicar actualiza el formulario, y recién **Guardar cambios del bar** publica el horario. En el alta de un bar también se pueden editar las horas antes de crearlo.
 
 ## Configuración única
 
@@ -81,6 +91,7 @@ La edición por posición conserva duplicados. Los snapshots detectan lecturas/e
 
 ## Validación reproducible
 
+- `node scripts/test-bio-hours.cjs`: ejemplos de horas completas/incompletas, días, eventos, fechas y conflictos.
 - `python scripts/test-admin-studio.py`: frontend real a 390 y 1440 px; proveedores y SDK de audio simulados; precarga selectiva sin autoguardado, edición y conexión.
 - `python scripts/test-studio-http.py`: API real de pruebas en 8081 con rol DB restringido; autorización por propietario, ausencia de credenciales, flags y alta con datos importados.
 - Tests JUnit `VenueImportTest` y `MusicEditPlanTest`: horarios nocturnos/partidos, perfiles y URLs, índices y snapshots.

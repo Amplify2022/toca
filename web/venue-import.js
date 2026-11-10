@@ -2,6 +2,7 @@
 (() => {
   'use strict';
   const labels = {name:'Nombre',address:'Dirección',city:'Ciudad',openingHours:'Horarios',instagramHandle:'Instagram',description:'Descripción'};
+  const dayNames=['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
   const shapes = {
     spark:'<path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5Z"/>',
     google:'<path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/>',
@@ -55,19 +56,87 @@
     }
     return form?.querySelector(`[name="${key}"]`)?.value.trim()||'';
   }
+  function bioHoursState(box) {
+    const section=box.querySelector('[data-bio-hours]');if(!section)return {selected:false,valid:true,days:[],message:''};
+    const selected=section.querySelector('[data-import-field="bioHours"]').checked,days=[],missing=[];
+    for(const row of section.querySelectorAll('[data-bio-row]')) {
+      const included=row.querySelector('[data-bio-day]').checked,day=Number(row.dataset.bioRow),closed=row.dataset.closed==='true';
+      row.classList.toggle('is-disabled',!included);
+      row.querySelectorAll('[data-bio-time]').forEach(input=>{input.disabled=!included;input.required=selected&&included});
+      if(!included)continue;
+      if(closed){days.push({day,closed:true});continue}
+      const open=row.querySelector('[data-bio-open]').value,close=row.querySelector('[data-bio-close]').value;
+      const valid=time=>/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time);
+      row.querySelector('[data-bio-open]').classList.toggle('is-missing',!valid(open));
+      row.querySelector('[data-bio-close]').classList.toggle('is-missing',!valid(close));
+      if(!valid(open)||!valid(close))missing.push(`Completá ${!valid(open)&&!valid(close)?'apertura y cierre':!valid(open)?'la apertura':'el cierre'} de ${dayNames[day].toLowerCase()}.`);
+      else if(open===close)missing.push(`Revisá ${dayNames[day].toLowerCase()}: apertura y cierre deben ser distintos.`);
+      days.push({day,open,close,closed:false});
+    }
+    if(!days.length)missing.push('Marcá al menos un día para usar estos horarios.');
+    else if(days.every(day=>day.closed)) {
+      const changed=new Set(days.map(day=>day.day)),form=formFor(box);
+      const otherOpen=[...(form?.querySelectorAll('.toca-hours-row')||[])].some(row=>!changed.has(Number(row.dataset.day))&&row.querySelector('.toca-hours-open').checked);
+      if(!otherOpen)missing.push('Sólo se detectaron días cerrados. Completá los días de apertura en el formulario antes de usar esta sugerencia.');
+    }
+    return {selected,valid:missing.length===0,days,message:missing[0]||'Horarios listos para aplicar. Revisá también el resto de la semana.'};
+  }
   function selectedSummary(box) {
     const selected=[...box.querySelectorAll('[data-import-field]:checked')];
     const count=box.querySelector('[data-import-count]');
     if(!count)return;
     count.textContent=`${selected.length} ${selected.length===1?'dato seleccionado':'datos seleccionados'}`;
-    box.querySelector('[data-import-selection]').innerHTML=selected.length?selected.map(input=>`<li>${icon('check')}<span>${labels[input.dataset.importField]||'Ubicación del local'}</span></li>`).join(''):'<li class="toca-import-no-selection">Marcá los datos que querés usar.</li>';
-    box.querySelector('[data-import-apply]').disabled=selected.length===0;
+    box.querySelector('[data-import-selection]').innerHTML=selected.length?selected.map(input=>`<li>${icon('check')}<span>${input.dataset.importField==='bioHours'?'Horarios sugeridos':labels[input.dataset.importField]||'Ubicación del local'}</span></li>`).join(''):'<li class="toca-import-no-selection">Marcá los datos que querés usar.</li>';
+    const hours=bioHoursState(box);
+    box.querySelector('[data-import-apply]').disabled=selected.length===0||(hours.selected&&!hours.valid);
+    const feedback=box.querySelector('[data-bio-feedback]');
+    if(feedback){feedback.textContent=hours.message;feedback.classList.toggle('is-incomplete',!hours.valid);box.querySelector('[data-bio-hours]').classList.toggle('is-selected',hours.selected)}
     box.querySelectorAll('.toca-import-field').forEach(card=>card.classList.toggle('is-selected',card.querySelector('input').checked));
+  }
+  function bioHoursMarkup(suggestion,form) {
+    if(!suggestion?.days.length)return '';
+    const sources=[...new Set(suggestion.days.map(day=>day.source))];
+    const legacy=form?.querySelector('.toca-hours-editor')?.dataset.legacy;
+    return `<section class="toca-import-bio-hours" data-bio-hours aria-label="Horarios sugeridos desde la biografía">
+      <header><div><span class="toca-import-bio-kicker">DETECTADO EN LA BIOGRAFÍA</span><h4>Horarios sugeridos</h4></div><span class="toca-import-bio-badge">Revisar</span></header>
+      <p class="toca-import-bio-intro">Confirmá las horas antes de usarlas. Los días que no marques conservan su configuración actual.</p>
+      <blockquote>${sources.map(esc).join('<br>')}</blockquote>
+      <div class="toca-import-bio-grid-heading" aria-hidden="true"><span>Día</span><span>Abre</span><span>Cierra</span></div>
+      ${suggestion.days.map(day=>{
+        const row=form?.querySelector(`.toca-hours-row[data-day="${day.day}"]`);
+        const configured=currentValue(form,'openingHours').startsWith('W2|');
+        const actual=configured&&row?(row.querySelector('.toca-hours-open').checked?row.querySelector('.toca-hours-from').value+'–'+row.querySelector('.toca-hours-to').value:'Cerrado'):'';
+        return `<div class="toca-import-bio-row" data-bio-row="${day.day}" data-closed="${day.closed}"><label><input type="checkbox" data-bio-day checked aria-label="Incluir ${dayNames[day.day].toLowerCase()}" /><span>${dayNames[day.day]}${actual?`<small>Actual: ${esc(actual)}</small>`:''}</span></label>${day.closed?'<span class="toca-import-bio-closed">Cerrado</span>':`<input type="time" value="${day.open||''}" data-bio-time data-bio-open aria-label="${dayNames[day.day]}: apertura sugerida" /><input type="time" value="${day.close||''}" data-bio-time data-bio-close aria-label="${dayNames[day.day]}: cierre sugerido" />`}</div>`;
+      }).join('')}
+      <p class="toca-import-bio-feedback" data-bio-feedback aria-live="polite"></p>
+      ${suggestion.notes?.length?`<details class="toca-import-bio-notes"><summary>También conviene revisar</summary><ul>${suggestion.notes.map(note=>`<li>${esc(note)}</li>`).join('')}</ul></details>`:''}
+      ${legacy?'<p class="toca-import-bio-legacy">Tu horario actual está en texto. Si usás esta sugerencia, revisá toda la semana en el formulario antes de guardar.</p>':''}
+      <label class="toca-import-bio-accept"><input type="checkbox" data-import-field="bioHours" aria-label="Usar horarios sugeridos" /><span>Usar estos horarios</span></label>
+    </section>`;
+  }
+  function applyBioHours(form,days) {
+    let editor=form.querySelector('.toca-hours-editor');
+    if(!editor) {
+      const existing=form.querySelector('[name="openingHours"]'),holder=document.createElement('div');
+      holder.innerHTML=window.tocaHoursEditorMarkup(existing?.value||'');existing?.remove();editor=holder.firstElementChild;
+      const submit=form.querySelector('button[type="submit"],button:not([type])');form.insertBefore(editor,submit);
+    }
+    for(const day of days) {
+      const row=editor.querySelector(`[data-day="${day.day}"]`),checkbox=row.querySelector('.toca-hours-open');
+      checkbox.checked=!day.closed;
+      row.querySelectorAll('input[type="time"]').forEach(input=>input.disabled=day.closed);
+      if(!day.closed){row.querySelector('.toca-hours-from').value=day.open;row.querySelector('.toca-hours-to').value=day.close}
+    }
+    editor.dataset.cleared='yes';editor.dataset.legacy='';editor.querySelector('.toca-hours-legacy')?.remove();
+    const hidden=editor.querySelector('[name="openingHours"]');
+    // Keep onboarding's FormData accurate too. The save handler validates again.
+    try {hidden.value=window.tocaSerializeHours(form)} catch { /* Existing incomplete rows stay visible for owner review. */ }
   }
   function preview(box,draft) {
     if(!box.isConnected)return;
     box._draft=draft;
     const form=formFor(box),fields=draft.fields||{},instagram=draft.source==='Instagram';
+    const bioSuggestion=instagram&&typeof window.tocaExtractBioHours==='function'?window.tocaExtractBioHours(fields.description):null;
     const id=`toca-import-fields-${++serial}`;
     const entries=Object.entries(labels).filter(([key])=>fields[key]!=null&&String(fields[key]).trim());
     const location=Number.isFinite(fields.latitude)&&Number.isFinite(fields.longitude);
@@ -85,7 +154,10 @@
     const url=safeLink(draft.sourceUrl),details=draft.details||{};
     const title=fields.name||fields.instagramHandle||draft.source;
     const subtitle=instagram?(fields.instagramHandle?'@'+fields.instagramHandle:'Perfil profesional de Instagram'):(fields.address||'Datos del local en Google Maps');
-    const warnings=(draft.warnings||[]).map(w=>instagram&&/^Instagram no publica direcci/.test(w)?'Instagram no incluye dirección ni horarios. Podés completarlos en el formulario del bar.':w);
+    const warnings=(draft.warnings||[]).map(w=>{
+      if(!instagram||!/^Instagram no publica direcci/.test(w))return w;
+      return bioSuggestion?.days.length?'Revisá la dirección en Mi Bar y confirmá los horarios sugeridos de la biografía.':'Instagram no incluye dirección ni horarios. Podés completarlos en el formulario del bar.';
+    });
     const website=safeLink(details.website);
     const initials=String(title).trim().split(/\s+/).map(part=>Array.from(part)[0]).slice(0,2).join('').toUpperCase();
     box.querySelector('[data-import-results]').innerHTML=`<section class="toca-import-preview" aria-label="Vista previa de los datos importados">
@@ -97,6 +169,7 @@
         </aside>
         <div class="toca-import-fields-panel"><header class="toca-import-section-heading"><h4>Revisá los cambios</h4><p>Elegí los datos que querés usar. Los actuales quedan desmarcados.</p></header>
           <table class="toca-import-comparison"><caption class="toca-import-sr">Comparación de los datos actuales y los encontrados en ${esc(draft.source)}</caption><thead><tr><th scope="col">Dato</th><th scope="col">Actual</th><th scope="col">Desde ${esc(draft.source)}</th><th scope="col">Usar</th></tr></thead><tbody>${rows.join('')}</tbody></table>
+          ${bioHoursMarkup(bioSuggestion,form)}
         </div>
       </div>
       ${details.phone||details.website||details.hours?.length?`<details class="toca-import-reference"><summary>Más información del local</summary><div>${details.phone?`<p><span>Teléfono</span>${esc(details.phone)}</p>`:''}${details.website?`<p><span>Sitio web</span>${website?`<a href="${esc(website)}" target="_blank" rel="noopener noreferrer">${esc(details.website)} ${icon('external')}</a>`:esc(details.website)}</p>`:''}${details.hours?.length?`<p><span>Horarios de ${esc(draft.source)}</span>${details.hours.map(esc).join('<br>')}</p>`:''}</div></details>`:''}
@@ -145,10 +218,11 @@
   });
   document.addEventListener('input',event=>{
     if(event.target.matches('[data-import-query]'))cancel(event.target.closest('[data-venue-import]'));
+    if(event.target.matches('[data-bio-time]'))selectedSummary(event.target.closest('[data-venue-import]'));
   });
   document.addEventListener('change',event=>{
     const box=event.target.closest('[data-venue-import]');if(!box)return;
-    if(event.target.matches('[data-import-field]'))selectedSummary(box);
+    if(event.target.matches('[data-import-field],[data-bio-day],[data-bio-time]'))selectedSummary(box);
     if(event.target.matches('[data-import-source]')) {
       cancel(box);const instagram=sourceFor(box)==='instagram';box.dataset.provider=instagram?'instagram':'google';
       box.querySelector('[data-import-query-label]').textContent=instagram?'Perfil de Instagram':'Nombre del bar y ciudad';
@@ -164,8 +238,10 @@
     if(!form||!box._draft)return;
     const fields=box._draft.fields||{},checked=new Set([...box.querySelectorAll('[data-import-field]:checked')].map(x=>x.dataset.importField));
     if(!checked.size)return;
+    const hours=bioHoursState(box);if(hours.selected&&!hours.valid)return;
     for(const key of checked) {
       if(key==='location')continue;
+      if(key==='bioHours'){applyBioHours(form,hours.days);continue;}
       if(key==='openingHours') {
         const old=form.querySelector('.toca-hours-editor');
         if(old)old.outerHTML=window.tocaHoursEditorMarkup(fields.openingHours);

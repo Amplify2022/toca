@@ -12,16 +12,18 @@ ID='77777777-7777-4777-8777-777777777777';A='A'*22;B='B'*22
 with sync_playwright() as p:
  browser=p.chromium.launch(executable_path='/usr/bin/chromium',args=['--no-sandbox'])
  for width in [1440,390]:
-  context=browser.new_context(viewport={'width':width,'height':1000},service_workers='block');page=context.new_page()
-  venue=dict(id=ID,name='Existing Bar',address='Old address',city='Montevideo',latitude=-34.9,longitude=-56.17,genre='Rock',active=False,spotifyConnected=True,photos=[],coverPhotoUrl='/assets/venues/bar-1.webp',requestAccessMode='NEARBY')
+  context=browser.new_context(viewport={'width':width,'height':1000},locale='es-UY',service_workers='block');page=context.new_page()
+  venue=dict(id=ID,name='Existing Bar',address='Old address',city='Montevideo',latitude=-34.9,longitude=-56.17,genre='Rock',active=False,spotifyConnected=True,photos=[],coverPhotoUrl='/assets/venues/bar-1.webp',requestAccessMode='NEARBY',openingHours='W2|-|19:00-23:00|-|-|-|18:00-01:00|-')
   playlist=dict(id='P'*22,name='Night',snapshot='s1',tracks=[dict(id=A,title='Track A',artist='Band A',durationMs=180000),dict(id=B,title='Track B',artist='Band B',durationMs=200000)])
-  writes=[];controls=[];tokens=[];edits=[];version=[1]
+  writes=[];controls=[];tokens=[];edits=[];version=[1];owned=[venue]
   page.add_init_script("localStorage.setItem('amplify-mode','live');sessionStorage.setItem('amplify-token','synthetic-admin-session');sessionStorage.setItem('amplify-user',JSON.stringify({id:'owner',name:'Owner',email:'owner@example.test'}));")
   def api(route):
    path=route.request.url.split('8080',1)[1].split('?',1)[0];method=route.request.method;body=route.request.post_data_json if method in ['POST','PUT'] else None;data=[]
    if method=='OPTIONS':data={}
    elif path=='/api/auth/me':data=dict(id='owner',name='Owner',email='owner@example.test')
-   elif path=='/api/admin/venues':data=[venue]
+   elif path=='/api/admin/venues':
+    if method=='POST':writes.append((path,body));venue.update(body);owned[:]=[venue];data=venue
+    else:data=owned
    elif path==f'/api/venues/{ID}':data=venue
    elif path.endswith('/request-access'):data=dict(mode='NEARBY',radiusMeters=100,requiresQr=False)
    elif path.endswith('/spotify/status'):data=dict(connected=True,premium=True,controlEnabled=True,playlistWriteEnabled=True,playlistId=playlist['id'])
@@ -36,7 +38,7 @@ with sync_playwright() as p:
    elif path.endswith('/music/playlist'):data=dict(playlist=playlist,operation=None)
    elif path.endswith('/music/player'):
     if method=='POST':controls.append(body);data=dict(accepted=True)
-    else:data=dict(now=playlist['tracks'][0],isPlaying=any(c.get('action')=='start' for c in controls),progressMs=5000,repeat='off',shuffle=False,device=dict(name='TOCA',volume=50))
+    else:data=dict(now=playlist['tracks'][0] if playlist['tracks'] else None,isPlaying=any(c.get('action')=='start' for c in controls),progressMs=5000,repeat='off',shuffle=False,device=dict(name='TOCA',volume=50))
    elif path.endswith('/music/browser-token'):tokens.append(route.request.headers.get('authorization'));data=dict(accessToken='synthetic-spotify-access-token',expiresIn=60)
    elif '/music/edits/' in path:
     edits.append(body);action=body['action']
@@ -100,12 +102,26 @@ with sync_playwright() as p:
   box.locator('[data-import-field="description"]').check()
   assert '1 dato seleccionado' in box.locator('[data-import-count]').inner_text()
   assert not box.locator('[data-import-apply]').is_disabled()
+  hours=box.locator('[data-bio-hours]');hours.wait_for()
+  assert not hours.locator('[data-import-field="bioHours"]').is_checked()
+  assert hours.locator('[data-bio-row="4"] [data-bio-open]').input_value()=='20:00'
+  assert hours.locator('[data-bio-row="4"] [data-bio-close]').input_value()==''
+  assert hours.locator('[data-bio-row="5"] [data-bio-open]').input_value()=='20:00'
+  assert hours.locator('[data-bio-row="2"]').count()==0,'An event without opening hours is not an opening-hours proposal'
+  hours.locator('[data-import-field="bioHours"]').check()
+  assert box.locator('[data-import-apply]').is_disabled(),'Missing closing time must block opting into the suggestion'
+  hours.screenshot(path=f'{SHOTS}/toca-bio-hours-pending-{width}.png',style='.toca-admin-mobile-nav{visibility:hidden!important}')
+  hours.locator('[data-bio-row="4"] [data-bio-close]').fill('02:00')
+  assert box.locator('[data-import-apply]').is_disabled(),'Saturday closing remains unknown'
+  hours.locator('[data-bio-row="5"] [data-bio-day]').uncheck()
+  assert not box.locator('[data-import-apply]').is_disabled(),'Only selected days need complete times'
   page.locator('#toast').evaluate('el=>el.replaceChildren()')
   box.screenshot(path=f'{SHOTS}/toca-import-instagram-{width}.png',style='.toca-admin-mobile-nav{visibility:hidden!important}')
   assert page.evaluate('document.documentElement.scrollWidth<=window.innerWidth'), 'Import horizontal overflow'
   assert 'estructurados mediante esta API' not in box.inner_text()
   box.locator('[data-import-apply]').click()
   assert page.locator('#venue-update [name="description"]').input_value()==BIO
+  assert page.evaluate("window.tocaSerializeHours(document.getElementById('venue-update'))")=='W2|-|19:00-23:00|-|-|20:00-02:00|18:00-01:00|-','Unmentioned and unchecked days must retain the owner settings'
   assert page.locator('#venue-update [name="name"]').input_value()=='Existing Bar'
   assert not writes,'Import must not save automatically'
   box.locator('[data-import-review]').click()
@@ -135,5 +151,24 @@ with sync_playwright() as p:
   assert page.evaluate('document.documentElement.scrollWidth<=window.innerWidth'), 'Horizontal overflow'
   root.locator('[data-studio-name]').fill('Brand new');root.locator('[data-studio-create]').click();page.wait_for_function("document.querySelector('[data-studio-playlist-name]').textContent.includes('Brand new')")
   assert [e['action'] for e in edits]==['add','move','rename','create'],edits
-  context.close();print('PASS import preview without autosave, selective replacement, admin playlist edits and browser audio wiring:',width)
+  # A first bar gets a real hours editor, and later owner edits are serialized on creation.
+  owned.clear();page.goto(BASE+'/#/admin/profile')
+  form=page.locator('#create-venue');form.wait_for()
+  box=page.locator('[data-venue-import]');box.get_by_role('radio',name='Instagram',exact=True).check()
+  box.locator('[data-import-query]').fill('@bar.ig');box.locator('[data-import-search]').click()
+  hours=box.locator('[data-bio-hours]');hours.wait_for()
+  hours.locator('[data-import-field="bioHours"]').check()
+  hours.locator('[data-bio-row="4"] [data-bio-close]').fill('02:00')
+  hours.locator('[data-bio-row="5"] [data-bio-close]').fill('03:00')
+  box.locator('[data-import-apply]').click()
+  assert form.locator('.toca-hours-editor').count()==1
+  assert page.evaluate('document.documentElement.scrollWidth<=window.innerWidth'),'Onboarding hours overflow'
+  form.locator('[data-day="5"] .toca-hours-to').fill('04:00')
+  form.locator('[name="address"]').fill('Test street 123')
+  page.evaluate("window.tocaApplyImportedLocation(document.getElementById('create-venue'),-34.9,-56.17)")
+  form.locator('[data-action="location-confirm"]').click()
+  with page.expect_response(lambda response:response.url.endswith('/api/admin/venues') and response.request.method=='POST'):
+   form.get_by_role('button',name='Crear bar',exact=True).click()
+  assert writes[-1][1]['openingHours']=='W2|-|-|-|-|20:00-02:00|20:00-04:00|-','Creation must serialize the edited fields, not stale hidden values'
+  context.close();print('PASS biography hours review, missing closing validation, partial merging, onboarding, import and studio regression:',width)
  browser.close()
