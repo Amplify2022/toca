@@ -21,8 +21,8 @@
 
   window.tocaVenueImportMarkup = () => {
     const id = `toca-import-${++serial}`;
-    return `<section class="toca-import" data-venue-import data-provider="google" aria-labelledby="${id}-title">
-      <header class="toca-import-heading"><span class="toca-import-emblem">${icon('spark')}</span><div><span class="toca-import-kicker">UN BUEN PUNTO DE PARTIDA</span><h3 id="${id}-title">Traé los datos de tu bar</h3><p>Encontrá tu perfil y elegí qué datos sumar a Mi Bar.</p></div><span class="toca-import-optional">Opcional</span></header>
+    return `<section class="toca-import toca-import-option-b" data-venue-import data-provider="google" aria-labelledby="${id}-title">
+      <header class="toca-import-heading"><div><span class="toca-import-kicker">MI BAR / IMPORTAR DATOS</span><h3 id="${id}-title">Tu perfil, el punto de partida.</h3><p>Buscá tu local y revisá los datos antes de sumarlos a Mi Bar.</p></div><span class="toca-import-optional">Autocompletar</span></header>
       <form class="toca-import-search" data-import-form>
         <fieldset class="toca-import-sources"><legend class="toca-import-sr">Importar desde</legend>
           <label class="toca-import-source"><input type="radio" name="${id}-source" value="google" data-import-source checked /><span>${icon('google')}<span>Google Maps</span></span></label>
@@ -68,22 +68,39 @@
     if(!box.isConnected)return;
     box._draft=draft;
     const form=formFor(box),fields=draft.fields||{},instagram=draft.source==='Instagram';
-    const cards=Object.entries(labels).filter(([key])=>fields[key]!=null&&String(fields[key]).trim()).map(([key,label])=>{
-      const existing=currentValue(form,key),matches=existing===String(fields[key]).trim();
-      const badge=existing?(matches?'Ya coincide':'Reemplaza el actual'):'Sin completar';
-      return `<label class="toca-import-field ${key==='description'?'toca-import-field-wide':''}"><span class="toca-import-field-heading"><input type="checkbox" data-import-field="${key}" aria-label="${label}" ${existing?'':'checked'} /><span class="toca-import-field-label">${label}</span></span><span class="toca-import-value">${esc(displayValue(key,fields[key]))}</span><span class="toca-import-field-meta"><span class="toca-import-badge ${existing&&!matches?'is-replacement':''}">${badge}</span>${existing&&!matches?`<span class="toca-import-current" title="${esc(displayValue(key,existing))}">Actual: ${esc(displayValue(key,existing))}</span>`:''}</span></label>`;
+    const id=`toca-import-fields-${++serial}`;
+    const entries=Object.entries(labels).filter(([key])=>fields[key]!=null&&String(fields[key]).trim());
+    const location=Number.isFinite(fields.latitude)&&Number.isFinite(fields.longitude);
+    if(location){const descriptionIndex=entries.findIndex(([key])=>key==='description');entries.splice(descriptionIndex<0?entries.length:descriptionIndex,0,['location','Ubicación del local']);}
+    const rows=entries.map(([key,label],index)=>{
+      const coordinate=key==='location',existing=coordinate?'':currentValue(form,key),matches=!coordinate&&existing===String(fields[key]).trim();
+      const value=coordinate?'Pin de Google Maps':displayValue(key,fields[key]);
+      return `<tr class="toca-import-field ${key==='description'?'toca-import-field-wide':''}">
+        <th scope="row"><label for="${id}-${index}">${label}</label>${matches?'<span class="toca-import-match">Coincide</span>':''}</th>
+        <td class="toca-import-before"><span class="toca-import-cell-caption">Actual</span><span class="toca-import-current ${existing?'':'is-empty'}" title="${esc(existing?displayValue(key,existing):'')}">${existing?esc(displayValue(key,existing)):coordinate?'Revisar en el mapa':'Sin completar'}</span></td>
+        <td class="toca-import-after"><span class="toca-import-cell-caption">Desde ${esc(draft.source)}</span><span class="toca-import-value">${esc(value)}</span>${coordinate?'<span class="toca-import-location-hint">Confirmá el pin antes de guardar.</span>':''}</td>
+        <td class="toca-import-use"><label class="toca-import-check-target"><input id="${id}-${index}" type="checkbox" data-import-field="${key}" aria-label="${label}" ${!existing?'checked':''} /><span class="toca-import-sr">Usar ${label}</span></label></td>
+      </tr>`;
     });
-    if(Number.isFinite(fields.latitude)&&Number.isFinite(fields.longitude))cards.splice(fields.description&&String(fields.description).trim()?cards.length-1:cards.length,0,`<label class="toca-import-field toca-import-field-location"><span class="toca-import-field-heading"><input type="checkbox" data-import-field="location" aria-label="Ubicación del local" checked /><span class="toca-import-field-label">Ubicación del local</span></span><span class="toca-import-value toca-import-location-value">${icon('google')}<span>Pin de Google Maps</span></span><span class="toca-import-field-meta">Revisalo y confirmalo en el mapa antes de guardar.</span></label>`);
     const url=safeLink(draft.sourceUrl),details=draft.details||{};
     const title=fields.name||fields.instagramHandle||draft.source;
     const subtitle=instagram?(fields.instagramHandle?'@'+fields.instagramHandle:'Perfil profesional de Instagram'):(fields.address||'Datos del local en Google Maps');
     const warnings=(draft.warnings||[]).map(w=>instagram&&/^Instagram no publica direcci/.test(w)?'Instagram no incluye dirección ni horarios. Podés completarlos en el formulario del bar.':w);
     const website=safeLink(details.website);
+    const initials=String(title).trim().split(/\s+/).map(part=>Array.from(part)[0]).slice(0,2).join('').toUpperCase();
     box.querySelector('[data-import-results]').innerHTML=`<section class="toca-import-preview" aria-label="Vista previa de los datos importados">
-      <header class="toca-import-profile"><span class="toca-import-avatar ${instagram?'is-instagram':''}">${icon(instagram?'instagram':'google')}</span><div class="toca-import-profile-copy"><span class="toca-import-found">PERFIL ENCONTRADO EN ${instagram?'INSTAGRAM':'GOOGLE MAPS'}</span><h4>${esc(title)}</h4><p>${esc(subtitle)}</p></div>${url?`<a class="toca-import-source-link" href="${esc(url)}" target="_blank" rel="noopener noreferrer">Ver perfil ${icon('external')}</a>`:''}</header>
-      <div class="toca-import-preview-layout"><div class="toca-import-fields-panel"><div class="toca-import-section-heading"><h4>Elegí qué datos usar</h4><span>Los datos actuales quedan sin seleccionar</span></div><div class="toca-import-fields">${cards.join('')}</div></div>
-      <aside class="toca-import-summary" aria-label="Resumen de la importación"><span class="toca-import-summary-icon">${icon('edit')}</span><h4>Tu selección</h4><p class="toca-import-count" data-import-count></p><ul data-import-selection></ul><button type="button" class="toca-import-apply" data-import-apply>Aplicar al formulario ${icon('arrow')}</button><p class="toca-import-save-note">Después, guardá los cambios de Mi Bar para publicarlos.</p>${warnings.map(w=>`<div class="toca-import-note">${icon('info')}<p>${esc(w)}</p></div>`).join('')}</aside></div>
+      <div class="toca-import-preview-layout">
+        <aside class="toca-import-profile" aria-label="Perfil encontrado">
+          <div class="toca-import-profile-identity"><div class="toca-import-avatar ${instagram?'is-instagram':''}"><span>${esc(initials)}</span><span class="toca-import-provider-mark">${icon(instagram?'instagram':'google')}</span></div><div class="toca-import-profile-copy"><span class="toca-import-found">${icon('check')} PERFIL ENCONTRADO</span><h4>${esc(title)}</h4><p>${esc(subtitle)}</p></div></div>
+          ${url?`<a class="toca-import-source-link" href="${esc(url)}" target="_blank" rel="noopener noreferrer">Ver en ${esc(draft.source)} ${icon('external')}</a>`:''}
+          ${warnings.map(w=>`<div class="toca-import-note">${icon('info')}<p>${esc(w)}</p></div>`).join('')}
+        </aside>
+        <div class="toca-import-fields-panel"><header class="toca-import-section-heading"><h4>Revisá los cambios</h4><p>Elegí los datos que querés usar. Los actuales quedan desmarcados.</p></header>
+          <table class="toca-import-comparison"><caption class="toca-import-sr">Comparación de los datos actuales y los encontrados en ${esc(draft.source)}</caption><thead><tr><th scope="col">Dato</th><th scope="col">Actual</th><th scope="col">Desde ${esc(draft.source)}</th><th scope="col">Usar</th></tr></thead><tbody>${rows.join('')}</tbody></table>
+        </div>
+      </div>
       ${details.phone||details.website||details.hours?.length?`<details class="toca-import-reference"><summary>Más información del local</summary><div>${details.phone?`<p><span>Teléfono</span>${esc(details.phone)}</p>`:''}${details.website?`<p><span>Sitio web</span>${website?`<a href="${esc(website)}" target="_blank" rel="noopener noreferrer">${esc(details.website)} ${icon('external')}</a>`:esc(details.website)}</p>`:''}${details.hours?.length?`<p><span>Horarios de ${esc(draft.source)}</span>${details.hours.map(esc).join('<br>')}</p>`:''}</div></details>`:''}
+      <footer class="toca-import-summary" aria-label="Resumen de la importación"><div class="toca-import-selection-copy"><p class="toca-import-count" data-import-count></p><ul data-import-selection></ul></div><div class="toca-import-action"><button type="button" class="toca-import-apply" data-import-apply>Aplicar selección ${icon('arrow')}</button><p class="toca-import-save-note">Después, guardá los cambios de Mi Bar.</p></div></footer>
       ${draft.attributions?.filter(Boolean).length?`<p class="toca-import-attribution">${esc(draft.attributions.filter(Boolean).join(' · '))}</p>`:''}
     </section>`;
     selectedSummary(box);

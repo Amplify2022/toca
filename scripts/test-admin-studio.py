@@ -2,8 +2,11 @@
 No provider account is used and no real audio is played by this test.
 """
 from playwright.sync_api import sync_playwright
-import json
+import json,os
+from pathlib import Path
 from urllib.parse import parse_qs,urlsplit
+BASE=os.environ.get('TOCA_WEB_TEST_URL','http://localhost:5173')
+SHOTS=Path(os.environ.get('TOCA_SCREENSHOT_DIR','/tmp'));SHOTS.mkdir(parents=True,exist_ok=True)
 BIO='Clásico de Montevideo, desde 2008 con amor.\nViernes & Sábados 20 Hs.\nTodos los Miércoles = Jazz Club\nEntrada libre\nCanelones 760, esquina Ciudadela.'
 ID='77777777-7777-4777-8777-777777777777';A='A'*22;B='B'*22
 with sync_playwright() as p:
@@ -51,12 +54,12 @@ with sync_playwright() as p:
   page.route('https://sdk.scdn.co/spotify-player.js',lambda route:route.fulfill(content_type='application/javascript',body="""
    window.Spotify={Player:class {constructor(options){this.o=options;this.listeners={}}addListener(k,v){this.listeners[k]=v}activateElement(){return Promise.resolve()}disconnect(){}connect(){this.o.getOAuthToken(t=>{if(t!=='synthetic-spotify-access-token')throw Error('wrong token');this.listeners.ready({device_id:'browser-device'})});return Promise.resolve(true)}}};window.onSpotifyWebPlaybackSDKReady();
   """))
-  page.goto('http://localhost:5173/#/admin/profile')
-  box=page.locator('[data-venue-import]');box.wait_for();box.screenshot(path=f'/tmp/toca-import-idle-{width}.png');box.locator('[data-import-query]').fill('My bar Montevideo');box.locator('[data-import-search]').click()
+  page.goto(BASE+'/#/admin/profile')
+  box=page.locator('[data-venue-import]');box.wait_for();box.screenshot(path=f'{SHOTS}/toca-import-idle-{width}.png');box.locator('[data-import-query]').fill('My bar Montevideo');box.locator('[data-import-search]').click()
   box.locator('[data-import-place]').click();box.locator('[data-import-apply]').wait_for()
   assert not box.locator('[data-import-field="name"]').is_checked()
   assert box.locator('[data-import-field="description"]').is_checked()
-  box.screenshot(path=f'/tmp/toca-import-google-{width}.png')
+  box.screenshot(path=f'{SHOTS}/toca-import-google-{width}.png')
   box.locator('[data-import-field="address"]').check();box.locator('[data-import-apply]').click()
   assert page.locator('#venue-update [name="name"]').input_value()=='Existing Bar'
   assert page.locator('#venue-update [name="address"]').input_value()=='New address 123'
@@ -80,7 +83,7 @@ with sync_playwright() as p:
   box.locator('[data-import-query]').fill('slow.profile');box.locator('[data-import-search]').click()
   page.wait_for_function("typeof window.__finishSlowImport==='function'")
   assert box.locator('[data-import-search]').is_disabled()
-  box.screenshot(path=f'/tmp/toca-import-loading-{width}.png')
+  box.screenshot(path=f'{SHOTS}/toca-import-loading-{width}.png')
   box.get_by_role('radio',name='Google Maps',exact=True).check()
   page.evaluate("""async()=>{window.__finishSlowImport();await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));window.fetch=window.__importOriginalFetch;}""")
   assert box.locator('[data-import-results]').inner_text()==''
@@ -88,7 +91,7 @@ with sync_playwright() as p:
   box.get_by_role('radio',name='Instagram',exact=True).check()
   box.locator('[data-import-query]').fill('missing.profile');box.locator('[data-import-search]').click()
   box.get_by_role('heading',name='No pudimos traer los datos').wait_for()
-  box.screenshot(path=f'/tmp/toca-import-error-{width}.png')
+  box.screenshot(path=f'{SHOTS}/toca-import-error-{width}.png')
   box.locator('[data-import-query]').fill('@bar.ig');box.locator('[data-import-query]').press('Enter')
   box.locator('[data-import-apply]').wait_for()
   for checkbox in box.locator('[data-import-field]').all():checkbox.uncheck()
@@ -98,7 +101,7 @@ with sync_playwright() as p:
   assert '1 dato seleccionado' in box.locator('[data-import-count]').inner_text()
   assert not box.locator('[data-import-apply]').is_disabled()
   page.locator('#toast').evaluate('el=>el.replaceChildren()')
-  box.screenshot(path=f'/tmp/toca-import-instagram-{width}.png')
+  box.screenshot(path=f'{SHOTS}/toca-import-instagram-{width}.png',style='.toca-admin-mobile-nav{visibility:hidden!important}')
   assert page.evaluate('document.documentElement.scrollWidth<=window.innerWidth'), 'Import horizontal overflow'
   assert 'estructurados mediante esta API' not in box.inner_text()
   box.locator('[data-import-apply]').click()
@@ -107,8 +110,8 @@ with sync_playwright() as p:
   assert not writes,'Import must not save automatically'
   box.locator('[data-import-review]').click()
   assert page.locator('#venue-update [name="name"]').evaluate('el=>el===document.activeElement')
-  page.screenshot(path=f'/tmp/toca-import-{width}.png',full_page=True)
-  page.goto('http://localhost:5173/#/admin/music');root=page.locator('[data-admin-studio]');root.locator('[data-studio-tracks] .toca-studio-track').first.wait_for()
+  page.screenshot(path=f'{SHOTS}/toca-import-{width}.png',full_page=True)
+  page.goto(BASE+'/#/admin/music');root=page.locator('[data-admin-studio]');root.locator('[data-studio-tracks] .toca-studio-track').first.wait_for()
   root.locator('[data-studio-search]').fill('Search')
   root.locator('[data-studio-search-results] [data-studio-edit="add"]').click()
   page.wait_for_function("document.querySelectorAll('[data-studio-tracks] .toca-studio-track').length===3")
@@ -119,13 +122,16 @@ with sync_playwright() as p:
   assert tokens==['Bearer synthetic-admin-session'],tokens
   assert [c['action'] for c in controls][:2]==['transfer','start'],controls
   root.locator('[data-player-command="next"]').click()
-  root.locator('[data-player-volume]').evaluate("el=>el.value='35'");root.locator('[data-player-volume]').dispatch_event('change')
-  root.locator('[data-player-shuffle]').check();root.locator('[data-player-repeat]').select_option('context')
-  page.wait_for_timeout(100)
+  with page.expect_response(lambda response:response.url.endswith('/music/player') and response.request.method=='POST' and response.request.post_data_json==dict(action='volume',volume=35)):
+   root.locator('[data-player-volume]').evaluate("el=>{el.value='35';el.dispatchEvent(new Event('change',{bubbles:true}))}")
+  with page.expect_response(lambda response:response.url.endswith('/music/player') and response.request.method=='POST' and response.request.post_data_json==dict(action='shuffle',enabled=True)):
+   root.locator('[data-player-shuffle]').check()
+  with page.expect_response(lambda response:response.url.endswith('/music/player') and response.request.method=='POST' and response.request.post_data_json==dict(action='repeat',state='context')):
+   root.locator('[data-player-repeat]').select_option('context')
   assert any(c==dict(action='volume',volume=35) for c in controls)
   assert any(c==dict(action='shuffle',enabled=True) for c in controls)
   assert any(c==dict(action='repeat',state='context') for c in controls)
-  page.screenshot(path=f'/tmp/toca-studio-{width}.png',full_page=True)
+  page.screenshot(path=f'{SHOTS}/toca-studio-{width}.png',full_page=True)
   assert page.evaluate('document.documentElement.scrollWidth<=window.innerWidth'), 'Horizontal overflow'
   root.locator('[data-studio-name]').fill('Brand new');root.locator('[data-studio-create]').click();page.wait_for_function("document.querySelector('[data-studio-playlist-name]').textContent.includes('Brand new')")
   assert [e['action'] for e in edits]==['add','move','rename','create'],edits
