@@ -9,7 +9,8 @@ owner=call('/api/auth/register',dict(name='HTTP test',email=marker+'@example.tes
 try:
  assert isinstance(call('/api/venues?city=Montevideo&limit=1&offset=0'),list)
  venue=call('/api/admin/venues',dict(name='Test',address='Center',city='Montevideo',latitude=-34.9,longitude=-56.2),token)['id']
- assert call('/api/admin/venues/'+venue+'/stats',token=token)['tracks']==0
+ stats=call('/api/admin/venues/'+venue+'/stats',token=token)
+ assert stats==dict(tracks=0,repeats=0,synced=0,days=[]),stats
  for mode in ['ANYWHERE','NEARBY']:
   saved=call('/api/admin/venues/'+venue+'/request-access',dict(mode=mode),token,method='PUT')
   assert saved['mode']==mode

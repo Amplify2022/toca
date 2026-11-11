@@ -239,13 +239,15 @@ class ApiController(private val db:Db,private val auth:Auth,private val spotify:
     }
 
     @Get("/admin/venues/{id}/stats")
-    fun stats(id:String,@Header(value="Authorization",defaultValue="") authorization:String):Map<String,Any?> {
+    fun stats(id:String,@Header(value="Authorization",defaultValue="") authorization:String):VenueStatistics {
         ownerVenue(id,authorization);val venue=safeUuid(id)
         val totals=db.one("""SELECT count(*) AS tracks,coalesce(sum(request_count-1),0) AS repeats,
             count(*) FILTER(WHERE status IN ('APPROVED','DISPATCHED')) AS synced FROM song_request WHERE venue_id=?""",venue)!!
         val days=db.list("""SELECT to_char(created_at AT TIME ZONE 'America/Montevideo','YYYY-MM-DD') AS day,count(*) AS total
             FROM song_request_event WHERE venue_id=? AND created_at>=now()-interval '7 days' GROUP BY day ORDER BY day""",venue)
-        return totals+mapOf("days" to days)
+        return VenueStatistics((totals.getValue("tracks") as Number).toLong(),
+            (totals.getValue("repeats") as Number).toLong(),
+            (totals.getValue("synced") as Number).toLong(),days)
     }
     @Get("/admin/venues") fun owned(@Header(value="Authorization",defaultValue="")authorization:String):List<Map<String,Any?>> {
         val user=auth.user(authorization)
