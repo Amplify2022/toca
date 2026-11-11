@@ -62,6 +62,7 @@ function tocaSideLayout(content, selected='explore'){
  return `<div class="toca-admin-frame"><aside class="toca-admin-sidebar">${brand()}<div class="toca-nav-caption">GESTIÓN DEL LOCAL</div><nav class="toca-admin-menu">${adminLinks.map(([url,ic,label])=>`<a class="${(location.hash||'').startsWith('#/'+url)?'selected':''}" href="#/${url}">${iconSvg(ic,18)} ${label}</a>`).join('')}</nav><div class="toca-admin-session"><a class="toca-admin-bottom toca-account-trigger" href="#/admin/account" aria-label="Abrir Mi cuenta" title="Mi cuenta"><span class="toca-admin-avatar">${esc((state.user?.name||'A')[0].toUpperCase())}</span><div><strong>${esc(state.user?.name||'Administrador')}</strong><small>Cuenta del establecimiento</small></div></a><button type="button" class="toca-logout" data-action="logout">${iconSvg('logout',17)} <span>Cerrar sesión</span></button></div></aside><div class="toca-admin-body"><header class="toca-admin-top"><div class="toca-admin-breadcrumb">Portal del bar <span>/</span> ${esc(state.detail?.name||'Mi establecimiento')}</div><div class="toca-admin-user"><span class="toca-admin-dot"></span> ${state.demo?'Demo':'Conectado'} <a class="toca-admin-avatar toca-admin-avatar-link" href="#/admin/account" aria-label="Abrir Mi cuenta" title="Mi cuenta">${esc((state.user?.name||'T')[0].toUpperCase())}</a><button type="button" class="toca-logout-mobile" data-action="logout" aria-label="Cerrar sesión del administrador" title="Cerrar sesión">${iconSvg('logout',18)}</button></div></header><main class="toca-admin-content">${content}</main></div></div><nav class="toca-bottom-nav toca-admin-mobile-nav" aria-label="Portal admin">${mobileLink('admin/general','home','Resumen',selected==='admin')}${mobileLink('admin/requests','music','Solicitudes',false)}${mobileLink('admin/music','sliders','Reglas',false)}${mobileLink('admin/account','user','Mi cuenta',false)}${mobileLink('explore','pin','App',false)}</nav>`;
 }
 shell=(body,selected='explore')=>{
+ if(selected==='onboarding')return body;
  if(selected==='auth')return `<div class="toca-auth-frame"><a href="#/" class="toca-auth-back">${iconSvg('back',18)} Volver al inicio</a><main class="toca-auth-content">${body}</main></div>`;
  if(selected==='admin')return tocaSideLayout(body,'admin');
  const current=route().path.replace('/','').split('/')[0];
@@ -179,7 +180,7 @@ const body=`<div class="toca-ad-dashboard"><div class="toca-ad-head"><div><span 
     <span data-toca-access-status role="status"></span>
   </section>`;
  }
- mount(body,'admin');if(!state.demo)void tocaLoadRequestCommands(v.id)}
+ mount((window.tocaVenuePublicationBanner?.(v)||'')+body,'admin');if(!state.demo)void tocaLoadRequestCommands(v.id)}
 // TOCÁ v1.8.23 — Página «Cómo funciona», reutilizada por el header y Descubrir bares.
 function tocaHowItWorks(){
  const steps=[

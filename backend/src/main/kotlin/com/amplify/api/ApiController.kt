@@ -82,7 +82,8 @@ class ApiController(private val db:Db,private val auth:Auth,private val spotify:
             "instagramHandle" to v["instagram_handle"],"coverPhotoUrl" to photos.firstOrNull()?.get("url"),"photos" to photos,"now" to now)
     }
     private fun adminVenue(v:Map<String,Any?>):Map<String,Any?> = publicVenue(v)+mapOf(
-        "joinToken" to v["join_token"],"playlistId" to v["playlist_id"],"deviceId" to v["spotify_device_id"])
+        "joinToken" to v["join_token"],"playlistId" to v["playlist_id"],"deviceId" to v["spotify_device_id"],
+        "published" to v["published"],"registrationId" to v["registration_id"]?.toString())
     private fun venuePhotos(venueId:String):List<Map<String,Any?>> = db.list(
         """SELECT id, is_primary AS "isPrimary", created_at AS "createdAt"
             FROM venue_photo WHERE venue_id=? ORDER BY is_primary DESC, position ASC, created_at ASC""",safeUuid(venueId)
@@ -130,8 +131,8 @@ class ApiController(private val db:Db,private val auth:Auth,private val spotify:
 
     @Get("/venues") fun venues(@QueryValue(defaultValue="") city:String,@QueryValue(defaultValue="0") offset:Int,@QueryValue(defaultValue="50") limit:Int):List<Map<String,Any?>> {
         val columns=publicColumns+""",(SELECT id FROM venue_photo cover WHERE cover.venue_id=venue.id ORDER BY is_primary DESC,position,created_at LIMIT 1) AS "coverPhotoId""""
-        val list=if(city.isBlank())db.list("SELECT $columns FROM venue WHERE EXISTS (SELECT 1 FROM venue_photo vp WHERE vp.venue_id=venue.id) ORDER BY updated_at DESC,id LIMIT ? OFFSET ?",limit.coerceIn(1,150),offset.coerceAtLeast(0))
-            else db.list("SELECT $columns FROM venue WHERE lower(city)=lower(?) AND EXISTS (SELECT 1 FROM venue_photo vp WHERE vp.venue_id=venue.id) ORDER BY updated_at DESC,id LIMIT ? OFFSET ?",city,limit.coerceIn(1,150),offset.coerceAtLeast(0))
+        val list=if(city.isBlank())db.list("SELECT $columns FROM venue WHERE published AND EXISTS (SELECT 1 FROM venue_photo vp WHERE vp.venue_id=venue.id) ORDER BY updated_at DESC,id LIMIT ? OFFSET ?",limit.coerceIn(1,150),offset.coerceAtLeast(0))
+            else db.list("SELECT $columns FROM venue WHERE published AND lower(city)=lower(?) AND EXISTS (SELECT 1 FROM venue_photo vp WHERE vp.venue_id=venue.id) ORDER BY updated_at DESC,id LIMIT ? OFFSET ?",city,limit.coerceIn(1,150),offset.coerceAtLeast(0))
         // This list does not call Spotify, avoiding N API calls per map render.
         return list.map {v-> mapOf(
             "id" to v["id"].toString(),"name" to v["name"],"slug" to v["slug"],
@@ -265,18 +266,37 @@ class ApiController(private val db:Db,private val auth:Auth,private val spotify:
         val openingHours=(body["openingHours"] as? String)?.trim().orEmpty()
         if(openingHours.length>180)fail(HttpStatus.BAD_REQUEST,"Horario demasiado largo")
         val instagram=normalizeInstagram(body["instagramHandle"])
+        val access=(body["requestAccessMode"] as? String)?:"NEARBY"
+        if(access !in setOf("NEARBY","ANYWHERE"))fail(HttpStatus.BAD_REQUEST,"Modo de acceso inválido")
+        val registration=body["registrationId"]?.let { safeUuid(it as? String ?: fail(HttpStatus.BAD_REQUEST,"Registro inválido")) }
         val id=UUID.randomUUID();val slug="bar-"+id.toString().take(8)
-        db.exec("""INSERT INTO venue(id,owner_id,name,slug,address,city,genre,latitude,longitude,join_token,description,opening_hours,instagram_handle)
-              VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",id,user["id"],name,slug,address,city,genre,lat,lon,randomString(36),
-            (body["description"] as? String)?.take(2000)?:"",openingHours,instagram)
-        return adminVenue(venueById(id.toString()))
+        val saved=db.transaction {
+            db.exec("""INSERT INTO venue(id,owner_id,name,slug,address,city,genre,latitude,longitude,join_token,description,opening_hours,instagram_handle,request_access_mode,published,registration_id)
+                  VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,false,?) ON CONFLICT(owner_id,registration_id) DO NOTHING""",id,user["id"],name,slug,address,city,genre,lat,lon,randomString(36),
+                (body["description"] as? String)?.take(2000)?:"",openingHours,instagram,access,registration)
+            if(registration==null)venueById(id.toString())
+            else db.one("SELECT * FROM venue WHERE owner_id=? AND registration_id=?",user["id"],registration)!!
+        }
+        return adminVenue(saved)
+    }
+    @Put("/admin/venues/{id}/publication") fun publishVenue(id:String,
+        @Header(value="Authorization",defaultValue="") authorization:String):Map<String,Any?> {
+        ownerVenue(id,authorization)
+        return db.transaction {
+            val venue=db.one("SELECT * FROM venue WHERE id=? FOR UPDATE",safeUuid(id)) ?: fail(HttpStatus.NOT_FOUND,"Bar no encontrado")
+            if(coverPhoto(id)==null)fail(HttpStatus.PRECONDITION_FAILED,"Agregá una foto de portada antes de publicar el bar")
+            if(venue["name"].toString().isBlank()||venue["address"].toString().isBlank()||venue["city"].toString().isBlank())
+                fail(HttpStatus.PRECONDITION_FAILED,"Completá el nombre y la dirección antes de publicar")
+            db.exec("UPDATE venue SET published=true,updated_at=now() WHERE id=?",safeUuid(id))
+            adminVenue(venueById(id))
+        }
     }
     @Put("/admin/venues/{id}") fun editVenue(id:String,@Header(value="Authorization",defaultValue="")authorization:String,@Body body:Map<String,Any?>):Map<String,Any?> {
         ownerVenue(id,authorization)
         val lat=(body["latitude"] as? Number)?.toDouble()?:fail(HttpStatus.BAD_REQUEST,"Latitud requerida")
         val lon=(body["longitude"] as? Number)?.toDouble()?:fail(HttpStatus.BAD_REQUEST,"Longitud requerida")
         if(lat !in -90.0..90.0||lon !in -180.0..180.0)fail(HttpStatus.BAD_REQUEST,"Coordenadas inválidas")
-        if(coverPhoto(id)==null)
+        if(coverPhoto(id)==null && venueById(id)["published"]==true)
             fail(HttpStatus.BAD_REQUEST,"Agregá una foto de portada antes de guardar Mi Bar")
         val openingHours=(body["openingHours"] as? String)?.trim().orEmpty()
         if(openingHours.length>180)
@@ -309,6 +329,7 @@ class ApiController(private val db:Db,private val auth:Auth,private val spotify:
         db.transaction {
             val v=db.one("SELECT * FROM venue WHERE id=? FOR UPDATE",safeUuid(id)) ?: fail(HttpStatus.NOT_FOUND,"Bar no encontrado")
             requestCommands.requireMutable(safeUuid(id))
+            if(active && v["published"]!=true)fail(HttpStatus.PRECONDITION_FAILED,"Publicá el bar antes de abrir la sesión musical")
             if(active && ((v["playlist_id"] as? String).isNullOrBlank() || !spotify.playlistWriteEnabled)) fail(HttpStatus.PRECONDITION_FAILED,"Seleccioná una playlist y habilitá sus escrituras antes de abrir la sesión")
             if(active&&(v["spotify_premium"]!=true||v["spotify_access_encrypted"]==null))
                 fail(HttpStatus.PRECONDITION_FAILED,"Vinculá Spotify Premium antes de abrir la sesión")

@@ -151,24 +151,10 @@ with sync_playwright() as p:
   assert page.evaluate('document.documentElement.scrollWidth<=window.innerWidth'), 'Horizontal overflow'
   root.locator('[data-studio-name]').fill('Brand new');root.locator('[data-studio-create]').click();page.wait_for_function("document.querySelector('[data-studio-playlist-name]').textContent.includes('Brand new')")
   assert [e['action'] for e in edits]==['add','move','rename','create'],edits
-  # A first bar gets a real hours editor, and later owner edits are serialized on creation.
+  # First-bar registration uses the dedicated guided flow; its full paths are
+  # covered by test-venue-onboarding.py.
   owned.clear();page.goto(BASE+'/#/admin/profile')
-  form=page.locator('#create-venue');form.wait_for()
-  box=page.locator('[data-venue-import]');box.get_by_role('radio',name='Instagram',exact=True).check()
-  box.locator('[data-import-query]').fill('@bar.ig');box.locator('[data-import-search]').click()
-  hours=box.locator('[data-bio-hours]');hours.wait_for()
-  hours.locator('[data-import-field="bioHours"]').check()
-  hours.locator('[data-bio-row="4"] [data-bio-close]').fill('02:00')
-  hours.locator('[data-bio-row="5"] [data-bio-close]').fill('03:00')
-  box.locator('[data-import-apply]').click()
-  assert form.locator('.toca-hours-editor').count()==1
-  assert page.evaluate('document.documentElement.scrollWidth<=window.innerWidth'),'Onboarding hours overflow'
-  form.locator('[data-day="5"] .toca-hours-to').fill('04:00')
-  form.locator('[name="address"]').fill('Test street 123')
-  page.evaluate("window.tocaApplyImportedLocation(document.getElementById('create-venue'),-34.9,-56.17)")
-  form.locator('[data-action="location-confirm"]').click()
-  with page.expect_response(lambda response:response.url.endswith('/api/admin/venues') and response.request.method=='POST'):
-   form.get_by_role('button',name='Crear bar',exact=True).click()
-  assert writes[-1][1]['openingHours']=='W2|-|-|-|-|20:00-02:00|20:00-04:00|-','Creation must serialize the edited fields, not stale hidden values'
-  context.close();print('PASS biography hours review, missing closing validation, partial merging, onboarding, import and studio regression:',width)
+  page.locator('#onboard-search').wait_for()
+  assert page.locator('#create-venue').count()==0
+  context.close();print('PASS biography hours review, missing closing validation, partial merging, guided onboarding entry, import and studio regression:',width)
  browser.close()

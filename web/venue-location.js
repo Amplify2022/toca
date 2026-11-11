@@ -131,20 +131,22 @@ Buscar en el mapa
     setFeedback(widget,'Posición elegida. Presioná «Confirmar ubicación del pin».');
     const coords=widget.querySelector('.toca-location-coords');
     if(coords)coords.textContent=`Ubicación pendiente de confirmar`;
+    widget.dispatchEvent(new CustomEvent('toca-location-change',{bubbles:true}));
   }
   function putPin(widget, lat, lon, zoom=16){
-    if(!isFiniteLatLon(lat,lon) || !activeMap || widget!==activeWidget)return;
+    if(!isFiniteLatLon(lat,lon))return;
+    setPending(widget,lat,lon);
+    if(!activeMap || widget!==activeWidget)return;
     const point=[lat,lon];
     if(activeMarker)activeMarker.setLatLng(point);
     else {
-      activeMarker=window.L.marker(point,{draggable:true,title:'Arrastrá el pin para ajustar la ubicación',alt:'Ubicación del bar'})
+      activeMarker=window.L.marker(point,{...markerOptions(),draggable:true,title:'Arrastrá el pin para ajustar la ubicación',alt:'Ubicación del bar'})
         .addTo(activeMap);
       activeMarker.on('dragend', () => {
         const {lat,lng}=activeMarker.getLatLng();setPending(widget,lat,lng);
       });
     }
     activeMap.setView(point,zoom);
-    setPending(widget,lat,lon);
   }
   window.tocaApplyImportedLocation = (form,lat,lon) => {
     const widget=form.querySelector('.toca-location-widget');
@@ -153,6 +155,10 @@ Buscar en el mapa
     widget.querySelector('[name="longitude"]').value='';
     setPending(widget,lat,lon);putPin(widget,lat,lon);
   };
+  function markerOptions(){return {icon:window.L.divIcon({
+    className:'toca-location-marker',iconSize:[34,42],iconAnchor:[17,41],
+    html:'<svg width="34" height="42" viewBox="0 0 34 42" aria-hidden="true"><path d="M17 40C13 34 2 25 2 17a15 15 0 1 1 30 0c0 8-11 17-15 23Z" fill="#bcf88c" stroke="#d9ffb9" stroke-width="2"/><circle cx="17" cy="17" r="5" fill="#243d1c"/></svg>'
+  })};}
   window.tocaInitVenueLocation = async () => {
     const widget=document.querySelector('.toca-location-widget');
     if(!widget || (widget===activeWidget && activeMap))return;
@@ -168,9 +174,11 @@ Buscar en el mapa
       activeMap=L.map(widget.querySelector('#toca-location-map'),{zoomControl:true}).setView(center,existing?16:13);
       window.tocaMapLayer().addTo(activeMap);
       if(existing){
-        activeMarker=L.marker(center,{draggable:true,title:'Arrastrá el pin para ajustar la ubicación'}).addTo(activeMap);
+        activeMarker=L.marker(center,{...markerOptions(),draggable:true,title:'Arrastrá el pin para ajustar la ubicación'}).addTo(activeMap);
         activeMarker.on('dragend',()=>{const p=activeMarker.getLatLng();setPending(widget,p.lat,p.lng)});
         setFeedback(widget,'Ubicación actual guardada. Podés ajustarla en el mapa.',true);
+      }else if(widget.dataset.pendingLat && widget.dataset.pendingLon){
+        putPin(widget,Number(widget.dataset.pendingLat),Number(widget.dataset.pendingLon));
       }else setFeedback(widget,'Hacé clic en el mapa para ubicar el bar, o buscá la dirección.');
       activeMap.on('click', ev => putPin(widget,ev.latlng.lat,ev.latlng.lng,activeMap.getZoom()));
       setTimeout(()=>{if(widget.isConnected)activeMap?.invalidateSize()},120);
@@ -200,7 +208,7 @@ Buscar en el mapa
           .filter(p=>isFiniteLatLon(p.lat,p.lon));
         resultsCache.set(key,list);
       }
-      if(!widget.isConnected)return;
+      if(!widget.isConnected || (form?.querySelector('[name="address"]')?.value.trim()||'')!==address || (form?.querySelector('[name="city"]')?.value.trim()||'')!==city)return;
       widget._tocaLocationResults=list;
       widget.dataset.lookupAddress=address;
       if(!list.length){resultBox.replaceChildren();setFeedback(widget,'No encontramos esa dirección. Probá con la calle y número o colocá el pin manualmente.');return;}
@@ -225,7 +233,8 @@ Buscar en el mapa
     widget.dataset.pendingLat='';widget.dataset.pendingLon='';
     const coords=widget.querySelector('.toca-location-coords');
     if(coords)coords.textContent=`✓ Ubicación confirmada`;
-    setFeedback(widget,'¡Listo! Confirmaste la ubicación del bar. Guardá los cambios para publicarla.',true);
+    setFeedback(widget,'¡Listo! Confirmaste la ubicación del bar.',true);
+    widget.dispatchEvent(new CustomEvent('toca-location-change',{bubbles:true}));
   }
   document.addEventListener('click',e=>{
     const button=e.target.closest('[data-action]');

@@ -97,7 +97,7 @@
         <div class="toca-photo-item-actions"><span>${p.isPrimary?'★ Foto de portada':'Foto '+(i+1)}</span>
           ${p.isPrimary?'':`<button type="button" class="btn ghost small" data-action="photo-cover" data-photo="${describe(p.id)}">Usar de portada</button>`}
           ${images.length>1?`<button type="button" class="btn ghost small" data-action="photo-delete" data-photo="${describe(p.id)}">Eliminar</button>`:''}
-        </div></article>`).join('')||'<p class="toca-muted">Todavía no agregaste fotos. Subí una portada para que tu bar aparezca en Descubrir bares.</p>'}</div>
+        </div></article>`).join('')||'<p class="toca-muted">Todavía no agregaste fotos. La portada es necesaria para publicar tu bar.</p>'}</div>
     </section>`;
   };
 
