@@ -20,3 +20,7 @@
 @media(max-width:760px){
   .toca-ad-tools .toca-session-toggle{min-width:0;}
 }
+
+.toca-request-history{border-top:1px solid var(--line,#263c35);margin-top:12px;padding-top:12px;}
+.toca-request-history summary{color:var(--accent,#b8f38c);cursor:pointer;font-size:13px;padding:8px 0;}
+.toca-request-history .queue{margin-top:10px;}
