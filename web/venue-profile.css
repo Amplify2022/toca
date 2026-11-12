@@ -11,3 +11,8 @@
 .venue-profile .vp-location>summary small{font-size:10px;color:#92ab85;display:block;margin-top:4px}
 .venue-profile .vp-location>summary>span:last-child{font-size:10px;color:#d1e7bc;white-space:nowrap}
 .venue-profile .vp-location[open]>summary{border-bottom:1px solid #3d5636;padding-bottom:13px}
+
+.venue-profile .manage-card .vp-hours-summary{display:flex;flex-wrap:wrap;align-content:start;gap:6px 16px;min-width:0;line-height:1.8}
+.venue-profile .vp-hours-slot{display:inline-flex;gap:6px;white-space:nowrap;max-width:100%;font-variant-numeric:tabular-nums}
+.venue-profile .vp-hours-slot strong{font:inherit;font-weight:550;color:#c4d9b7}
+@media(max-width:760px){.venue-profile .manage-card .vp-hours-summary{gap:5px 10px}.venue-profile .vp-hours-slot{gap:4px}}

@@ -17,14 +17,21 @@ Agregar canciones, opciones por canción, creación/renombrado/selección de pla
 - Los permisos de edición y control informados por el servidor siguen siendo obligatorios. El modo demo usa canciones ilustrativas y no envía comandos ni ediciones reales.
 - «Agregar» permite abrir el buscador aunque la edición esté deshabilitada e informa qué falta. La reproducción sin salida activa abre la elección de audio. Los errores de Spotify y los cambios pendientes quedan visibles.
 - Si falla la consulta de una edición guardada, la playlist y el reproductor se cargan igualmente. Se conserva la clave pendiente para consultar después; no se descarta ni se repite una escritura con otra clave.
+- Antes de editar se consulta la versión vigente. Si un conflicto fue confirmado como anterior a la escritura, se permite un solo reintento con una selección que siga siendo inequívoca. Las posiciones se ajustan usando los IDs y anclas originales; duplicados ambiguos requieren revisar la lista. Los resultados inciertos no se reintentan.
+- Una edición completada devuelve la playlist verificada en la respuesta y la cabina la muestra de inmediato. No se permite que una lectura con una versión anterior vuelva a mostrar un tema eliminado. La lista completa se devuelve al cliente sin duplicarla en el historial persistido de operaciones.
+- Al agregar se muestra el nombre del tema, «Agregado ✓» y un resaltado de la fila. La confirmación y el mensaje de éxito desaparecen a los cinco segundos; los errores permanecen hasta una acción posterior.
 
-El reproductor consulta su estado cada 7 segundos. Cuando no hay una ventana abierta se consulta actividad aproximadamente cada 21 segundos; la playlist se vuelve a cargar si cambia esa actividad. «Actualizar» permite recargarla manualmente. Se evita descargar la playlist completa en cada consulta del reproductor.
+El reloj visual avanza a partir de la última muestra y se dibuja cada 250 ms, sin consultar la API cada segundo. Con audio del navegador, los eventos de Web Playback se aplican de inmediato y su estado local se consulta cada segundo. El reproductor mantiene la consulta a la API cada 7 segundos para Spotify Connect y como respaldo. Play/pausa responde al toque, muestra sincronización pendiente y revierte la indicación si Spotify rechaza el comando. Las muestras atrasadas no deshacen la indicación mientras llega la confirmación.
+
+Cuando no hay una ventana abierta se consulta actividad aproximadamente cada 21 segundos; la playlist se vuelve a cargar si cambia esa actividad. «Actualizar» permite recargarla manualmente. Se evita descargar la playlist completa en cada consulta del reproductor.
 
 ## Validación
 
 `scripts/test-admin-studio.py` usa el frontend real y respuestas simuladas de Spotify/SDK a 1440 y 390 px. Cubre agregar, mover, crear, renombrar, seleccionar playlist sin reiniciar audio, controles, audio del navegador, parlantes, reglas, pedidos independientes, edición pendiente, permisos deshabilitados, estado desconectado y entrada al registro guiado. `TOCA_WEB_TEST_URL` indica el servidor web y `TOCA_SCREENSHOT_DIR` el destino de las capturas.
 
 Se mantienen las pruebas existentes de login, navegación administrativa, pedidos, acceso, modo sin conexión y navegación tardía. Las pruebas de cabina también verifican orden real en ambas direcciones, arrastre con mouse/touch, teclado y cancelación, ocurrencias duplicadas, portadas, play/pausa/continuación por fila y falta de salida de audio. `SpotifyTrackTest` valida los metadatos y la ausencia de imágenes. No requiere migraciones. Las pruebas automatizadas no reproducen audio real ni usan una cuenta del proveedor.
+
+`scripts/test-music-sync.py` verifica respuestas demoradas, versiones atrasadas, reintento acotado antes de escribir, duplicados ambiguos, resultados inciertos, confirmación de cinco segundos, reloj del SDK, iconos inmediatos y recuperación ante rechazo. También comprueba en escritorio y móvil que los días agrupados en Mi Bar conserven sus horas en la misma línea. `node scripts/test-music-edit-intent.cjs` valida el ajuste seguro de posiciones.
 
 ## Actualizar en local
 

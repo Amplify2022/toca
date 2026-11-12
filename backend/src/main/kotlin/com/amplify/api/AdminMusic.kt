@@ -17,10 +17,13 @@ interface MusicEditGateway {
     fun edit(venue:UUID,plan:Map<String,Any?>)
 }
 
+internal class PlaylistSnapshotChanged:io.micronaut.http.exceptions.HttpStatusException(
+    HttpStatus.CONFLICT,"La playlist cambió. Actualizá antes de editar.")
+
 /** Index-based edits retain duplicates and unavailable entries. */
 object MusicEditPlan {
     fun build(action:String,body:Map<String,Any?>,state:MusicPlaylist):Map<String,Any?> {
-        if(body["snapshot"]!=state.snapshot)fail(HttpStatus.CONFLICT,"La playlist cambió. Actualizá antes de editar.")
+        if(body["snapshot"]!=state.snapshot)throw PlaylistSnapshotChanged()
         val ids=state.ids.toMutableList()
         fun index(key:String):Int {
             val value=body[key] as? Number ?: fail(HttpStatus.BAD_REQUEST,"Posición requerida")
@@ -73,6 +76,7 @@ class AdminMusic(private val db:Db,private val json:ObjectMapper,private val gat
             v["playlist_id"] as? String ?: ""
         } ?: return response(row(id,venue))
         var applying=false
+        var confirmed:MusicPlaylist?=null
         try {
             val plan=if(action=="create")mapOf("action" to "create","name" to required(body,"name",100),"marker" to "toca:$id")
                 else {
@@ -89,15 +93,19 @@ class AdminMusic(private val db:Db,private val json:ObjectMapper,private val gat
             val actual=gateway.snapshot(venue,playlist)
             if(action!="create" && !matches(plan,actual))fail(HttpStatus.CONFLICT,"Spotify cambió durante la edición. Revisá el estado actual.")
             finish(id,venue,actual,action=="create")
+            confirmed=actual
         } catch (error:Exception) {
             val reason=(error as? io.micronaut.http.exceptions.HttpStatusException)?.message
                 ?.replace(Regex("[\\r\\n\\t]")," ")?.take(200)
-            db.exec("UPDATE venue_music_operation SET status=?,message=?,updated_at=now() WHERE id=? AND status IN ('PREPARING','APPLYING')",
+            val retry=if(!applying && error is PlaylistSnapshotChanged)
+                json.writeValueAsString(mapOf("code" to "PLAYLIST_CHANGED","beforeWrite" to true)) else null
+            db.exec("UPDATE venue_music_operation SET status=?,message=?,result=?,updated_at=now() WHERE id=? AND status IN ('PREPARING','APPLYING')",
                 if(applying)"UNCERTAIN" else "FAILED",
                 (if(applying)"No se confirmó el resultado. Consultá el estado antes de realizar otra edición." else "No se pudo preparar la edición. Actualizá la playlist y verificá la conexión.")+
-                    (reason?.let {" $it"}?:""),id)
+                    (reason?.let {" $it"}?:""),retry,id)
         }
-        return response(row(id,venue))
+        val result=response(row(id,venue))
+        return confirmed?.let { result+mapOf("playlist" to mapOf("id" to it.id,"name" to it.name,"snapshot" to it.snapshot,"tracks" to it.tracks)) }?:result
     }
     private fun matches(plan:Map<String,Any?>,state:MusicPlaylist)=
         state.ids==plan["expected"] && (plan["action"]!="rename" || state.name==plan["name"])
@@ -106,7 +114,7 @@ class AdminMusic(private val db:Db,private val json:ObjectMapper,private val gat
             db.one("SELECT id FROM venue WHERE id=? FOR UPDATE",venue)
             if(select)db.exec("UPDATE venue SET playlist_id=?,queue_started_at=now(),updated_at=now() WHERE id=?",state.id,venue)
             db.exec("UPDATE venue_music_operation SET status='COMPLETED',result=?,message=NULL,updated_at=now() WHERE id=?",
-                json.writeValueAsString(mapOf("playlistId" to state.id,"name" to state.name)),id)
+                json.writeValueAsString(mapOf("playlistId" to state.id,"name" to state.name,"snapshot" to state.snapshot)),id)
         }
     }
     /** Read-only recovery. Never resend an unknown provider write. */

@@ -16,8 +16,9 @@ class MusicEditPlanTest {
         assertEquals(listOf(a,a,b),MusicEditPlan.build("move",mapOf("snapshot" to "s1","from" to 2,"to" to 0),state)["expected"])
     }
     @Test fun `stale snapshots and fractional positions fail before mutation`() {
-        assertThrows(HttpStatusException::class.java){MusicEditPlan.build("remove",mapOf("snapshot" to "old","position" to 0),state)}
-        assertThrows(HttpStatusException::class.java){MusicEditPlan.build("remove",mapOf("snapshot" to "s1","position" to 1.5),state)}
+        assertThrows(PlaylistSnapshotChanged::class.java){MusicEditPlan.build("remove",mapOf("snapshot" to "old","position" to 0),state)}
+        val invalid=assertThrows(HttpStatusException::class.java){MusicEditPlan.build("remove",mapOf("snapshot" to "s1","position" to 1.5),state)}
+        assertFalse(invalid is PlaylistSnapshotChanged,"Only a stale pre-write snapshot may request a refreshed retry")
     }
     @Test fun `unavailable elements are preserved in reorder plans`() {
         val unavailable=state.copy(tracks=listOf(mapOf("id" to null),mapOf("id" to a)))
