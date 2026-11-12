@@ -82,6 +82,8 @@ class Spotify(
             if(res.statusCode()==429)fail(HttpStatus.TOO_MANY_REQUESTS,"Spotify está limitando las solicitudes; reintentá más tarde")
             if(res.statusCode()==401)fail(HttpStatus.BAD_GATEWAY,"Spotify rechazó la autorización")
             if(res.statusCode()==403)fail(HttpStatus.FORBIDDEN,"Spotify no permite esta operación o falta Premium")
+            if(res.statusCode()==404 && req.uri().path.startsWith("/v1/me/player"))
+                fail(HttpStatus.PRECONDITION_FAILED,"No hay un dispositivo de reproducción activo. Elegí una salida de audio en la cabina.")
             fail(HttpStatus.BAD_GATEWAY,"Spotify devolvió HTTP ${res.statusCode()}")
         }
         return Pair(res.statusCode(),res.body())
@@ -429,8 +431,7 @@ class Spotify(
         }
         return tracks
     }
-    private fun track(t:JsonNode):Map<String,Any?> = mapOf("id" to t.path("id").asText(),"title" to t.path("name").asText(),
-        "artist" to t.path("artists").joinToString(", "){it.path("name").asText()},"durationMs" to t.path("duration_ms").asLong(0))
+    private fun track(t:JsonNode):Map<String,Any?> = SpotifyTrack.from(t)
     fun search(venueId:UUID,q:String):List<Map<String,Any?>> {
         if(q.trim().length<2)return emptyList()
         val root=apiGet("/search?q=${enc(q.trim())}&type=track&limit=10",access(venueId))?:return emptyList()
@@ -596,6 +597,7 @@ class Spotify(
         val player=apiGet("/me/player",access(venue))
         val item=player?.path("item")
         return mapOf("isPlaying" to (player?.path("is_playing")?.asBoolean()?:false),
+            "contextUri" to player?.path("context")?.path("uri")?.asText(""),
             "now" to item?.takeIf {it.path("type").asText()=="track"}?.let(::track),
             "progressMs" to (player?.path("progress_ms")?.asLong()?:0),
             "device" to player?.path("device")?.let {mapOf("id" to it.path("id").asText(),"name" to it.path("name").asText(),"volume" to it.path("volume_percent").asInt())},

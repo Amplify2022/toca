@@ -89,10 +89,13 @@ class AdminMusic(private val db:Db,private val json:ObjectMapper,private val gat
             val actual=gateway.snapshot(venue,playlist)
             if(action!="create" && !matches(plan,actual))fail(HttpStatus.CONFLICT,"Spotify cambió durante la edición. Revisá el estado actual.")
             finish(id,venue,actual,action=="create")
-        } catch (_:Exception) {
+        } catch (error:Exception) {
+            val reason=(error as? io.micronaut.http.exceptions.HttpStatusException)?.message
+                ?.replace(Regex("[\\r\\n\\t]")," ")?.take(200)
             db.exec("UPDATE venue_music_operation SET status=?,message=?,updated_at=now() WHERE id=? AND status IN ('PREPARING','APPLYING')",
                 if(applying)"UNCERTAIN" else "FAILED",
-                if(applying)"No se confirmó el resultado. Revisá Spotify antes de realizar otra edición." else "No se pudo preparar la edición. Actualizá la playlist y verificá la conexión.",id)
+                (if(applying)"No se confirmó el resultado. Consultá el estado antes de realizar otra edición." else "No se pudo preparar la edición. Actualizá la playlist y verificá la conexión.")+
+                    (reason?.let {" $it"}?:""),id)
         }
         return response(row(id,venue))
     }

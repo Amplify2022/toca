@@ -16,10 +16,11 @@ with sync_playwright() as p:
   page.set_default_timeout(8000)
   errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
   venue=dict(id=ID,name='Existing Bar',address='Old address',city='Montevideo',latitude=-34.9,longitude=-56.17,genre='Rock',active=False,spotifyConnected=True,photos=[],coverPhotoUrl='/assets/venues/bar-1.webp',requestAccessMode='NEARBY',openingHours='W2|-|19:00-23:00|-|-|-|18:00-01:00|-')
-  playlist=dict(id='P'*22,name='Night',snapshot='s1',tracks=[dict(id=A,title='Track A',artist='Band A',durationMs=180000),dict(id=B,title='Track B',artist='Band B',durationMs=200000)])
+  playlist=dict(id='P'*22,name='Night',snapshot='s1',tracks=[dict(id=A,title='Track A',artist='Band A',durationMs=180000,imageUrl='/assets/venues/bar-1.webp'),dict(id=B,title='Track B',artist='Band B',durationMs=200000)])
   writes=[];controls=[];tokens=[];edits=[];version=[1];owned=[venue]
   operation=[None];connected=[True];flags=[True];blocked=[];allowed=[];playlist_reads=[]
-  drop_response=[False];applied={};edit_ids=[]
+  drop_response=[False];applied={};edit_ids=[];recovery_unavailable=[False]
+  playing=[False];now=[playlist['tracks'][0].copy()];context_uri=['spotify:playlist:'+playlist['id']];device=[dict(id='speaker',name='TOCA',volume=50)]
   page.add_init_script("localStorage.setItem('amplify-mode','live');sessionStorage.setItem('amplify-token','synthetic-admin-session');sessionStorage.setItem('amplify-user',JSON.stringify({id:'owner',name:'Owner',email:'owner@example.test'}));")
   def api(route):
    path=route.request.url.split('8080',1)[1].split('?',1)[0];method=route.request.method;body=route.request.post_data_json if method in ['POST','PUT'] else None;data=[]
@@ -50,12 +51,18 @@ with sync_playwright() as p:
     data=dict(source='Instagram',fields=dict(name='BLUZZ BAR',description=BIO,instagramHandle='bar.ig'),warnings=['Instagram no publica dirección ni horarios estructurados mediante esta API. Revisá la biografía y completá los campos faltantes.'],details={},sourceUrl='https://www.instagram.com/bar.ig/')
    elif path.endswith('/music/playlist'):playlist_reads.append(path);data=dict(playlist=playlist,operation=operation[0])
    elif path.endswith('/music/player'):
-    if method=='POST':controls.append(body);data=dict(accepted=True)
-    else:data=dict(now=playlist['tracks'][0] if playlist['tracks'] else None,isPlaying=any(c.get('action')=='start' for c in controls),progressMs=5000,repeat='off',shuffle=False,device=dict(name='TOCA',volume=50))
+    if method=='POST':
+     controls.append(body);data=dict(accepted=True)
+     if body['action']=='start':now[0]=playlist['tracks'][body['position']].copy();playing[0]=True;context_uri[0]='spotify:playlist:'+playlist['id']
+     if body['action']=='pause':playing[0]=False
+     if body['action']=='resume':playing[0]=True
+    else:data=dict(now=now[0],isPlaying=playing[0],contextUri=context_uri[0],progressMs=5000,repeat='off',shuffle=False,device=device[0])
    elif path.endswith('/music/browser-token'):tokens.append(route.request.headers.get('authorization'));data=dict(accessToken='synthetic-spotify-access-token',expiresIn=60)
    elif path.endswith('/reconcile'):operation[0]=None;data=dict(status='COMPLETED')
    elif '/music/edits/' in path:
     operation_id=path.rsplit('/',1)[1];edit_ids.append(operation_id)
+    if recovery_unavailable[0]:
+     route.fulfill(status=503,content_type='application/json',body=json.dumps(dict(message='No se pudo consultar la edición pendiente.')),headers={'Access-Control-Allow-Origin':'*'});return
     if operation_id in applied:
      route.fulfill(content_type='application/json',body=json.dumps(applied[operation_id]),headers={'Access-Control-Allow-Origin':'*'});return
     edits.append(body);action=body['action']
@@ -77,13 +84,16 @@ with sync_playwright() as p:
   """))
   page.goto(BASE+'/#/admin/music');root=page.locator('[data-admin-studio]')
   root.locator('[data-studio-tracks] .toca-studio-track').first.wait_for()
+  cover=root.locator('[data-track-index="0"] .cabina-art img')
+  cover.wait_for();assert cover.get_attribute('src').endswith('/assets/venues/bar-1.webp')
+  page.wait_for_function("document.querySelector('[data-track-index=\"0\"] .cabina-art img').naturalWidth>0")
   root.locator('[data-cabina-open="add"]').click()
   root.locator('[data-studio-search]').fill('Search')
   root.locator('[data-studio-search-results] [data-studio-edit="add"]').click()
   page.wait_for_function("document.querySelectorAll('[data-studio-tracks] .toca-studio-track').length===3")
   root.locator('dialog[open] [data-cabina-close]').first.click()
   root.locator('[data-cabina-track="0"]').click()
-  root.locator('[data-studio-edit="move"][data-from="0"]').click();page.wait_for_function("document.querySelector('[data-studio-tracks]').textContent.includes('Track B')")
+  root.locator('[data-studio-edit="move"][data-from="0"]').click();page.wait_for_function("document.querySelector('[data-studio-tracks] [data-track-index=\"0\"] strong').textContent==='Track B'")
   root.locator('[data-cabina-open="playlist-options"]').click()
   root.locator('[data-cabina-name-mode="rename"]').click()
   root.locator('[data-studio-name]').fill('Renamed list');root.locator('[data-studio-rename]').click();page.wait_for_function("document.querySelector('[data-studio-playlist-name]').textContent.includes('Renamed list')")
@@ -106,17 +116,55 @@ with sync_playwright() as p:
   assert any(c==dict(action='shuffle',enabled=True) for c in controls)
   assert any(c==dict(action='repeat',state='context') for c in controls)
   root.locator('dialog[open] [data-cabina-close]').first.click()
+  # Each row starts its own position, then pauses/resumes without seeking to zero.
+  row=root.locator('[data-cabina-row-play="0"]');row.click()
+  page.wait_for_function("document.querySelector('[data-cabina-row-play=\"0\"]').textContent.includes('Reproducir')")
+  assert controls[-1]==dict(action='pause')
+  root.locator('[data-cabina-row-play="1"]').click()
+  page.wait_for_function("document.querySelector('[data-cabina-row-play=\"1\"]').textContent.includes('Pausar')")
+  assert controls[-1]==dict(action='start',position=1)
+  root.locator('[data-cabina-row-play="1"]').click()
+  page.wait_for_function("document.querySelector('[data-cabina-row-play=\"1\"]').textContent.includes('Reproducir')")
+  assert controls[-1]==dict(action='pause')
+  root.locator('[data-cabina-row-play="1"]').click()
+  page.wait_for_function("document.querySelector('[data-cabina-row-play=\"1\"]').textContent.includes('Pausar')")
+  assert controls[-1]==dict(action='resume')
+  # Both menu directions change the actual order, not just the displayed count.
+  root.locator('[data-cabina-track="1"]').click();root.locator('[data-studio-edit=move][data-from="1"][data-to="0"]').click()
+  page.wait_for_function("document.querySelector('[data-track-index=\"0\"] strong').textContent==='Track A'")
+  root.locator('[data-cabina-track="0"]').click();root.locator('[data-studio-edit=move][data-from="0"][data-to="1"]').click()
+  page.wait_for_function("document.querySelector('[data-track-index=\"0\"] strong').textContent==='Track B'")
+  # Pointer drag moves the exact occurrence, including duplicate Spotify IDs.
+  handle=root.locator('[data-cabina-drag="0"]');handle.scroll_into_view_if_needed()
+  source=handle.bounding_box();destination=root.locator('[data-track-index="2"]').bounding_box()
+  page.mouse.move(source['x']+source['width']/2,source['y']+source['height']/2);page.mouse.down()
+  page.mouse.move(destination['x']+25,destination['y']+destination['height']-3,steps=12);page.mouse.up()
+  page.wait_for_function("document.querySelector('[data-track-index=\"2\"] strong').textContent==='Track B'")
+  assert root.locator('[data-track-index] .cabina-song-meta strong').all_text_contents()==['Track A','Added Track','Track B']
+  # Keyboard confirmation and cancellation provide an alternative to dragging.
+  handle=root.locator('[data-cabina-drag="2"]');handle.focus();handle.press('Space');handle.press('Home');handle.press('Enter')
+  page.wait_for_function("document.querySelector('[data-track-index=\"0\"] strong').textContent==='Track B'")
+  before_drag=len(edits);handle=root.locator('[data-cabina-drag="0"]');handle.focus();handle.press('Space');handle.press('End');handle.press('Escape')
+  assert len(edits)==before_drag and root.get_attribute('data-cabina-dragging') is None
+  if width==390:
+   source=handle.bounding_box();destination=root.locator('[data-track-index="1"]').bounding_box()
+   point=dict(pointerId=41,pointerType='touch',isPrimary=True,button=0)
+   handle.dispatch_event('pointerdown',dict(point,clientX=source['x']+12,clientY=source['y']+12))
+   page.locator('body').dispatch_event('pointermove',dict(point,clientX=destination['x']+25,clientY=destination['y']+destination['height']-3))
+   page.locator('body').dispatch_event('pointerup',point)
+   page.wait_for_function("document.querySelector('[data-track-index=\"1\"] strong').textContent==='Track B'")
   page.screenshot(path=f'{SHOTS}/toca-studio-{width}.png',full_page=True,style='.cabina-player{position:static!important;margin-top:30px!important}.toca-cabina{padding-bottom:0!important}.toca-admin-mobile-nav{position:static!important}.toca-admin-content{padding-bottom:30px!important}')
   assert page.evaluate('document.documentElement.scrollWidth<=window.innerWidth'), 'Horizontal overflow'
   root.locator('[data-cabina-open="playlist-options"]').click()
   root.locator('[data-cabina-name-mode="create"]').click()
+  count_before_create=len(edits)
   root.locator('[data-studio-name]').fill('Brand new');root.locator('[data-studio-name]').press('Enter');page.wait_for_function("document.querySelector('[data-studio-playlist-name]').textContent.includes('Brand new')")
-  assert [e['action'] for e in edits]==['add','move','rename','create'],edits
+  assert [e['action'] for e in edits][:3]==['add','move','rename'] and edits[-1]['action']=='create',edits
   # Empty playlist, dialog validation and selecting a playlist do not restart playback.
   root.locator('.cabina-empty-list').wait_for()
   root.locator('.cabina-empty-list [data-cabina-name-mode="create"]').click()
   root.locator('[data-studio-name]').fill('   ');root.locator('[data-studio-create]').click()
-  assert len(edits)==4
+  assert len(edits)==count_before_create+1
   root.locator('dialog[open] [data-cabina-close]').first.click()
   before=len(controls)
   root.locator('.cabina-playlist-selector').click()
@@ -162,6 +210,16 @@ with sync_playwright() as p:
   page.wait_for_function("!document.querySelector('[data-studio-recover]')")
   assert len(edits)==count and edit_ids[-1]==saved['id']
   assert page.evaluate("sessionStorage.getItem('toca-music-edit:'+"+json.dumps(ID)+")") is None
+  # A failed recovery must not prevent loading the playlist or the player.
+  saved=dict(id='99999999-9999-4999-8999-999999999999',input=dict(action='rename',name='Recovered on startup',snapshot=playlist['snapshot']))
+  page.evaluate("value=>sessionStorage.setItem('toca-music-edit:'+"+json.dumps(ID)+",JSON.stringify(value))",saved)
+  recovery_unavailable[0]=True;page.reload()
+  root.locator('[data-studio-recover]').wait_for()
+  assert root.locator('[data-studio-playlist-name]').inner_text()==playlist['name']
+  page.wait_for_function("document.querySelector('[data-player-title]').textContent!=='Sin reproducción activa'")
+  assert root.locator('[data-player-toggle]').is_enabled()
+  recovery_unavailable[0]=False;root.locator('[data-studio-recover]').click()
+  page.wait_for_function("!document.querySelector('[data-studio-recover]')")
   # Available output selection transfers audio and excludes restricted devices.
   root.locator('.cabina-heading-actions [data-cabina-open="connection"]').click()
   root.locator('[data-cabina-devices]').click();root.locator('[data-cabina-select-device=speaker]').wait_for()
@@ -171,12 +229,34 @@ with sync_playwright() as p:
   assert controls[-1]['action']=='transfer'
   root.locator('dialog[open] [data-cabina-close]').first.click()
   # Feature flags stay authoritative, including after opening menus.
-  flags[0]=False;page.reload();root.locator('[data-studio-playlist-name]').wait_for()
+  playlist['tracks']=[dict(id=A,title='Track A',artist='Band A',durationMs=180000,imageUrl='/assets/venues/bar-1.webp'),dict(id=B,title='Track B',artist='Band B',durationMs=200000)]
+  playlist['snapshot']='flags-test'
+  flags[0]=False;page.reload();root.locator('[data-track-index="0"]').wait_for()
   assert root.locator('[data-player-toggle]').is_disabled()
-  assert root.locator('[data-cabina-open="add"]').is_disabled()
+  assert root.locator('[data-cabina-open="add"]').is_enabled()
+  root.locator('[data-cabina-open="add"]').click()
+  assert 'habilitar la edición' in root.locator('dialog[open]').inner_text()
+  root.locator('dialog[open] [data-cabina-close]').first.click()
+  before_controls=len(controls)
+  root.locator('[data-cabina-row-play="0"]').click()
+  root.locator('dialog[data-cabina-dialog=connection][open]').wait_for()
+  assert 'deshabilitado' in root.locator('[data-cabina-dialog-status]').filter(has_text='deshabilitado').first.inner_text()
+  assert len(controls)==before_controls
+  root.locator('dialog[open] [data-cabina-close]').first.click()
+  assert root.locator('[data-cabina-drag="0"]').is_disabled()
+  root.locator('[data-cabina-track="0"]').click()
+  assert root.locator('dialog[open] [data-studio-edit=move]').is_disabled()
+  root.locator('dialog[open] [data-cabina-close]').first.click()
   root.locator('[data-cabina-open="playlist-options"]').click()
   assert root.locator('[data-cabina-name-mode="create"]').first.is_disabled()
   page.keyboard.press('Escape');flags[0]=True
+  # Starting without an active output opens audio selection and sends no failed play.
+  device[0]=None;now[0]=None;playing[0]=False;page.reload();root.locator('[data-track-index="0"]').wait_for()
+  before_controls=len(controls)
+  root.locator('[data-cabina-start]').click();root.locator('[data-player-start]').click()
+  root.locator('dialog[data-cabina-dialog=connection][open]').wait_for()
+  assert 'Elegí dónde' in root.locator('dialog[open] [data-cabina-dialog-status]').inner_text()
+  assert len(controls)==before_controls
   # First connection state hides unusable player and playlist controls.
   connected[0]=False;page.reload();root.locator('.cabina-empty').wait_for()
   assert root.locator('.cabina-player').count()==0

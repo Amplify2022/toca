@@ -66,11 +66,11 @@
   }finally{ctx.busy=false;updateButtons(ctx)}
  }
  document.addEventListener('cabina-playlists',()=>{const ctx=current;if(live(ctx))void loadPlaylists(ctx).catch(error=>notify(ctx,error.message));});
- async function poll(ctx){
+ async function poll(ctx,force=false){
   if(!live(ctx)){clearInterval(ctx.timer);return}
-  if(document.hidden||ctx.polling)return;ctx.polling=true;
+  if(document.hidden||(!force&&(ctx.polling||ctx.controlling)))return;const generation=(ctx.playbackGeneration||0)+1;ctx.playbackGeneration=generation;ctx.polling=true;
   try{
-   const data=await api(musicPath(ctx.id)+'/player');if(!live(ctx))return;
+   const data=await api(musicPath(ctx.id)+'/player');if(!live(ctx)||generation!==ctx.playbackGeneration)return;
    ctx.playback=data;const root=ctx.root,track=data.now;
    root.querySelector('[data-player-title]').textContent=track?.title||'Sin reproducción activa';
    root.querySelector('[data-player-artist]').textContent=track?.artist||'Seleccioná el audio y reproducí tu playlist';
@@ -81,11 +81,14 @@
    const shuffle=root.querySelector('[data-player-shuffle]');if(document.activeElement!==shuffle)shuffle.checked=!!data.shuffle;
    const repeat=root.querySelector('[data-player-repeat]');if(document.activeElement!==repeat)repeat.value=data.repeat||'off';
    window.tocaCabinaPlaybackUpdated?.(ctx);
-   if(Date.now()-(ctx.refreshedAt||Date.now())>20000&&!ctx.busy&&!root.querySelector('dialog[open]')){ctx.refreshedAt=Date.now();if(await refreshActivity(ctx))await reload(ctx);}
-  }catch(error){notify(ctx,error.message)}finally{ctx.polling=false}
+   if(Date.now()-(ctx.refreshedAt||Date.now())>20000&&!ctx.busy&&!root.querySelector('dialog[open]')&&!root.hasAttribute('data-cabina-dragging')){ctx.refreshedAt=Date.now();if(await refreshActivity(ctx))await reload(ctx);}
+  }catch(error){if(generation===ctx.playbackGeneration)notify(ctx,error.message)}finally{if(generation===ctx.playbackGeneration)ctx.polling=false}
  }
  async function edit(ctx,body){
-  if(!live(ctx)||state.demo||!ctx.settings.playlistWriteEnabled||ctx.busy||ctx.operation||sessionStorage.getItem(key(ctx.id)))return;ctx.busy=true;updateButtons(ctx);
+  if(!live(ctx))return;
+  if(state.demo||!ctx.settings.playlistWriteEnabled){window.tocaCabinaShowConnection?.(ctx);notify(ctx,'La edición de playlist está deshabilitada en el servidor.');return}
+  if(ctx.busy||ctx.operation||sessionStorage.getItem(key(ctx.id))){notify(ctx,'Hay un cambio pendiente. Consultá su resultado antes de volver a editar.');return}
+  ctx.busy=true;updateButtons(ctx);
   const id=crypto.randomUUID(),input={...body,...(body.action==='create'?{}:{snapshot:ctx.playlist?.snapshot})};
   sessionStorage.setItem(key(ctx.id),JSON.stringify({id,input}));
   try{
@@ -102,6 +105,32 @@
    await reload(ctx);
   }catch(error){notify(ctx,error.message+' Actualizá para consultar el resultado antes de volver a editar.');ctx.operation={id,status:'UNKNOWN'};try{await reload(ctx)}catch{} }
   finally{ctx.busy=false;updateButtons(ctx)}
+ }
+ document.addEventListener('cabina-reorder',async event=>{
+  const ctx=current,move=event.detail;
+  if(!live(ctx)||event.target!==ctx.root||move?.playlistId!==ctx.playlist?.id)return;
+  try{
+   if(move.snapshot!==ctx.playlist.snapshot){notify(ctx,'La playlist cambió. Revisá el orden antes de mover otra canción.');await reload(ctx);return}
+   if(!Number.isInteger(move.from)||!Number.isInteger(move.to)||move.from===move.to)return;
+   await edit(ctx,{action:'move',from:move.from,to:move.to});
+  }catch(error){notify(ctx,error.message)}
+ });
+ async function control(ctx,body){
+  if(!live(ctx)||ctx.controlling)return;
+  if(state.demo||!ctx.settings.controlEnabled){window.tocaCabinaShowConnection?.(ctx);notify(ctx,'El control de audio está deshabilitado en el servidor.');return}
+  if(['start','resume'].includes(body.action)&&!ctx.playback?.device?.name&&!ctx.settings.deviceId&&!browser?.deviceId){
+   window.tocaCabinaShowConnection?.(ctx);notify(ctx,'Elegí dónde va a sonar la música: este navegador o un dispositivo disponible.');return;
+  }
+  ctx.controlling=true;ctx.playbackGeneration=(ctx.playbackGeneration||0)+1;updateButtons(ctx);
+  try{
+   await browser?.player.activateElement();if(!live(ctx))return;
+   window.tocaCabinaClose?.(ctx);
+   await api(musicPath(ctx.id)+'/player',{method:'POST',body});if(!live(ctx))return;
+   notify(ctx,'Control enviado.');await poll(ctx,true);
+  }catch(error){
+   if(error.status===412&&/dispositivo|audio/i.test(error.message))window.tocaCabinaShowConnection?.(ctx);
+   notify(ctx,error.message);
+  }finally{ctx.controlling=false;ctx.polling=false;updateButtons(ctx)}
  }
  function loadSdk(){
   if(window.Spotify?.Player)return Promise.resolve();
@@ -150,9 +179,10 @@
   if(browser&&(browser.id!==id||browser.session!==ctx.session))stopBrowser();
   try{
    const saved=JSON.parse(sessionStorage.getItem(key(id))||'null');
-   if(saved){const result=await api(musicPath(id)+`/edits/${saved.id}`,{method:'POST',body:saved.input});if(!['PREPARING','APPLYING'].includes(result.status))sessionStorage.removeItem(key(id));}
-   await reload(ctx);await poll(ctx);
+   if(saved){const result=await api(musicPath(id)+`/edits/${saved.id}`,{method:'POST',body:saved.input});if(!live(ctx))return;if(['COMPLETED','FAILED','RELEASED'].includes(result.status))sessionStorage.removeItem(key(id));}
   }catch(error){notify(ctx,error.message)}
+  if(!live(ctx))return;
+  try{await reload(ctx);await poll(ctx)}catch(error){notify(ctx,error.message)}
   if(live(ctx))ctx.timer=setInterval(()=>{if(browser&&browser.session!==state.token)stopBrowser();void poll(ctx)},7000);
  };
  document.addEventListener('click',async event=>{
@@ -160,6 +190,10 @@
   if(!button||!ctx||!live(ctx)||button.disabled)return;
   try{
    if(button.hasAttribute('data-studio-refresh')||button.hasAttribute('data-studio-recover')){await window.tocaInitAdminMusic(ctx.id,ctx.settings);await refreshActivity(current);return}
+   if(button.hasAttribute('data-cabina-row-play')){
+    const position=Number(button.dataset.cabinaRowPlay),track=ctx.playlist?.tracks[position];if(!track?.id)return;
+    await control(ctx,window.tocaCabinaIsCurrent(ctx,track)?{action:ctx.playback.isPlaying?'pause':'resume'}:{action:'start',position});return;
+   }
    if(button.hasAttribute('data-cabina-track')){window.tocaCabinaOpenTrack(ctx,Number(button.dataset.cabinaTrack));updateButtons(ctx);return}
    if(button.hasAttribute('data-cabina-devices')){await loadDevices(ctx);return}
    if(button.hasAttribute('data-cabina-select-device')){await selectDevice(ctx,button);return}
@@ -184,10 +218,10 @@
    }
    let body;
    if(button.dataset.playerCommand)body={action:button.dataset.playerCommand};
-   if(button.hasAttribute('data-player-toggle'))body={action:ctx.playback?.isPlaying?'pause':ctx.playback?.now?'resume':'start',position:0};
+   if(button.hasAttribute('data-player-toggle'))body=ctx.playback?.now?{action:ctx.playback.isPlaying?'pause':'resume'}:{action:'start',position:0};
    if(button.hasAttribute('data-player-start'))body={action:'start',position:0};
    if(button.hasAttribute('data-play-position'))body={action:'start',position:Number(button.dataset.playPosition)};
-   if(body){window.tocaCabinaClose?.(ctx);browser?.player.activateElement();button.disabled=true;await api(musicPath(ctx.id)+'/player',{method:'POST',body});notify(ctx,'Control enviado.');await poll(ctx)}
+   if(body){button.disabled=true;await control(ctx,body)}
   }catch(error){notify(ctx,error.message)}finally{if(button.isConnected)button.disabled=false;updateButtons(ctx)}
  });
  document.addEventListener('change',async event=>{
@@ -206,7 +240,7 @@
   const output=ctx.root.querySelector('[data-studio-search-results]');if(query.length<2){output.innerHTML='';return}
   searchTimer=setTimeout(async()=>{
    try{const tracks=await api(`/api/admin/venues/${ctx.id}/tracks?q=${encodeURIComponent(query)}`);if(!live(ctx)||generation!==searchGeneration||!output.isConnected)return;
-    output.innerHTML=tracks.map(t=>`<div class="toca-studio-track"><div class="toca-song-meta"><strong>${esc(t.title)}</strong><small>${esc(t.artist)}</small></div><button type="button" class="btn ghost small" data-studio-edit="add" data-track="${esc(t.id)}">Agregar</button></div>`).join('')||'<p>No se encontraron canciones.</p>';updateButtons(ctx);
+    output.innerHTML=tracks.map(t=>`<div class="toca-studio-track">${window.tocaCabinaArt(t)}<div class="toca-song-meta"><strong>${esc(t.title)}</strong><small>${esc(t.artist)}</small></div><button type="button" class="btn ghost small" data-studio-edit="add" data-track="${esc(t.id)}">Agregar</button></div>`).join('')||'<p>No se encontraron canciones.</p>';updateButtons(ctx);
    }catch(error){if(live(ctx)&&generation===searchGeneration&&output.isConnected)output.textContent=error.message}
   },300);
  });
