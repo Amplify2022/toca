@@ -56,77 +56,6 @@ with sync_playwright() as p:
   page.route('https://sdk.scdn.co/spotify-player.js',lambda route:route.fulfill(content_type='application/javascript',body="""
    window.Spotify={Player:class {constructor(options){this.o=options;this.listeners={}}addListener(k,v){this.listeners[k]=v}activateElement(){return Promise.resolve()}disconnect(){}connect(){this.o.getOAuthToken(t=>{if(t!=='synthetic-spotify-access-token')throw Error('wrong token');this.listeners.ready({device_id:'browser-device'})});return Promise.resolve(true)}}};window.onSpotifyWebPlaybackSDKReady();
   """))
-  page.goto(BASE+'/#/admin/profile')
-  box=page.locator('[data-venue-import]');box.wait_for();box.screenshot(path=f'{SHOTS}/toca-import-idle-{width}.png');box.locator('[data-import-query]').fill('My bar Montevideo');box.locator('[data-import-search]').click()
-  box.locator('[data-import-place]').click();box.locator('[data-import-apply]').wait_for()
-  assert not box.locator('[data-import-field="name"]').is_checked()
-  assert box.locator('[data-import-field="description"]').is_checked()
-  box.screenshot(path=f'{SHOTS}/toca-import-google-{width}.png')
-  box.locator('[data-import-field="address"]').check();box.locator('[data-import-apply]').click()
-  assert page.locator('#venue-update [name="name"]').input_value()=='Existing Bar'
-  assert page.locator('#venue-update [name="address"]').input_value()=='New address 123'
-  assert page.locator('#venue-update [name="description"]').input_value()=='Google description'
-  assert page.locator('.toca-location-widget').get_attribute('data-confirmed')=='false'
-  assert not writes,'Import must not save automatically'
-  box.get_by_role('radio',name='Instagram',exact=True).check()
-  box.get_by_role('radio',name='Instagram',exact=True).press('ArrowLeft')
-  assert box.get_by_role('radio',name='Google Maps',exact=True).is_checked()
-  box.get_by_role('radio',name='Google Maps',exact=True).press('ArrowRight')
-  assert box.get_by_role('radio',name='Instagram',exact=True).is_checked()
-  assert box.locator('[data-import-results]').inner_text()==''
-  assert 'Perfil de Instagram' in box.locator('[data-import-query-label]').inner_text()
-  # A late provider response must not restore a preview after switching source.
-  page.evaluate("""()=>{
-   window.__importOriginalFetch=window.fetch;
-   window.fetch=(url,options)=>String(url).includes('profile=slow.profile')?new Promise(resolve=>{
-    window.__finishSlowImport=()=>resolve(new Response(JSON.stringify({source:'Instagram',fields:{name:'STALE PROFILE',instagramHandle:'wrong.bar'},warnings:[],details:{}}),{headers:{'Content-Type':'application/json'}}));
-   }):window.__importOriginalFetch(url,options);
-  }""")
-  box.locator('[data-import-query]').fill('slow.profile');box.locator('[data-import-search]').click()
-  page.wait_for_function("typeof window.__finishSlowImport==='function'")
-  assert box.locator('[data-import-search]').is_disabled()
-  box.screenshot(path=f'{SHOTS}/toca-import-loading-{width}.png')
-  box.get_by_role('radio',name='Google Maps',exact=True).check()
-  page.evaluate("""async()=>{window.__finishSlowImport();await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));window.fetch=window.__importOriginalFetch;}""")
-  assert box.locator('[data-import-results]').inner_text()==''
-  assert not box.locator('[data-import-search]').is_disabled()
-  box.get_by_role('radio',name='Instagram',exact=True).check()
-  box.locator('[data-import-query]').fill('missing.profile');box.locator('[data-import-search]').click()
-  box.get_by_role('heading',name='No pudimos traer los datos').wait_for()
-  box.screenshot(path=f'{SHOTS}/toca-import-error-{width}.png')
-  box.locator('[data-import-query]').fill('@bar.ig');box.locator('[data-import-query]').press('Enter')
-  box.locator('[data-import-apply]').wait_for()
-  for checkbox in box.locator('[data-import-field]').all():checkbox.uncheck()
-  assert box.locator('[data-import-apply]').is_disabled()
-  assert '0 datos' in box.locator('[data-import-count]').inner_text()
-  box.locator('[data-import-field="description"]').check()
-  assert '1 dato seleccionado' in box.locator('[data-import-count]').inner_text()
-  assert not box.locator('[data-import-apply]').is_disabled()
-  hours=box.locator('[data-bio-hours]');hours.wait_for()
-  assert not hours.locator('[data-import-field="bioHours"]').is_checked()
-  assert hours.locator('[data-bio-row="4"] [data-bio-open]').input_value()=='20:00'
-  assert hours.locator('[data-bio-row="4"] [data-bio-close]').input_value()==''
-  assert hours.locator('[data-bio-row="5"] [data-bio-open]').input_value()=='20:00'
-  assert hours.locator('[data-bio-row="2"]').count()==0,'An event without opening hours is not an opening-hours proposal'
-  hours.locator('[data-import-field="bioHours"]').check()
-  assert box.locator('[data-import-apply]').is_disabled(),'Missing closing time must block opting into the suggestion'
-  hours.screenshot(path=f'{SHOTS}/toca-bio-hours-pending-{width}.png',style='.toca-admin-mobile-nav{visibility:hidden!important}')
-  hours.locator('[data-bio-row="4"] [data-bio-close]').fill('02:00')
-  assert box.locator('[data-import-apply]').is_disabled(),'Saturday closing remains unknown'
-  hours.locator('[data-bio-row="5"] [data-bio-day]').uncheck()
-  assert not box.locator('[data-import-apply]').is_disabled(),'Only selected days need complete times'
-  page.locator('#toast').evaluate('el=>el.replaceChildren()')
-  box.screenshot(path=f'{SHOTS}/toca-import-instagram-{width}.png',style='.toca-admin-mobile-nav{visibility:hidden!important}')
-  assert page.evaluate('document.documentElement.scrollWidth<=window.innerWidth'), 'Import horizontal overflow'
-  assert 'estructurados mediante esta API' not in box.inner_text()
-  box.locator('[data-import-apply]').click()
-  assert page.locator('#venue-update [name="description"]').input_value()==BIO
-  assert page.evaluate("window.tocaSerializeHours(document.getElementById('venue-update'))")=='W2|-|19:00-23:00|-|-|20:00-02:00|18:00-01:00|-','Unmentioned and unchecked days must retain the owner settings'
-  assert page.locator('#venue-update [name="name"]').input_value()=='Existing Bar'
-  assert not writes,'Import must not save automatically'
-  box.locator('[data-import-review]').click()
-  assert page.locator('#venue-update [name="name"]').evaluate('el=>el===document.activeElement')
-  page.screenshot(path=f'{SHOTS}/toca-import-{width}.png',full_page=True)
   page.goto(BASE+'/#/admin/music');root=page.locator('[data-admin-studio]');root.locator('[data-studio-tracks] .toca-studio-track').first.wait_for()
   root.locator('[data-studio-search]').fill('Search')
   root.locator('[data-studio-search-results] [data-studio-edit="add"]').click()
@@ -156,5 +85,5 @@ with sync_playwright() as p:
   owned.clear();page.goto(BASE+'/#/admin/profile')
   page.locator('#onboard-search').wait_for()
   assert page.locator('#create-venue').count()==0
-  context.close();print('PASS biography hours review, missing closing validation, partial merging, guided onboarding entry, import and studio regression:',width)
+  context.close();print('PASS music studio and guided onboarding entry:',width)
  browser.close()

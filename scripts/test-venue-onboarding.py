@@ -22,7 +22,7 @@ try:
     owned=[];creates=[];registrations=[];publications=[];first_failure=[scenario=='google']
     page.add_init_script("localStorage.setItem('amplify-mode','live')")
     def api(route):
-     path=urlsplit(route.request.url).path;method=route.request.method;body=route.request.post_data_json if method in ['POST','PUT'] and route.request.post_data else None;result={};code=200
+     path=urlsplit(route.request.url).path;method=route.request.method;body=route.request.post_data_json if method in ['POST','PUT','PATCH'] and route.request.post_data else None;result={};code=200
      if method=='OPTIONS':pass
      elif path=='/api/auth/register':
       registrations.append(body);result=dict(token='synthetic-admin-session',user=dict(id=OWNER,name='Owner',email='owner@example.test'))
@@ -45,14 +45,14 @@ try:
      elif path==f'/api/admin/venues/{ID}/photos':
       owned[0]['photos']=[dict(id='photo',url=f'/api/venues/{ID}/photos/photo',isPrimary=True)];owned[0]['coverPhotoUrl']=f'/api/venues/{ID}/photos/photo';result=owned[0]
      elif path.endswith('/photos/photo'):route.fulfill(content_type='image/webp',body=(ROOT/'web/assets/venues/bar-1.webp').read_bytes());return
-     elif path==f'/api/admin/venues/{ID}' and method=='PUT':owned[0].update(body);result=owned[0]
+     elif path==f'/api/admin/venues/{ID}' and method in ['PUT','PATCH']:owned[0].update(body['changes'] if method=='PATCH' else body);result=owned[0]
      elif path==f'/api/venues/{ID}':result=owned[0]
      elif path.endswith('/request-access'):result=dict(mode=owned[0]['requestAccessMode'],radiusMeters=100,requiresQr=False)
      elif path.endswith('/spotify/status'):result=dict(connected=False,premium=False)
      elif path.endswith('/stats'):result=dict(tracks=0,repeats=0,synced=0,days=[])
      elif path.endswith('/requests') or path.endswith('/request-commands') or path.endswith('/blocked') or path.endswith('/allowed'):result=[]
      elif path=='/api/venues':result=[v for v in owned if v['published'] and v['coverPhotoUrl']]
-     route.fulfill(status=code,content_type='application/json',body=json.dumps(result),headers={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'*','Access-Control-Allow-Methods':'GET,POST,PUT,DELETE,OPTIONS'})
+     route.fulfill(status=code,content_type='application/json',body=json.dumps(result),headers={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'*','Access-Control-Allow-Methods':'GET,POST,PUT,PATCH,DELETE,OPTIONS'})
     def handle(route):
      url=route.request.url
      if url.startswith(BASE):route.continue_();return
@@ -103,16 +103,17 @@ try:
     else:assert creates[-1]['openingHours']==''
     assert not publications and page.locator('[data-onboard=review-publication]').is_disabled()
     page.screenshot(path=str(SHOTS/f'{scenario}-ready-{width}.png'),full_page=True)
-    page.get_by_role('link',name='Agregar foto',exact=False).click();page.locator('#venue-update').wait_for();assert page.locator('.toca-registration-banner').count()==1
+    page.get_by_role('link',name='Agregar foto',exact=False).click();page.locator('#toca-photo-input').wait_for(state='attached')
     if scenario=='manual':
-     previous_form=page.locator('#venue-update').element_handle()
-     page.locator('#venue-update [name=name]').fill('Edited draft')
-     page.get_by_role('button',name='Guardar cambios del bar').click();page.wait_for_function('(form)=>!form.isConnected',arg=previous_form)
-     assert page.locator('#venue-update [name=name]').input_value()=='Edited draft'
+     page.locator('.breadcrumbs a').click();page.get_by_role('link',name='Editar datos',exact=False).click()
+     page.locator('#profile-name').fill('Edited draft');page.get_by_role('button',name='Guardar cambios',exact=True).click()
+     page.locator('.identity h2').filter(has_text='Edited draft').wait_for()
+     page.get_by_role('link',name='Agregar foto',exact=False).click()
     page.locator('#toca-photo-input').set_input_files(str(ROOT/'web/assets/venues/bar-1.webp'))
-    page.wait_for_function("!!state.detail?.coverPhotoUrl")
+    page.locator('.toca-photo-item').wait_for()
     assert not owned[0]['published'] and not publications
-    page.locator('.toca-registration-banner a').click();page.locator('[data-onboard=review-publication]').wait_for()
+    page.locator('.breadcrumbs a').click();page.locator('.identity').wait_for()
+    page.get_by_role('link',name='Revisar publicación',exact=False).click();page.locator('[data-onboard=review-publication]').wait_for()
     page.locator('[data-onboard=review-publication]').click();page.locator('[data-onboard=publish]').click()
     page.get_by_role('heading',name='Tu bar ya está publicado.').wait_for();assert publications==['PUT']
     if scenario=='google':

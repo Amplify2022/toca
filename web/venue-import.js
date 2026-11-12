@@ -16,7 +16,9 @@
   };
   const icon = name => `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${shapes[name]||shapes.info}</svg>`;
   const safeLink = value => {try {const url=new URL(value);return url.protocol==='https:'?url.href:''} catch {return ''}};
-  const formFor = box => box.closest('section.toca-profile-editor')?.querySelector('#venue-update') || document.getElementById('create-venue');
+  // A detached comparison model lets the update page reuse preview/selection
+  // without mounting a second, hidden profile editor under the search form.
+  const formFor = box => box._comparisonModel || box.closest('section.toca-profile-editor')?.querySelector('#venue-update') || document.getElementById('create-venue');
   const sourceFor = box => box.querySelector('[data-import-source]:checked')?.value || 'google';
   let serial = 0;
 
@@ -177,6 +179,10 @@
       ${draft.attributions?.filter(Boolean).length?`<p class="toca-import-attribution">${esc(draft.attributions.filter(Boolean).join(' · '))}</p>`:''}
     </section>`;
     selectedSummary(box);
+    if(box._commitSelection){
+      box.querySelector('[data-import-apply]').innerHTML=`Guardar cambios seleccionados ${icon('check')}`;
+      box.querySelector('.toca-import-save-note').textContent='Si cambia la ubicación, vas a confirmar el pin antes de guardar.';
+    }
   }
   function setBusy(box,busy) {
     const button=box.querySelector('[data-import-search]');button.disabled=busy;
@@ -239,6 +245,19 @@
     const fields=box._draft.fields||{},checked=new Set([...box.querySelectorAll('[data-import-field]:checked')].map(x=>x.dataset.importField));
     if(!checked.size)return;
     const hours=bioHoursState(box);if(hours.selected&&!hours.valid)return;
+    if(box._commitSelection){
+      const selected={};
+      for(const key of checked){
+        if(key==='location'){selected.latitude=fields.latitude;selected.longitude=fields.longitude;}
+        else if(key==='bioHours'){applyBioHours(form,hours.days);selected.openingHours=window.tocaSerializeHours(form);}
+        else if(Object.hasOwn(labels,key))selected[key]=fields[key];
+      }
+      button.disabled=true;
+      try{await box._commitSelection(selected);}
+      catch(error){if(box.isConnected){let message=box.querySelector('[data-import-save-error]');if(!message){message=document.createElement('p');message.dataset.importSaveError='true';message.setAttribute('role','alert');message.className='toca-import-reference';output.append(message);}message.textContent=error.message;}}
+      finally{if(button.isConnected)selectedSummary(box);}
+      return;
+    }
     for(const key of checked) {
       if(key==='location')continue;
       if(key==='bioHours'){applyBioHours(form,hours.days);continue;}

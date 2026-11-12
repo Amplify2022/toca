@@ -13,18 +13,18 @@ with sync_playwright() as p:
   elif path=='/api/admin/venues':data=[venue]
   elif path==f'/api/venues/{ID}':data=venue
   elif path.endswith('/request-access'):
-   if route.request.method=='PUT':mode[0]=route.request.post_data_json['mode'];saves.append(mode[0])
+   if route.request.method=='PUT':mode[0]=route.request.post_data_json['mode'];venue['requestAccessMode']=mode[0];saves.append(mode[0])
    data=dict(mode=mode[0],radiusMeters=100,requiresQr=False)
   elif path.endswith('/spotify/status'):data=dict(connected=False,premium=False)
   route.fulfill(content_type='application/json',body=json.dumps(data),headers={'Access-Control-Allow-Origin':'*'})
  page.route('http://localhost:8080/**',api);page.route('https://**/*',lambda route:route.abort())
- page.goto('http://localhost:5173/#/admin/profile')
- group=page.locator('.toca-access-settings');group.wait_for()
- assert 'QR vigente' not in group.inner_text()
- group.locator('input[value="ANYWHERE"]').check();group.locator('[data-toca-access-save]').click()
- page.wait_for_function("document.querySelector('[data-toca-access-status]')?.textContent.includes('guardada')")
- group.locator('input[value="NEARBY"]').check();group.locator('[data-toca-access-save]').click()
- page.wait_for_timeout(200)
+ for selected in ['ANYWHERE','NEARBY']:
+  page.goto('http://localhost:5173/#/admin/profile/access')
+  group=page.locator('#venue-profile-form');group.wait_for()
+  assert 'QR vigente' not in group.inner_text()
+  group.locator('input[value="'+selected+'"]').check()
+  page.get_by_role('button',name='Guardar configuración').click()
+  page.locator('[data-venue-profile] .identity').wait_for()
  assert saves==['ANYWHERE','NEARBY'],saves
  print('PASS Mi Bar switches ANYWHERE/NEARBY without requiring QR')
  browser.close()

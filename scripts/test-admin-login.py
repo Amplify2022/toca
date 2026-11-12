@@ -63,7 +63,7 @@ try:
     if name=='omitted daily list':
      assert page.locator('.toca-ad-metric strong').all_text_contents()[:3]==['0','0','0']
      page.screenshot(path=f'/tmp/toca-dashboard-after-login-{width}.png',full_page=True)
-     page.goto(base+'/#/admin/profile');page.locator('#venue-update').wait_for()
+     page.goto(base+'/#/admin/profile');page.locator('[data-venue-profile] .identity').wait_for()
     context.close();print('PASS real login -> dashboard:',width,name)
   browser.close()
 finally:server.shutdown()

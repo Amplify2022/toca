@@ -306,6 +306,54 @@ class ApiController(private val db:Db,private val auth:Auth,private val spotify:
             (body["description"] as? String)?.take(2000)?:"",(body["genre"] as? String)?.take(160)?:"",normalizeInstagram(body["instagramHandle"]),openingHours,lat,lon,safeUuid(id))
         return adminVenue(venueById(id))
     }
+    /** Independent editors only change their submitted fields, never a stale full profile. */
+    @Patch("/admin/venues/{id}") fun patchVenue(id:String,
+        @Header(value="Authorization",defaultValue="") authorization:String,
+        @Body body:Map<String,Any?>):Map<String,Any?> {
+        val owned=ownerVenue(id,authorization)
+        val columns=mapOf("name" to "name","address" to "address","city" to "city","description" to "description",
+            "genre" to "genre","instagramHandle" to "instagram_handle","openingHours" to "opening_hours",
+            "latitude" to "latitude","longitude" to "longitude")
+        val changes=body["changes"] as? Map<*,*> ?: fail(HttpStatus.BAD_REQUEST,"Cambios inválidos")
+        val expected=body["expected"] as? Map<*,*> ?: fail(HttpStatus.BAD_REQUEST,"Falta la versión de los datos que revisaste")
+        if(changes.isEmpty() || changes.keys.any { it !in columns } || changes.keys!=expected.keys)
+            fail(HttpStatus.BAD_REQUEST,"Campos de actualización inválidos")
+        val geo=changes.keys.any {it in setOf("address","city","latitude","longitude")}
+        if(geo && (body["locationConfirmed"]!=true || !changes.containsKey("latitude") || !changes.containsKey("longitude")))
+            fail(HttpStatus.BAD_REQUEST,"Confirmá el pin de la nueva ubicación")
+        val limits=mapOf("name" to 160,"address" to 240,"city" to 120,"description" to 2000,"genre" to 160,"instagramHandle" to 160,"openingHours" to 180)
+        val values=changes.map { (rawKey,value) ->
+            val key=rawKey as String
+            key to if(key in setOf("latitude","longitude")) {
+                val number=(value as? Number)?.toDouble() ?: fail(HttpStatus.BAD_REQUEST,"Coordenadas inválidas")
+                if(!number.isFinite() || (key=="latitude" && number !in -90.0..90.0) || (key=="longitude" && number !in -180.0..180.0))
+                    fail(HttpStatus.BAD_REQUEST,"Coordenadas inválidas")
+                number
+            } else {
+                val text=(value as? String) ?: fail(HttpStatus.BAD_REQUEST,"Dato inválido: $key")
+                if(text.length>limits.getValue(key))fail(HttpStatus.BAD_REQUEST,"Dato demasiado largo: $key")
+                if(key in setOf("name","address","city") && text.trim().length<(if(key=="name")2 else if(key=="address")4 else 1))
+                    fail(HttpStatus.BAD_REQUEST,"Completá el nombre, la dirección y la ciudad")
+                if(key=="instagramHandle")normalizeInstagram(text) else text.trim()
+            }
+        }.toMap()
+        val saved=db.transaction {
+            val current=db.one("SELECT * FROM venue WHERE id=? AND owner_id=? FOR UPDATE",safeUuid(id),owned["owner_id"])
+                ?: fail(HttpStatus.NOT_FOUND,"Bar no encontrado")
+            for(key in values.keys) {
+                val actual=current[columns.getValue(key)]
+                val same=if(key in setOf("latitude","longitude"))
+                    (actual as? Number)?.toDouble()==(expected[key] as? Number)?.toDouble()
+                else actual?.toString().orEmpty()==(expected[key] as? String).orEmpty()
+                if(!same)fail(HttpStatus.CONFLICT,"Estos datos cambiaron en otra pantalla. Recargá y revisá los cambios antes de guardar.")
+            }
+            if(geo)requestCommands.requireMutable(safeUuid(id))
+            val assignments=values.keys.joinToString(",") { columns.getValue(it)+"=?" }
+            db.exec("UPDATE venue SET $assignments,updated_at=now() WHERE id=?",*(values.values.toList()+safeUuid(id)).toTypedArray())
+            venueById(id)
+        }
+        return adminVenue(saved)
+    }
     /** Delete a bar only when the authenticated user owns it.
      *  Venue child records are deleted by PostgreSQL ON DELETE CASCADE constraints.
      *  This never deletes the administrator account or the external Spotify playlist.

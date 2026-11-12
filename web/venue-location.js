@@ -161,7 +161,8 @@ Buscar en el mapa
   })};}
   window.tocaInitVenueLocation = async () => {
     const widget=document.querySelector('.toca-location-widget');
-    if(!widget || (widget===activeWidget && activeMap))return;
+    if(!widget)return;
+    if(widget===activeWidget && activeMap){activeMap.invalidateSize({pan:false});return;}
     if(activeMap){try{activeMap.remove()}catch(_){} activeMap=null;activeMarker=null;}
     activeWidget=widget;
     setFeedback(widget,'Cargando mapa...');
