@@ -56,6 +56,8 @@ Abrí estos enlaces:
 
 Los seis bares, las imágenes ambientales y las canciones del demo son **datos ilustrativos**. No hay reproducción ni pagos reales en modo demo. El mapa tiene una representación local sin conexión y las coordenadas son ficticias de demostración. La vista `/map` puede operar sin servicios de terceros; cuando hay conexión intenta cargar cartografía OpenStreetMap mediante Leaflet, conservando la ilustración como fallback.
 
+**Prototipo de tokens J + H:** abrí http://localhost:5173/prototypes/tokens/ para probar el perfil, las recargas simuladas y los pedidos con saldo. Es independiente de las cuentas y los pedidos reales. [Recorrido, controles de prueba y alcance](docs/token-wallet-prototype.md).
+
 ### Abrir en un celular conectado a la misma red
 
 Obtené la IP LAN de tu computadora (por ejemplo `192.168.1.25`). Desde el celular, visitá `http://192.168.1.25:5173/#/explore`. Asegurate de que el firewall permita acceso a la computadora; el servidor Python escucha por defecto en todas las interfaces. Un QR impreso no debe usar `localhost` cuando lo va a abrir otro dispositivo: `localhost` en el celular apunta al propio celular. Para instalar la PWA como aplicación y usar funciones avanzadas, conviene HTTPS; los navegadores exigen un contexto seguro para muchas de ellas.
