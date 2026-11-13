@@ -5,6 +5,8 @@ import io.micronaut.http.HttpStatus
 import jakarta.inject.Singleton
 import java.util.UUID
 
+data class MusicPlaylistRevision(val id:String,val name:String,val snapshot:String)
+
 data class MusicPlaylist(val id:String,val name:String,val snapshot:String,val tracks:List<Map<String,Any?>>) {
     val ids get()=tracks.map { it["id"] as? String }
 }

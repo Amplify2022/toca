@@ -539,6 +539,13 @@ class Spotify(
         apiPost(path,access(venueId))
     }
 
+    fun adminPlaylistRevision(venue:UUID,playlist:String):MusicPlaylistRevision {
+        val metadata=apiGet("/playlists/${enc(playlist)}?fields=name,snapshot_id",access(venue))
+            ?:fail(HttpStatus.BAD_GATEWAY,"Playlist no disponible")
+        val snapshot=metadata.path("snapshot_id").asText("")
+        if(snapshot.isBlank())fail(HttpStatus.BAD_GATEWAY,"Spotify no devolvió la versión de la playlist")
+        return MusicPlaylistRevision(playlist,metadata.path("name").asText("Playlist"),snapshot)
+    }
     fun adminPlaylist(venue:UUID,playlist:String):MusicPlaylist = withRequestBudget {
         val token=access(venue)
         val metadata=apiGet("/playlists/${enc(playlist)}",token)?:fail(HttpStatus.BAD_GATEWAY,"Playlist no disponible")

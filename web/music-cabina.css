@@ -30,3 +30,5 @@
 .cabina-player-sync:empty{display:none}.cabina-player .cabina-player-sync{color:#c6e9a7;font-size:9px}
 
 .toca-cabina[data-cabina-reorder-enabled] .cabina-track .cabina-song{cursor:grab;user-select:none;-webkit-user-select:none}.toca-cabina[data-cabina-dragging=pointer] .cabina-track{cursor:grabbing}.cabina-drag-preview{position:fixed;z-index:110;pointer-events:none;width:min(310px,calc(100vw - 16px));padding:12px 14px;background:#233c23;border:1px solid var(--lime);border-radius:10px;box-shadow:0 12px 36px #0009;opacity:.96;user-select:none}.cabina-drag-preview>small{display:block;margin-top:9px;color:#c1f68d;font-size:11px}.cabina-drag-preview .cabina-song-meta{flex:1}.toca-cabina[data-cabina-dragging=pointer] .cabina-track-list{overscroll-behavior:contain}
+
+.cabina-track-head,.cabina-track-list{scrollbar-gutter:stable;scrollbar-width:thin}.cabina-track-head{overflow-y:hidden}.cabina-duration-head,.cabina-duration{text-align:center}.cabina-sync-note{color:#8fa682;font-size:10px;text-align:right;line-height:1.6}@media(max-width:760px){.cabina-sync-note{font-size:9px;max-width:115px}}

@@ -42,6 +42,7 @@ with sync_playwright() as p:
     controls.append(body)
     if hold_control[0]:hold_control[0]=False;held.append((route,body));return
     apply_control(body);return reply(route,dict(accepted=True))
+   if path.endswith('/music/playlist/revision'):return reply(route,dict(playlist={k:playlist[k] for k in ['id','name','snapshot']},operation=pending[0]))
    if path.endswith('/music/playlist'):
     if external[0]:external[0]=False;playlist['tracks'].insert(0,CAT[X].copy());bump()
     return reply(route,dict(playlist=lag.pop(0) if lag else playlist,operation=pending[0]))

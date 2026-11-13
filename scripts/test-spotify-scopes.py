@@ -44,6 +44,7 @@ try:
      elif path==f'/api/venues/{ID}':data=venue
      elif path.endswith('/spotify/status'):data=dict(connected=True,profile='Saved account',controlEnabled=True,playlistWriteEnabled=True,playlistId=playlist['id'],deviceId='',browserMissingScopes=[] if authorized[0] else ['streaming'] if mode=='known-missing' else None)
      elif path.endswith('/spotify/authorize'):authorizations.append(req.headers.get('authorization'));data=dict(url=BASE+'/oauth-consent')
+     elif path.endswith('/music/playlist/revision'):data=dict(playlist={k:playlist[k] for k in ['id','name','snapshot']},operation=None)
      elif path.endswith('/music/playlist'):data=dict(playlist=playlist,operation=None)
      elif path.endswith('/music/browser-token'):
       token_requests.append(req.headers.get('authorization'))

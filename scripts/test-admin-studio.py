@@ -49,6 +49,7 @@ with sync_playwright() as p:
     if profile=='missing.profile':
      route.fulfill(status=503,content_type='application/json',body=json.dumps(dict(message='El proveedor no está disponible. Intentá nuevamente.')),headers={'Access-Control-Allow-Origin':'*'});return
     data=dict(source='Instagram',fields=dict(name='BLUZZ BAR',description=BIO,instagramHandle='bar.ig'),warnings=['Instagram no publica dirección ni horarios estructurados mediante esta API. Revisá la biografía y completá los campos faltantes.'],details={},sourceUrl='https://www.instagram.com/bar.ig/')
+   elif path.endswith('/music/playlist/revision'):data=dict(playlist={k:playlist[k] for k in ['id','name','snapshot']},operation=operation[0])
    elif path.endswith('/music/playlist'):playlist_reads.append(path);data=dict(playlist=playlist,operation=operation[0])
    elif path.endswith('/music/player'):
     if method=='POST':
@@ -174,8 +175,9 @@ with sync_playwright() as p:
    page.wait_for_function("document.querySelector('[data-track-index=\"1\"] strong').textContent==='Track B'")
   # Long lists scroll internally without extending the document past its layout.
   original_tracks=playlist['tracks'][:]
+  version[0]+=1;playlist['snapshot']='s'+str(version[0])
   playlist['tracks']=original_tracks+[dict(id=str(i).zfill(22),title='Extra song '+str(i),artist='Test band',durationMs=180000) for i in range(30)]
-  root.locator('[data-studio-refresh]').click()
+  page.evaluate("window.dispatchEvent(new Event('focus'))")
   page.wait_for_function("n=>document.querySelectorAll('[data-track-index]').length===n",arg=len(playlist['tracks']))
   page.set_viewport_size(dict(width=width,height=600))
   for scroll in [0,100000]:
@@ -188,9 +190,9 @@ with sync_playwright() as p:
    else:assert layout['player']['bottom']<=layout['nav']['top']+1,layout
   root.locator('.cabina-track-list').evaluate('e=>e.scrollTop=e.scrollHeight')
   page.screenshot(path=f'{SHOTS}/toca-music-scroll-{width}.png')
-  playlist['tracks']=original_tracks
+  playlist['tracks']=original_tracks;version[0]+=1;playlist['snapshot']='s'+str(version[0])
   page.set_viewport_size(dict(width=width,height=1000))
-  root.locator('[data-studio-refresh]').click()
+  page.evaluate("window.dispatchEvent(new Event('focus'))")
   page.wait_for_function("n=>document.querySelectorAll('[data-track-index]').length===n",arg=len(original_tracks))
   page.evaluate('window.scrollTo(0,0)')
   page.screenshot(path=f'{SHOTS}/toca-studio-{width}.png',full_page=True,style='.cabina-player{position:static!important;margin-top:30px!important}.toca-cabina{padding-bottom:0!important}.toca-admin-mobile-nav{position:static!important}.toca-admin-content{padding-bottom:30px!important}')
@@ -230,7 +232,7 @@ with sync_playwright() as p:
   assert root.locator('dialog[open]').count()==0
   # A pending write locks create/add/rename/selection, but keeps playback available.
   operation[0]=dict(id='88888888-8888-4888-8888-888888888888',action='add',status='UNCERTAIN',message='Verificando cambio')
-  root.locator('[data-studio-refresh]').click();root.locator('[data-studio-reconcile]').wait_for()
+  page.evaluate("window.dispatchEvent(new Event('focus'))");root.locator('[data-studio-reconcile]').wait_for()
   assert root.locator('[data-cabina-open="add"]').is_disabled()
   assert root.locator('.cabina-playlist-selector').is_disabled()
   assert root.locator('[data-studio-create]').is_disabled()

@@ -28,6 +28,7 @@ with sync_playwright() as p:
    elif path=='/api/admin/venues':data=[venue]
    elif path==f'/api/venues/{ID}':data=venue
    elif path.endswith('/spotify/status'):data=dict(connected=True,controlEnabled=True,playlistWriteEnabled=True,playlistId=playlist['id'],deviceId=playback['device']['id'])
+   elif path.endswith('/music/playlist/revision'):data=dict(playlist={k:playlist[k] for k in ['id','name','snapshot']},operation=None)
    elif path.endswith('/music/playlist'):data=dict(playlist=playlist,operation=None)
    elif path.endswith('/music/browser-token'):data=dict(accessToken='synthetic-spotify-token',expiresIn=60)
    elif path.endswith('/spotify/device'):devices.append(body);playback['device']['id']=body['deviceId'];data={}

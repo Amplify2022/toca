@@ -4,6 +4,7 @@
  const musicPath=id=>`/api/admin/venues/${encodeURIComponent(id)}/music`;
  const time=n=>{const seconds=Math.floor(Math.max(0,Number(n)||0)/1000);return `${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`};
  const key=id=>'toca-music-edit:'+id;
+ const syncChannel=typeof BroadcastChannel==='function'?new BroadcastChannel('toca-playlist-changes'):null;
  const live=ctx=>!!ctx&&ctx===current&&ctx.root.isConnected&&ctx.session===state.token&&ctx.id===state.venueId;
  const notify=(ctx,message,transient=false)=>{
   if(!live(ctx))return;
@@ -11,7 +12,7 @@
   ctx.root.querySelector('[data-studio-status]').textContent=message;window.tocaCabinaNotify?.(ctx,message);
   if(transient){const version=ctx.noticeVersion;ctx.noticeTimer=setTimeout(()=>{if(live(ctx)&&ctx.noticeVersion===version&&ctx.root.querySelector('[data-studio-status]').textContent===message){ctx.root.querySelector('[data-studio-status]').textContent='';window.tocaCabinaNotify?.(ctx,'')}},5000);}
  };
- const dispose=ctx=>{if(ctx){clearInterval(ctx.timer);clearInterval(ctx.clockTimer);clearTimeout(ctx.noticeTimer);clearTimeout(ctx.feedbackTimer)}};
+ const dispose=ctx=>{if(ctx){clearInterval(ctx.timer);clearInterval(ctx.clockTimer);clearInterval(ctx.syncTimer);clearTimeout(ctx.syncSoon);clearTimeout(ctx.noticeTimer);clearTimeout(ctx.feedbackTimer)}};
  const browserAuthorizationError=()=>Object.assign(Error('Renová los permisos de Spotify para activar el audio del navegador. Usá la misma cuenta para conservar tu playlist.'),{browserAuthorization:true});
  function reportError(ctx,error){
   if(!live(ctx))return;
@@ -31,16 +32,46 @@
   if(!live(ctx))return;
   const incoming=data.playlist;ctx.operation=data.operation;if(data.error)notify(ctx,data.error);
   if(!data.error){if(ctx.playlist?.id!==incoming?.id)ctx.retiredSnapshots=new Set();if(!incoming||incoming.id!==ctx.playlist?.id||!ctx.retiredSnapshots?.has(incoming.snapshot))ctx.playlist=incoming;}
-  const root=ctx.root,playlist=ctx.playlist;
+  ctx.playlistError=data.error||null;
+  const root=ctx.root,playlist=ctx.playlist,fingerprint=JSON.stringify(playlist);
+  if(ctx.playlistFingerprint!==fingerprint){
+  ctx.playlistFingerprint=fingerprint;
   root.querySelector('[data-studio-playlist-name]').textContent=playlist?playlist.name:'Elegí tu playlist';
   if(!root.querySelector('[data-cabina-dialog="name"][open]'))root.querySelector('[data-studio-name]').value=playlist?.name||'';
-  root.querySelector('[data-studio-tracks]').innerHTML=window.tocaCabinaTracks(ctx);
+  const list=root.querySelector('[data-studio-tracks]'),scroll=list.scrollTop;
+  list.innerHTML=window.tocaCabinaTracks(ctx);list.scrollTop=scroll;
   window.tocaCabinaPlaylistUpdated?.(ctx);
+  }
   const saved=sessionStorage.getItem(key(ctx.id));
   root.querySelector('[data-studio-operation]').innerHTML=ctx.operation?`<div class="cabina-notice"><div><strong>Cambio pendiente de verificación.</strong><p>${esc(ctx.operation.message||'Consultá el resultado antes de volver a editar.')}</p></div><button type="button" class="btn small" data-studio-reconcile>Consultar resultado</button><button type="button" class="btn small" data-studio-accept>Aceptar estado actual</button></div>`:saved?'<div class="cabina-notice"><p>No se confirmó el último cambio. Consultá su resultado para continuar.</p><button type="button" class="btn small" data-studio-recover>Consultar resultado</button></div>':'';
   updateButtons(ctx);
  }
- async function reload(ctx){const generation=(ctx.playlistGeneration||0)+1;ctx.playlistGeneration=generation;const data=await api(musicPath(ctx.id)+'/playlist');if(!live(ctx)||generation!==ctx.playlistGeneration)return ctx.playlist;renderPlaylist(ctx,data);ctx.refreshedAt=Date.now();if(data.error)throw Error(data.error);return ctx.playlist}
+ async function reload(ctx,background=false){const generation=(ctx.playlistGeneration||0)+1;ctx.playlistGeneration=generation;const data=await api(musicPath(ctx.id)+'/playlist');if(!live(ctx)||generation!==ctx.playlistGeneration||(background&&syncBlocked(ctx)))return ctx.playlist;renderPlaylist(ctx,data);ctx.settings.playlistId=ctx.playlist?.id||'';state.spotify.playlistId=ctx.settings.playlistId;if(data.error)throw Error(data.error);return ctx.playlist}
+ const syncBlocked=ctx=>!live(ctx)||state.demo||document.hidden||ctx.busy||ctx.root.hasAttribute('data-cabina-dragging')||!!ctx.root.querySelector('dialog[open]');
+ function syncStatus(ctx,message='Se actualiza automáticamente'){
+  if(live(ctx))ctx.root.querySelector('[data-playlist-sync]').textContent=message;
+ }
+ async function syncPlaylist(ctx,force=false){
+  if(syncBlocked(ctx)||ctx.syncing||(!force&&Date.now()<(ctx.syncRetryAt||0)))return;
+  ctx.syncing=true;const generation=ctx.playlistGeneration;
+  try{
+   const data=await api(musicPath(ctx.id)+'/playlist/revision');
+   if(syncBlocked(ctx)||generation!==ctx.playlistGeneration)return;
+   const revision=data.playlist,previous=ctx.playlist;
+   if(ctx.playlistError||revision?.id!==previous?.id||revision?.snapshot!==previous?.snapshot||revision?.name!==previous?.name||JSON.stringify(data.operation)!==JSON.stringify(ctx.operation))await reload(ctx,true);
+   if(!live(ctx))return;
+   ctx.syncFailures=0;ctx.syncRetryAt=0;syncStatus(ctx);
+  }catch(error){
+   if(!live(ctx)||error.name==='AbortError')return;
+   ctx.syncFailures=(ctx.syncFailures||0)+1;
+   ctx.syncRetryAt=Date.now()+(error.status===429?60000:Math.min(60000,5000*2**Math.min(ctx.syncFailures-1,4)));
+   syncStatus(ctx,'Sincronización pendiente · reintentando…');
+  }finally{ctx.syncing=false}
+ }
+ function syncSoon(ctx){if(!live(ctx))return;clearTimeout(ctx.syncSoon);ctx.syncSoon=setTimeout(()=>void syncPlaylist(ctx,true),0)}
+ function playlistChanged(ctx){syncChannel?.postMessage({venueId:ctx.id});}
+ if(syncChannel)syncChannel.onmessage=event=>{if(live(current)&&event.data?.venueId===current.id)syncSoon(current)};
+ document.addEventListener('close',event=>{if(event.target.matches?.('.cabina-dialog')&&live(current))syncSoon(current)},true);
  async function refreshActivity(ctx){
   if(!live(ctx)||state.demo)return;
   const rows=await fetchRequests(ctx.id);if(!live(ctx))return;
@@ -78,7 +109,7 @@
    await api(`/api/admin/venues/${ctx.id}/spotify/playlist`,{method:'PUT',body:{playlistId}});if(!live(ctx))return;
    ctx.settings.playlistId=playlistId;state.spotify.playlistId=playlistId;
    localStorage.setItem(tocaPlaylistNameKey(ctx.id,playlistId),selector.selectedOptions[0].textContent);
-   await reload(ctx);window.tocaCabinaClose?.(ctx);notify(ctx,'Playlist seleccionada. La reproducción actual sigue igual.');
+   playlistChanged(ctx);await reload(ctx);window.tocaCabinaClose?.(ctx);notify(ctx,'Playlist seleccionada. La reproducción actual sigue igual.');
   }finally{ctx.busy=false;updateButtons(ctx)}
  }
  document.addEventListener('cabina-playlists',()=>{const ctx=current;if(live(ctx))void loadPlaylists(ctx).catch(error=>notify(ctx,error.message));});
@@ -142,8 +173,8 @@
    const data=await api(musicPath(ctx.id)+'/player');if(!live(ctx)||generation!==ctx.playbackGeneration)return;
    if(!ctx.pendingPlayback&&browserOutput(ctx)&&ctx.sdkSampledAt&&performance.now()-ctx.sdkSampledAt<2000&&data.device?.id===browser.deviceId){ctx.playback={...ctx.playback,device:data.device,repeat:data.repeat,shuffle:data.shuffle};renderPlayback(ctx);}
    else window.tocaMusicPlayback.sample(ctx,data);
-   if(Date.now()-(ctx.refreshedAt||Date.now())>20000&&!ctx.busy&&!ctx.controlling&&!ctx.root.querySelector('dialog[open]')&&!ctx.root.hasAttribute('data-cabina-dragging')){
-    ctx.refreshedAt=Date.now();if(await refreshActivity(ctx))if(live(ctx)&&!ctx.busy&&!ctx.root.querySelector('dialog[open]')&&!ctx.root.hasAttribute('data-cabina-dragging'))await reload(ctx);
+   if(Date.now()-(ctx.activityRefreshedAt||0)>20000){
+    ctx.activityRefreshedAt=Date.now();await refreshActivity(ctx);
    }
   }catch(error){if(generation===ctx.playbackGeneration)notify(ctx,error.message)}finally{if(generation===ctx.playbackGeneration)ctx.polling=false}
  }
@@ -179,6 +210,7 @@
     if(terminal)sessionStorage.removeItem(key(ctx.id));
     if(attempt===0&&result.status==='FAILED'&&result.result?.code==='PLAYLIST_CHANGED'&&result.result.beforeWrite===true)continue;
     if(result.status==='COMPLETED'){
+     playlistChanged(ctx);
      if(result.result?.playlistId){ctx.settings.playlistId=result.result.playlistId;state.spotify.playlistId=result.result.playlistId;localStorage.setItem(tocaPlaylistNameKey(ctx.id,result.result.playlistId),result.result.name);}
      const confirmed=result.playlist||result.result?.playlist;
      if(confirmed){
@@ -337,13 +369,13 @@
   }catch(error){notify(ctx,error.message)}
   if(!live(ctx))return;
   try{await reload(ctx);await poll(ctx)}catch(error){notify(ctx,error.message)}
-  if(live(ctx)){ctx.timer=setInterval(()=>{if(browser&&browser.session!==state.token)stopBrowser();void poll(ctx)},7000);ctx.clockTimer=setInterval(()=>{if(!live(ctx)){dispose(ctx);return}if(!document.hidden)renderTime(ctx);if(!document.hidden&&performance.now()-(ctx.sdkReadAt||0)>=1000){ctx.sdkReadAt=performance.now();void readBrowser(ctx)}},250);}
+  if(live(ctx)){ctx.syncTimer=setInterval(()=>void syncPlaylist(ctx),7000);ctx.timer=setInterval(()=>{if(browser&&browser.session!==state.token)stopBrowser();void poll(ctx)},7000);ctx.clockTimer=setInterval(()=>{if(!live(ctx)){dispose(ctx);return}if(!document.hidden)renderTime(ctx);if(!document.hidden&&performance.now()-(ctx.sdkReadAt||0)>=1000){ctx.sdkReadAt=performance.now();void readBrowser(ctx)}},250);}
  };
  document.addEventListener('click',async event=>{
   const button=event.target.closest('[data-admin-studio] button');const ctx=current;
   if(!button||!ctx||!live(ctx)||button.disabled)return;
   try{
-   if(button.hasAttribute('data-studio-refresh')||button.hasAttribute('data-studio-recover')){await window.tocaInitAdminMusic(ctx.id,ctx.settings);await refreshActivity(current);return}
+   if(button.hasAttribute('data-studio-recover')){await window.tocaInitAdminMusic(ctx.id,ctx.settings);await refreshActivity(current);return}
    if(button.hasAttribute('data-cabina-row-play')){
     const position=Number(button.dataset.cabinaRowPlay),track=ctx.playlist?.tracks[position];if(!track?.id)return;
     await control(ctx,window.tocaCabinaIsCurrent(ctx,track)?{action:ctx.playback.isPlaying?'pause':'resume'}:{action:'start',position,trackId:track.id,playlistId:ctx.playlist.id,snapshot:ctx.playlist.snapshot});return;
@@ -380,7 +412,7 @@
      if(!confirm('¿Revisaste la lista actual? Se aceptará ese estado sin repetir la edición anterior.'))return;
      body={...(ctx.playlist?{acceptSnapshot:ctx.playlist.snapshot}:{}),...(ctx.operation.action==='create'?{acceptMissing:true}:{})};
     }
-    button.disabled=true;const result=await api(musicPath(ctx.id)+`/edits/${ctx.operation.id}/reconcile`,{method:'POST',body});if(!live(ctx))return;if(['COMPLETED','RELEASED','FAILED'].includes(result.status))sessionStorage.removeItem(key(ctx.id));notify(ctx,result.status==='COMPLETED'?'Edición confirmada.':result.message||result.status);await reload(ctx);return;
+    button.disabled=true;const result=await api(musicPath(ctx.id)+`/edits/${ctx.operation.id}/reconcile`,{method:'POST',body});if(!live(ctx))return;if(['COMPLETED','RELEASED','FAILED'].includes(result.status))sessionStorage.removeItem(key(ctx.id));if(result.status==='COMPLETED')playlistChanged(ctx);notify(ctx,result.status==='COMPLETED'?'Edición confirmada.':result.message||result.status);await reload(ctx);return;
    }
    let body;
    if(button.dataset.playerCommand)body={action:button.dataset.playerCommand};
@@ -412,7 +444,9 @@
  });
  document.addEventListener('visibilitychange',()=>{
   const ctx=current;if(document.hidden||!live(ctx))return;
-  renderTime(ctx);void readBrowser(ctx);void poll(ctx,true);
+  renderTime(ctx);void readBrowser(ctx);void poll(ctx,true);syncSoon(ctx);
  });
+ window.addEventListener('focus',()=>syncSoon(current));
+ window.addEventListener('online',()=>syncSoon(current));
  window.addEventListener('pagehide',stopBrowser);
 })();

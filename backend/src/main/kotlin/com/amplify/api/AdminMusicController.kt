@@ -20,14 +20,20 @@ class SpotifyMusicEditGateway(private val spotify:Spotify):MusicEditGateway {
 @Controller("/api/admin/venues/{id}/music")
 @ExecuteOn(TaskExecutors.BLOCKING)
 class AdminMusicController(private val auth:Auth,private val spotify:Spotify,private val edits:AdminMusic) {
-    @Get("/playlist") fun playlist(id:String,@Header(value="Authorization",defaultValue="")authorization:String):Map<String,Any?> {
+    @Get("/playlist/revision") fun revision(id:String,@Header(value="Authorization",defaultValue="")authorization:String):HttpResponse<Map<String,Any?>> {
+        val venue=auth.ownVenue(id,authorization)
+        val selected=(venue["playlist_id"] as? String).orEmpty()
+        return HttpResponse.ok(mapOf("playlist" to selected.takeIf {it.isNotBlank()}?.let {spotify.adminPlaylistRevision(safeUuid(id),it)},
+            "operation" to edits.pending(safeUuid(id)))).header("Cache-Control","no-store, private")
+    }
+    @Get("/playlist") fun playlist(id:String,@Header(value="Authorization",defaultValue="")authorization:String):HttpResponse<Map<String,Any?>> {
         val venue=auth.ownVenue(id,authorization)
         val selected=(venue["playlist_id"] as? String).orEmpty()
         var error:String?=null
         val state=if(selected.isBlank())null else try {spotify.adminPlaylist(safeUuid(id),selected)} catch(e:Exception) {
-            error="No se pudo cargar la playlist. Revisá la conexión y actualizá antes de editar.";null
+            error="No se pudo cargar la playlist. Se volverá a intentar automáticamente. Revisá la conexión.";null
         }
-        return mapOf("playlist" to state,"operation" to edits.pending(safeUuid(id)),"error" to error)
+        return HttpResponse.ok(mapOf("playlist" to state,"operation" to edits.pending(safeUuid(id)),"error" to error)).header("Cache-Control","no-store, private")
     }
     @Post("/edits/{operationId}") fun edit(id:String,operationId:String,@Header(value="Authorization",defaultValue="")authorization:String,
         @Body body:Map<String,Any?>):Map<String,Any?> {
