@@ -13,6 +13,8 @@ internal object SpotifyTrack {
         }
         return mapOf("id" to node.path("id").asText(),"title" to node.path("name").asText(),
             "artist" to node.path("artists").joinToString(", "){it.path("name").asText()},
-            "durationMs" to node.path("duration_ms").asLong(0),"imageUrl" to image)
+            "durationMs" to node.path("duration_ms").asLong(0),"imageUrl" to image,
+            "playable" to node.path("is_playable").takeIf {it.isBoolean}?.asBoolean(),
+            "isLocal" to node.path("is_local").asBoolean(false))
     }
 }

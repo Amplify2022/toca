@@ -122,7 +122,7 @@ with sync_playwright() as p:
   assert controls[-1]==dict(action='pause')
   root.locator('[data-cabina-row-play="1"]').click()
   page.wait_for_function("document.querySelector('[data-cabina-row-play=\"1\"]').textContent.includes('Pausar')")
-  assert controls[-1]==dict(action='start',position=1)
+  assert controls[-1]==dict(action='start',position=1,trackId=A,playlistId=playlist['id'],snapshot=playlist['snapshot'])
   root.locator('[data-cabina-row-play="1"]').click()
   page.wait_for_function("document.querySelector('[data-cabina-row-play=\"1\"]').textContent.includes('Reproducir')")
   assert controls[-1]==dict(action='pause')

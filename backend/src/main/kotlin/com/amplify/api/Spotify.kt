@@ -622,7 +622,8 @@ class Spotify(
             }
             "start" -> {
                 val playlist=(v["playlist_id"] as? String)?.takeIf {it.isNotBlank()}?:fail(HttpStatus.PRECONDITION_FAILED,"Creá o seleccioná una playlist")
-                apiJson("PUT","/me/player/play$suffix",token,mapOf("context_uri" to "spotify:playlist:$playlist","offset" to mapOf("position" to bounded("position",999)),"position_ms" to 0))
+                val start=MusicPlaybackStart.body(adminPlaylist(venue,playlist),body)
+                apiJson("PUT","/me/player/play$suffix",token,start)
             }
             "resume" -> apiPutEmpty("/me/player/play$suffix",token)
             "pause" -> apiPutEmpty("/me/player/pause$suffix",token)

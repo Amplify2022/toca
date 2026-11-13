@@ -1,6 +1,6 @@
 /* Admin-only player and playlist editor. OAuth refresh tokens stay on the server. */
 (() => {
- let current=null,sdkPromise=null,browser=null;
+ let current=null,sdkPromise=null,browser=null,audioSetup=null;
  const musicPath=id=>`/api/admin/venues/${encodeURIComponent(id)}/music`;
  const time=n=>{const seconds=Math.floor(Math.max(0,Number(n)||0)/1000);return `${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`};
  const key=id=>'toca-music-edit:'+id;
@@ -13,7 +13,7 @@
  };
  const dispose=ctx=>{if(ctx){clearInterval(ctx.timer);clearInterval(ctx.clockTimer);clearTimeout(ctx.noticeTimer);clearTimeout(ctx.feedbackTimer)}};
 
- function stopBrowser(){if(browser){browser.player.disconnect();browser=null}}
+ function stopBrowser(){if(browser){const registration=browser;browser=null;clearTimeout(registration.readyTimer);registration.rejectReady?.(Error('Conexión de audio cancelada.'));registration.player.disconnect();}}
  window.tocaMusicDisconnect=()=>{window.tocaCabinaReset?.();stopBrowser();if(current){dispose(current);current=null}};
  window.tocaAdminMusicMarkup=(venue,settings,options)=>window.tocaCabinaMarkup(venue,settings,options);
  function updateButtons(ctx){
@@ -48,6 +48,8 @@
  }
  async function selectDevice(ctx,button){
   button.disabled=true;
+  if(browser?.id===ctx.id){browser.selected=false;browser.selection=(browser.selection||0)+1;await browser.linkPromise?.catch(()=>{});}
+  if(!live(ctx))return;
   await api(`/api/admin/venues/${ctx.id}/spotify/device`,{method:'PUT',body:{deviceId:button.dataset.cabinaSelectDevice}});
   if(!live(ctx))return;
   ctx.settings.deviceId=button.dataset.cabinaSelectDevice;
@@ -90,7 +92,7 @@
   const repeat=root.querySelector('[data-player-repeat]');if(document.activeElement!==repeat)repeat.value=data.repeat||'off';
   renderTime(ctx);window.tocaCabinaPlaybackUpdated?.(ctx);
  }
- function browserOutput(ctx){return browser?.id===ctx.id&&browser.session===ctx.session&&browser.deviceId&&ctx.settings.deviceId===browser.deviceId&&(!ctx.playback?.device?.id||ctx.playback.device.id===browser.deviceId);}
+ function browserOutput(ctx){return browser?.id===ctx.id&&browser.selected!==false&&browser.session===ctx.session&&browser.deviceId&&ctx.settings.deviceId===browser.deviceId&&(!ctx.playback?.device?.id||ctx.playback.device.id===browser.deviceId);}
  async function readBrowser(ctx){
   if(!live(ctx)||!browserOutput(ctx)||!browser.player.getCurrentState||ctx.readingSdk)return;
   ctx.readingSdk=true;const player=browser.player;
@@ -172,13 +174,16 @@
  async function control(ctx,body){
   if(!live(ctx)||ctx.controlling)return;
   if(state.demo||!ctx.settings.controlEnabled){window.tocaCabinaShowConnection?.(ctx);notify(ctx,'El control de audio está deshabilitado en el servidor.');return}
-  if(['start','resume'].includes(body.action)&&!ctx.playback?.device?.name&&!ctx.settings.deviceId&&!browser?.deviceId){
+  if(['start','resume'].includes(body.action)&&!ctx.audioSetup&&!(audioSetup?.id===ctx.id&&audioSetup.session===ctx.session)&&!ctx.playback?.device?.name&&!ctx.settings.deviceId&&!browser?.deviceId){
    window.tocaCabinaShowConnection?.(ctx);notify(ctx,'Elegí dónde va a sonar la música: este navegador o un dispositivo disponible.');return;
   }
   const optimistic=window.tocaMusicPlayback.begin(ctx,body);
   ctx.controlling=true;ctx.playbackGeneration=(ctx.playbackGeneration||0)+1;updateButtons(ctx);
   try{
-   await browser?.player.activateElement();if(!live(ctx))return;
+   if(audioSetup?.id===ctx.id&&audioSetup.session===ctx.session)await audioSetup.promise;
+   await ctx.audioSetup;await ctx.outputSetup;
+   if(browser?.id===ctx.id&&browser.selected){await browser.ready;await browser.linkPromise;await browser.player.activateElement();}
+   if(!live(ctx))return;
    window.tocaCabinaClose?.(ctx);
    await api(musicPath(ctx.id)+'/player',{method:'POST',body});if(!live(ctx))return;
    window.tocaMusicPlayback.accepted(ctx,optimistic);notify(ctx,'Control enviado.',true);await poll(ctx,true);void readBrowser(ctx);
@@ -197,35 +202,77 @@
    script.onerror=()=>{clearTimeout(timer);script.remove();sdkPromise=null;reject(Error('No se pudo cargar el reproductor de Spotify'))};document.head.append(script);
   });
  }
- async function linkBrowser(ctx,deviceId){
-  await api(`/api/admin/venues/${ctx.id}/spotify/device`,{method:'PUT',body:{deviceId}});
-  await api(musicPath(ctx.id)+'/player',{method:'POST',body:{action:'transfer'}});
-  if(live(current)&&current.id===ctx.id&&current.session===ctx.session){
-   current.settings.deviceId=deviceId;current.playback={...current.playback,device:{...current.playback?.device,id:deviceId}};
-   current.root.querySelector('[data-browser-status]').textContent='Audio de TOCÁ conectado';
-   notify(current,'Audio listo. Pulsá Reproducir playlist.');await poll(current);
-  }
+ async function linkBrowser(ctx,deviceId,registration,forceTransfer=false){
+  if(browser!==registration||!registration.selected||ctx.session!==state.token)return;
+  if(registration.linkedDevice===deviceId&&!forceTransfer)return registration.linkPromise;
+  if(registration.linkingDevice===deviceId&&registration.linkPromise)return registration.linkPromise;
+  const selection=registration.selection,previous=registration.linkPromise;
+  registration.linkingDevice=deviceId;
+  const valid=()=>browser===registration&&registration.selected&&registration.selection===selection&&registration.session===state.token&&registration.deviceId===deviceId;
+  const linking=(async()=>{
+   await previous?.catch(()=>{});if(!valid())return;
+   await api(`/api/admin/venues/${ctx.id}/spotify/device`,{method:'PUT',body:{deviceId}});
+   if(!valid())return;
+   if(!registration.transferred||forceTransfer){
+    await api(musicPath(ctx.id)+'/player',{method:'POST',body:{action:'transfer'}});
+    if(!valid())return;
+    registration.transferred=true;
+   }
+   registration.linkedDevice=deviceId;
+   if(live(current)&&current.id===ctx.id&&current.session===ctx.session){
+    current.settings.deviceId=deviceId;current.playback={...current.playback,device:{...current.playback?.device,id:deviceId}};
+    current.root.querySelector('[data-browser-status]').textContent='Audio de TOCÁ conectado';
+    notify(current,'Audio listo. Pulsá Reproducir playlist.');await poll(current);
+   }
+  })();
+  registration.linkPromise=linking;
+  try{await linking}finally{if(registration.linkPromise===linking)registration.linkingDevice=null;}
+ }
+ function prepareBrowserReady(registration){
+  clearTimeout(registration.readyTimer);
+  registration.ready=new Promise((resolve,reject)=>{
+   registration.resolveReady=()=>{clearTimeout(registration.readyTimer);resolve()};
+   registration.rejectReady=error=>{clearTimeout(registration.readyTimer);reject(error)};
+  });
+  registration.ready.catch(()=>{});
+  registration.readyTimer=setTimeout(()=>registration.rejectReady(Error('No se pudo preparar el audio del navegador. Volvé a conectarlo.')),20000);
  }
  async function connect(ctx){
-  if(browser?.id===ctx.id){await browser.player.activateElement();if(browser.deviceId)await linkBrowser(ctx,browser.deviceId);else if(!await browser.player.connect())throw Error('No se pudo reconectar el audio');return}
+  if(browser?.id===ctx.id&&browser.session===ctx.session){
+   const registration=browser,wasSelected=registration.selected;
+   registration.selected=true;await registration.player.activateElement();
+   if(!registration.available){prepareBrowserReady(registration);if(!await registration.player.connect()){const error=Error('No se pudo reconectar el audio del navegador.');registration.rejectReady(error);throw error;}}
+   await registration.ready;
+   if(registration.deviceId)await linkBrowser(ctx,registration.deviceId,registration,!wasSelected);
+   return;
+  }
   await loadSdk();if(!live(ctx))return;stopBrowser();
   const player=new Spotify.Player({name:'TOCÁ · '+(state.detail?.name||'Mi Bar'),volume:.5,getOAuthToken:callback=>{
    if(ctx.session!==state.token){stopBrowser();return}
-   api(musicPath(ctx.id)+'/browser-token',{signal:new AbortController().signal}).then(data=>{if(ctx.session===state.token)callback(data.accessToken)}).catch(error=>notify(current,error.message));
+   api(musicPath(ctx.id)+'/browser-token',{signal:new AbortController().signal}).then(data=>{if(ctx.session===state.token&&browser?.player===player)callback(data.accessToken)}).catch(error=>{if(browser?.player===player)browser.rejectReady(error);notify(current,error.message)});
   }});
-  browser={id:ctx.id,session:ctx.session,player};
-  ['initialization_error','authentication_error','account_error','playback_error'].forEach(type=>player.addListener(type,error=>notify(current,error.message+' Si acabás de actualizar TOCÁ, reconectá Spotify para renovar los permisos.')));
-  player.addListener('autoplay_failed',()=>notify(current,'Pulsá Reproducir para habilitar el audio en este navegador.'));
+  const registration={id:ctx.id,session:ctx.session,player,selected:true,selection:0,available:false};browser=registration;prepareBrowserReady(registration);
+  ['initialization_error','authentication_error','account_error','playback_error'].forEach(type=>player.addListener(type,error=>{
+   if(browser!==registration)return;
+   const detail=error.message||'Spotify no informó el motivo.';registration.rejectReady(Error(detail));
+   const labels={initialization_error:'No se pudo preparar el audio de este navegador.',authentication_error:'Spotify rechazó la autorización. Reconectá la cuenta.',account_error:'La cuenta no permite reproducir en el navegador. Verificá Spotify Premium.',playback_error:'Spotify interrumpió la reproducción.'};
+   notify(current,labels[type]+' '+detail);
+  }));
+  player.addListener('autoplay_failed',()=>{if(browser===registration)notify(current,'Pulsá Reproducir para habilitar el audio en este navegador.');});
   player.addListener('ready',async({device_id})=>{
-   if(ctx.session!==state.token){stopBrowser();return}
-   try{
-    if(browser?.player!==player)return;
-    browser.deviceId=device_id;await linkBrowser(ctx,device_id);
-   }catch(error){notify(current,error.message)}
+   if(browser!==registration||ctx.session!==state.token)return;
+   registration.available=true;registration.deviceId=device_id;
+   try{await linkBrowser(ctx,device_id,registration);registration.resolveReady();}catch(error){registration.rejectReady(error);notify(current,error.message)}
   });
-  player.addListener('not_ready',()=>{if(browser?.player===player)browser.deviceId=null;notify(current,'El audio del navegador se desconectó. Volvé a habilitarlo.');});
+  player.addListener('not_ready',({device_id}={})=>{
+   if(browser!==registration||device_id&&device_id!==registration.deviceId)return;
+   registration.available=false;
+   if(registration.selected)notify(current,'El audio del navegador se desconectó. Volvé a habilitarlo.');
+  });
   player.addListener('player_state_changed',data=>{const ctx=current;if(live(ctx)&&browserOutput(ctx)){if(data)window.tocaMusicPlayback.sdk(ctx,data,{id:browser.deviceId,name:'TOCÁ · '+(state.detail?.name||'Mi Bar')});else void readBrowser(ctx)}});
-  if(!await player.connect()){stopBrowser();throw Error('No se pudo conectar el audio. Verificá Spotify Premium y los permisos de reproducción.');}
+  try{if(!await player.connect())throw Error('No se pudo conectar el audio. Verificá Spotify Premium y los permisos de reproducción.');await registration.ready;}
+  catch(error){if(browser===registration)stopBrowser();throw error}
+  finally{clearTimeout(registration.readyTimer)}
  }
  window.tocaInitAdminMusic=async(id,settings)=>{
   if(current)dispose(current);
@@ -249,13 +296,13 @@
    if(button.hasAttribute('data-studio-refresh')||button.hasAttribute('data-studio-recover')){await window.tocaInitAdminMusic(ctx.id,ctx.settings);await refreshActivity(current);return}
    if(button.hasAttribute('data-cabina-row-play')){
     const position=Number(button.dataset.cabinaRowPlay),track=ctx.playlist?.tracks[position];if(!track?.id)return;
-    await control(ctx,window.tocaCabinaIsCurrent(ctx,track)?{action:ctx.playback.isPlaying?'pause':'resume'}:{action:'start',position});return;
+    await control(ctx,window.tocaCabinaIsCurrent(ctx,track)?{action:ctx.playback.isPlaying?'pause':'resume'}:{action:'start',position,trackId:track.id,playlistId:ctx.playlist.id,snapshot:ctx.playlist.snapshot});return;
    }
    if(button.hasAttribute('data-cabina-track')){window.tocaCabinaOpenTrack(ctx,Number(button.dataset.cabinaTrack));updateButtons(ctx);return}
    if(button.hasAttribute('data-cabina-devices')){await loadDevices(ctx);return}
-   if(button.hasAttribute('data-cabina-select-device')){await selectDevice(ctx,button);return}
+   if(button.hasAttribute('data-cabina-select-device')){ctx.outputSetup=selectDevice(ctx,button);try{await ctx.outputSetup}finally{ctx.outputSetup=null}return}
    if(button.hasAttribute('data-cabina-select-playlist')){await selectPlaylist(ctx);return}
-   if(button.hasAttribute('data-browser-connect')){button.disabled=true;await connect(ctx);return}
+   if(button.hasAttribute('data-browser-connect')){button.disabled=true;const setup={id:ctx.id,session:ctx.session,promise:connect(ctx)};audioSetup=setup;ctx.audioSetup=setup.promise;try{await setup.promise}finally{ctx.audioSetup=null;if(audioSetup===setup)audioSetup=null}return}
    if(button.hasAttribute('data-studio-create')||button.hasAttribute('data-studio-rename')){
     const name=ctx.root.querySelector('[data-studio-name]').value.trim();if(!name)throw Error('Ingresá un nombre para la playlist');
     event.preventDefault();await edit(ctx,{action:button.hasAttribute('data-studio-create')?'create':'rename',name});return;
@@ -278,6 +325,7 @@
    if(button.hasAttribute('data-player-toggle'))body=ctx.playback?.now?{action:ctx.playback.isPlaying?'pause':'resume'}:{action:'start',position:0};
    if(button.hasAttribute('data-player-start'))body={action:'start',position:0};
    if(button.hasAttribute('data-play-position'))body={action:'start',position:Number(button.dataset.playPosition)};
+   if(body?.action==='start'){const track=ctx.playlist?.tracks[body.position];if(!track?.id)throw Error('La canción no está disponible. Actualizá la playlist.');body={...body,trackId:track.id,playlistId:ctx.playlist.id,snapshot:ctx.playlist.snapshot};}
    if(body){button.disabled=true;await control(ctx,body)}
   }catch(error){notify(ctx,error.message)}finally{if(button.isConnected)button.disabled=false;updateButtons(ctx)}
  });
