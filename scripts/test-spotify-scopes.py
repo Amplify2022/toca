@@ -84,8 +84,9 @@ try:
     assert root.locator('[data-studio-playlist-name]').inner_text()=='Saved playlist'
     root.locator('.cabina-heading-actions [data-cabina-open="connection"]').click()
     connection=root.locator('[data-cabina-dialog="connection"]');assert not connection.locator('[data-browser-authorization]').is_visible()
-    connection.locator('[data-browser-connect]').click();page.wait_for_function("document.querySelector('[data-browser-status]').textContent.includes('conectado')")
-    connection.locator('[data-cabina-close]').first.click();root.locator('[data-cabina-start]').click();root.locator('[data-player-start]').click()
+    connection.locator('[data-browser-connect]').click();page.wait_for_function("!document.querySelector('dialog[open]')")
+    assert 'Audio conectado' in root.locator('[data-studio-status]').inner_text()
+    root.locator('[data-cabina-start]').click();root.locator('[data-player-start]').click()
     page.wait_for_function("document.querySelector('[data-player-title]').textContent==='Test song'")
     assert [body['action'] for path,body in writes if path.endswith('/music/player')]==['transfer','start']
     # A later SDK authorization failure also stops the unusable player and opens renewal.

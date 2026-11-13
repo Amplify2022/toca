@@ -94,9 +94,39 @@
   root.querySelector('[data-player-title]').textContent=track?.title||'Sin reproducción activa';
   root.querySelector('[data-player-artist]').textContent=track?.artist||'Seleccioná el audio y reproducí tu playlist';
   const volume=root.querySelector('[data-player-volume]');if(document.activeElement!==volume&&data.device)volume.value=data.device.volume;
-  const shuffle=root.querySelector('[data-player-shuffle]');if(document.activeElement!==shuffle)shuffle.checked=!!data.shuffle;
-  const repeat=root.querySelector('[data-player-repeat]');if(document.activeElement!==repeat)repeat.value=data.repeat||'off';
+  if(!root.querySelector('[data-cabina-dialog="playback"][open]')&&!ctx.savingPlaybackSettings)resetPlaybackOptions(ctx);
   renderTime(ctx);window.tocaCabinaPlaybackUpdated?.(ctx);
+ }
+ function resetPlaybackOptions(ctx){
+  ctx.root.querySelectorAll('[data-player-shuffle]').forEach(input=>input.checked=(input.value==='on')===!!ctx.playback?.shuffle);
+  ctx.root.querySelectorAll('[data-player-repeat]').forEach(input=>input.checked=input.value===(ctx.playback?.repeat||'off'));
+ }
+ document.addEventListener('cabina-playback-open',event=>{if(live(current)&&event.target===current.root)resetPlaybackOptions(current)});
+ async function applyPlaybackOptions(ctx){
+  if(ctx.controlling||state.demo||!ctx.settings.controlEnabled)return;
+  const shuffle=ctx.root.querySelector('[data-player-shuffle]:checked')?.value==='on';
+  const repeat=ctx.root.querySelector('[data-player-repeat]:checked')?.value;
+  if(!['off','context','track'].includes(repeat))throw Error('Elegí una opción de repetición.');
+  const commands=[];
+  if(!ctx.playback||shuffle!==!!ctx.playback.shuffle)commands.push({action:'shuffle',enabled:shuffle});
+  if(!ctx.playback||repeat!==(ctx.playback.repeat||'off'))commands.push({action:'repeat',state:repeat});
+  ctx.controlling=true;ctx.savingPlaybackSettings=true;ctx.playbackGeneration=(ctx.playbackGeneration||0)+1;updateButtons(ctx);
+  let applied=0;
+  try{
+   await ctx.audioSetup;await ctx.outputSetup;
+   for(const body of commands){
+    if(!live(ctx))return;
+    await api(musicPath(ctx.id)+'/player',{method:'POST',body});applied++;
+    if(!live(ctx))return;
+    ctx.playback={...ctx.playback,...(body.action==='shuffle'?{shuffle:body.enabled}:{repeat:body.state})};
+   }
+   if(!live(ctx))return;
+   if(ctx.root.querySelector('[data-cabina-dialog="playback"][open]'))window.tocaCabinaClose?.(ctx);
+   notify(ctx,'Preferencias de reproducción guardadas.',true);await poll(ctx,true);
+  }catch(error){
+   if(applied)error.message='Se aplicó parte de la configuración. Revisá las opciones y volvé a confirmar. '+error.message;
+   reportError(ctx,error);
+  }finally{ctx.controlling=false;ctx.savingPlaybackSettings=false;ctx.polling=false;updateButtons(ctx)}
  }
  function browserOutput(ctx){return browser?.id===ctx.id&&browser.selected!==false&&browser.session===ctx.session&&browser.deviceId&&ctx.settings.deviceId===browser.deviceId&&(!ctx.playback?.device?.id||ctx.playback.device.id===browser.deviceId);}
  async function readBrowser(ctx){
@@ -322,7 +352,19 @@
    if(button.hasAttribute('data-cabina-devices')){await loadDevices(ctx);return}
    if(button.hasAttribute('data-cabina-select-device')){ctx.outputSetup=selectDevice(ctx,button);try{await ctx.outputSetup}finally{ctx.outputSetup=null}return}
    if(button.hasAttribute('data-cabina-select-playlist')){await selectPlaylist(ctx);return}
-   if(button.hasAttribute('data-browser-connect')){button.disabled=true;const setup={id:ctx.id,session:ctx.session,promise:connect(ctx)};audioSetup=setup;ctx.audioSetup=setup.promise;try{await setup.promise}finally{ctx.audioSetup=null;if(audioSetup===setup)audioSetup=null}return}
+   if(button.hasAttribute('data-browser-connect')){
+    button.disabled=true;const setup={id:ctx.id,session:ctx.session,promise:connect(ctx)};audioSetup=setup;ctx.audioSetup=setup.promise;
+    try{
+     await setup.promise;
+     if(live(ctx)&&browser?.id===ctx.id&&browser.session===ctx.session&&browser.selected&&browser.deviceId&&browser.linkedDevice===ctx.settings.deviceId){
+      ctx.root.querySelector('[data-browser-authorization]').hidden=true;
+      if(ctx.root.querySelector('[data-cabina-dialog="connection"][open]'))window.tocaCabinaClose?.(ctx);
+      notify(ctx,'Audio conectado. Ya podés reproducir tu música.',true);
+      toast('Audio conectado. Ya podés reproducir tu música.');
+     }
+    }finally{ctx.audioSetup=null;if(audioSetup===setup)audioSetup=null}return;
+   }
+   if(button.hasAttribute('data-playback-apply')){await applyPlaybackOptions(ctx);return}
    if(button.hasAttribute('data-studio-create')||button.hasAttribute('data-studio-rename')){
     const name=ctx.root.querySelector('[data-studio-name]').value.trim();if(!name)throw Error('Ingresá un nombre para la playlist');
     event.preventDefault();await edit(ctx,{action:button.hasAttribute('data-studio-create')?'create':'rename',name});return;
@@ -354,8 +396,6 @@
   let body;if(input.hasAttribute('data-player-seek'))body={action:'seek',positionMs:Number(input.value)};
   if(input.hasAttribute('data-cabina-volume'))body={action:'volume',volume:Number(input.value)};
   if(input.hasAttribute('data-player-volume'))body={action:'volume',volume:Number(input.value)};
-  if(input.hasAttribute('data-player-shuffle'))body={action:'shuffle',enabled:input.checked};
-  if(input.hasAttribute('data-player-repeat'))body={action:'repeat',state:input.value};
   if(body?.action==='seek'){ctx.seeking=false;await control(ctx,body);return}
   if(body)try{await api(musicPath(ctx.id)+'/player',{method:'POST',body});notify(ctx,'Control enviado.');await poll(ctx)}catch(error){notify(ctx,error.message)}
  });

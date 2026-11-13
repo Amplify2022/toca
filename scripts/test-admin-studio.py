@@ -20,7 +20,7 @@ with sync_playwright() as p:
   writes=[];controls=[];tokens=[];edits=[];version=[1];owned=[venue]
   operation=[None];connected=[True];flags=[True];blocked=[];allowed=[];playlist_reads=[]
   drop_response=[False];applied={};edit_ids=[];recovery_unavailable=[False]
-  playing=[False];now=[playlist['tracks'][0].copy()];context_uri=['spotify:playlist:'+playlist['id']];device=[dict(id='speaker',name='TOCA',volume=50)]
+  playback_options=dict(shuffle=False,repeat='off');playing=[False];now=[playlist['tracks'][0].copy()];context_uri=['spotify:playlist:'+playlist['id']];device=[dict(id='speaker',name='TOCA',volume=50)]
   page.add_init_script("localStorage.setItem('amplify-mode','live');sessionStorage.setItem('amplify-token','synthetic-admin-session');sessionStorage.setItem('amplify-user',JSON.stringify({id:'owner',name:'Owner',email:'owner@example.test'}));")
   def api(route):
    path=route.request.url.split('8080',1)[1].split('?',1)[0];method=route.request.method;body=route.request.post_data_json if method in ['POST','PUT'] else None;data=[]
@@ -56,7 +56,9 @@ with sync_playwright() as p:
      if body['action']=='start':now[0]=playlist['tracks'][body['position']].copy();playing[0]=True;context_uri[0]='spotify:playlist:'+playlist['id']
      if body['action']=='pause':playing[0]=False
      if body['action']=='resume':playing[0]=True
-    else:data=dict(now=now[0],isPlaying=playing[0],contextUri=context_uri[0],progressMs=5000,repeat='off',shuffle=False,device=device[0])
+     if body['action']=='shuffle':playback_options['shuffle']=body['enabled']
+     if body['action']=='repeat':playback_options['repeat']=body['state']
+    else:data=dict(now=now[0],isPlaying=playing[0],contextUri=context_uri[0],progressMs=5000,repeat=playback_options['repeat'],shuffle=playback_options['shuffle'],device=device[0])
    elif path.endswith('/music/browser-token'):tokens.append(route.request.headers.get('authorization'));data=dict(accessToken='synthetic-spotify-access-token',expiresIn=60)
    elif path.endswith('/reconcile'):operation[0]=None;data=dict(status='COMPLETED')
    elif '/music/edits/' in path:
@@ -84,6 +86,9 @@ with sync_playwright() as p:
   """))
   page.goto(BASE+'/#/admin/music');root=page.locator('[data-admin-studio]')
   root.locator('[data-studio-tracks] .toca-studio-track').first.wait_for()
+  assert root.locator('[data-cabina-open="add"]').inner_text()=='Agregar canción'
+  assert root.locator('[data-cabina-open="playlist-options"]').count()==1
+  assert root.locator('.cabina-playlist-selector').get_attribute('data-cabina-open')=='playlist-options'
   cover=root.locator('[data-track-index="0"] .cabina-art img')
   cover.wait_for();assert cover.get_attribute('src').endswith('/assets/venues/bar-1.webp')
   page.wait_for_function("document.querySelector('[data-track-index=\"0\"] .cabina-art img').naturalWidth>0")
@@ -98,8 +103,8 @@ with sync_playwright() as p:
   root.locator('[data-cabina-name-mode="rename"]').click()
   root.locator('[data-studio-name]').fill('Renamed list');root.locator('[data-studio-rename]').click();page.wait_for_function("document.querySelector('[data-studio-playlist-name]').textContent.includes('Renamed list')")
   root.locator('.cabina-heading-actions [data-cabina-open="connection"]').click()
-  root.locator('[data-browser-connect]').click();page.wait_for_function("document.querySelector('[data-browser-status]').textContent.includes('conectado')")
-  root.locator('dialog[open] [data-cabina-close]').first.click()
+  root.locator('[data-browser-connect]').click();page.wait_for_function("!document.querySelector('dialog[open]')")
+  assert 'Audio conectado' in root.locator('[data-studio-status]').inner_text()
   root.locator('[data-cabina-start]').click()
   root.locator('[data-player-start]').click();page.wait_for_function("document.querySelector('[data-player-toggle]').textContent==='Pausar'")
   assert tokens==['Bearer synthetic-admin-session'],tokens
@@ -108,14 +113,28 @@ with sync_playwright() as p:
   with page.expect_response(lambda response:response.url.endswith('/music/player') and response.request.method=='POST' and response.request.post_data_json==dict(action='volume',volume=35)):
    root.locator('[data-player-volume]').evaluate("el=>{el.value='35';el.dispatchEvent(new Event('change',{bubbles:true}))}")
   root.locator('[data-cabina-open="playback"]').click()
-  with page.expect_response(lambda response:response.url.endswith('/music/player') and response.request.method=='POST' and response.request.post_data_json==dict(action='shuffle',enabled=True)):
-   root.locator('[data-player-shuffle]').check()
-  with page.expect_response(lambda response:response.url.endswith('/music/player') and response.request.method=='POST' and response.request.post_data_json==dict(action='repeat',state='context')):
-   root.locator('[data-player-repeat]').select_option('context')
+  playback_dialog=root.locator('[data-cabina-dialog="playback"]');before_options=len(controls)
+  assert 'Volumen' not in playback_dialog.inner_text() and playback_dialog.locator('select').count()==0
+  root.locator('[data-player-shuffle][value="on"]').check()
+  root.locator('[data-player-repeat][value="context"]').check()
+  assert len(controls)==before_options
+  # A player poll cannot overwrite choices that have not been confirmed.
+  page.wait_for_timeout(7200)
+  assert root.locator('[data-player-repeat][value="context"]').is_checked()
+  page.screenshot(path=f'{SHOTS}/toca-playback-options-{width}.png')
+  root.locator('[data-playback-apply]').click()
+  page.wait_for_function("!document.querySelector('dialog[open]')")
+  assert controls[before_options:]==[dict(action='shuffle',enabled=True),dict(action='repeat',state='context')]
   assert any(c==dict(action='volume',volume=35) for c in controls)
-  assert any(c==dict(action='shuffle',enabled=True) for c in controls)
-  assert any(c==dict(action='repeat',state='context') for c in controls)
-  root.locator('dialog[open] [data-cabina-close]').first.click()
+  # Cancel discards the draft; reopening shows the saved state.
+  root.locator('[data-cabina-open="playback"]').click()
+  assert root.locator('[data-player-repeat][value="context"]').is_checked()
+  root.locator('[data-player-repeat][value="track"]').check()
+  before_cancel=len(controls);playback_dialog.locator('[data-cabina-close]').last.click()
+  root.locator('[data-cabina-open="playback"]').click()
+  assert root.locator('[data-player-repeat][value="context"]').is_checked()
+  assert len(controls)==before_cancel
+  playback_dialog.locator('[data-cabina-close]').first.click()
   # Each row starts its own position, then pauses/resumes without seeking to zero.
   row=root.locator('[data-cabina-row-play="0"]');row.click()
   page.wait_for_function("document.querySelector('[data-cabina-row-play=\"0\"]').textContent.includes('Reproducir')")
@@ -153,6 +172,27 @@ with sync_playwright() as p:
    page.locator('body').dispatch_event('pointermove',dict(point,clientX=destination['x']+25,clientY=destination['y']+destination['height']-3))
    page.locator('body').dispatch_event('pointerup',point)
    page.wait_for_function("document.querySelector('[data-track-index=\"1\"] strong').textContent==='Track B'")
+  # Long lists scroll internally without extending the document past its layout.
+  original_tracks=playlist['tracks'][:]
+  playlist['tracks']=original_tracks+[dict(id=str(i).zfill(22),title='Extra song '+str(i),artist='Test band',durationMs=180000) for i in range(30)]
+  root.locator('[data-studio-refresh]').click()
+  page.wait_for_function("n=>document.querySelectorAll('[data-track-index]').length===n",arg=len(playlist['tracks']))
+  page.set_viewport_size(dict(width=width,height=600))
+  for scroll in [0,100000]:
+   page.evaluate('y=>window.scrollTo(0,y)',scroll)
+   layout=page.evaluate("""()=>{const rect=s=>document.querySelector(s).getBoundingClientRect().toJSON();return {sidebar:rect('.toca-admin-sidebar'),player:rect('.cabina-player'),frame:rect('.toca-admin-frame'),nav:rect('.toca-admin-mobile-nav'),document:document.documentElement.scrollHeight,y:scrollY,height:innerHeight}}""")
+   assert layout['document']<=layout['frame']['bottom']+layout['y']+1,layout
+   if width>760:
+    assert layout['sidebar']['top']==0 and layout['sidebar']['bottom']==layout['height'],layout
+    assert layout['player']['left']==layout['sidebar']['right'] and layout['player']['bottom']==layout['height'],layout
+   else:assert layout['player']['bottom']<=layout['nav']['top']+1,layout
+  root.locator('.cabina-track-list').evaluate('e=>e.scrollTop=e.scrollHeight')
+  page.screenshot(path=f'{SHOTS}/toca-music-scroll-{width}.png')
+  playlist['tracks']=original_tracks
+  page.set_viewport_size(dict(width=width,height=1000))
+  root.locator('[data-studio-refresh]').click()
+  page.wait_for_function("n=>document.querySelectorAll('[data-track-index]').length===n",arg=len(original_tracks))
+  page.evaluate('window.scrollTo(0,0)')
   page.screenshot(path=f'{SHOTS}/toca-studio-{width}.png',full_page=True,style='.cabina-player{position:static!important;margin-top:30px!important}.toca-cabina{padding-bottom:0!important}.toca-admin-mobile-nav{position:static!important}.toca-admin-content{padding-bottom:30px!important}')
   assert page.evaluate('document.documentElement.scrollWidth<=window.innerWidth'), 'Horizontal overflow'
   root.locator('[data-cabina-open="playlist-options"]').click()
@@ -168,6 +208,7 @@ with sync_playwright() as p:
   root.locator('dialog[open] [data-cabina-close]').first.click()
   before=len(controls)
   root.locator('.cabina-playlist-selector').click()
+  root.locator('[data-cabina-dialog="playlist-options"] [data-cabina-open="select-playlist"]').click()
   root.locator('[data-cabina-playlist-select]').select_option(playlist['id'])
   root.locator('[data-cabina-select-playlist]').click()
   page.wait_for_function("!document.querySelector('dialog[open]')")

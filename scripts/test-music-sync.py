@@ -107,8 +107,12 @@ with sync_playwright() as p:
   saved[edits[-1][0]]=dict(status='RELEASED');pending[0]=None
   # SDK samples anchor a local clock. Ticking does not poll the HTTP API each second.
   root=open_music();root.locator('.cabina-heading-actions [data-cabina-open=connection]').click();root.locator('[data-browser-connect]').click()
-  page.wait_for_function("document.querySelector('[data-browser-status]').textContent.includes('conectado')")
-  root.locator('dialog[open] [data-cabina-close]').first.click()
+  page.wait_for_function("!document.querySelector('dialog[open]')")
+  assert 'Audio conectado' in root.locator('[data-studio-status]').inner_text()
+  page.clock.fast_forward(4900)
+  assert 'Audio conectado' in root.locator('[data-studio-status]').inner_text()
+  page.clock.fast_forward(200)
+  assert root.locator('[data-studio-status]').inner_text()==''
   def sdk(paused,position=5000):
    page.evaluate("s=>window.__sdk.emit(s)",dict(paused=paused,position=position,duration=180000,context=dict(uri='spotify:playlist:'+playlist['id']),track_window=dict(current_track=dict(id=A,name='Track A',artists=[dict(name='Test band')],duration_ms=180000))))
   sdk(False);assert root.locator('[data-player-elapsed]').inner_text()=='0:05'
