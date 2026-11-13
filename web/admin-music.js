@@ -12,6 +12,12 @@
   if(transient){const version=ctx.noticeVersion;ctx.noticeTimer=setTimeout(()=>{if(live(ctx)&&ctx.noticeVersion===version&&ctx.root.querySelector('[data-studio-status]').textContent===message){ctx.root.querySelector('[data-studio-status]').textContent='';window.tocaCabinaNotify?.(ctx,'')}},5000);}
  };
  const dispose=ctx=>{if(ctx){clearInterval(ctx.timer);clearInterval(ctx.clockTimer);clearTimeout(ctx.noticeTimer);clearTimeout(ctx.feedbackTimer)}};
+ const browserAuthorizationError=()=>Object.assign(Error('Renová los permisos de Spotify para activar el audio del navegador. Usá la misma cuenta para conservar tu playlist.'),{browserAuthorization:true});
+ function reportError(ctx,error){
+  if(!live(ctx))return;
+  if(error.browserAuthorization){window.tocaCabinaRequireAuthorization?.(ctx);}
+  notify(ctx,error.message);
+ }
 
  function stopBrowser(){if(browser){const registration=browser;browser=null;clearTimeout(registration.readyTimer);registration.rejectReady?.(Error('Conexión de audio cancelada.'));registration.player.disconnect();}}
  window.tocaMusicDisconnect=()=>{window.tocaCabinaReset?.();stopBrowser();if(current){dispose(current);current=null}};
@@ -190,7 +196,7 @@
   }catch(error){
    window.tocaMusicPlayback.rejected(ctx,optimistic);
    if(error.status===412&&/dispositivo|audio/i.test(error.message))window.tocaCabinaShowConnection?.(ctx);
-   notify(ctx,error.message);
+   reportError(ctx,error);
   }finally{ctx.controlling=false;ctx.polling=false;updateButtons(ctx)}
  }
  function loadSdk(){
@@ -230,18 +236,27 @@
  }
  function prepareBrowserReady(registration){
   clearTimeout(registration.readyTimer);
+  registration.failure=null;
   registration.ready=new Promise((resolve,reject)=>{
    registration.resolveReady=()=>{clearTimeout(registration.readyTimer);resolve()};
-   registration.rejectReady=error=>{clearTimeout(registration.readyTimer);reject(error)};
+   registration.rejectReady=error=>{clearTimeout(registration.readyTimer);registration.failure ||= error;reject(error)};
   });
   registration.ready.catch(()=>{});
   registration.readyTimer=setTimeout(()=>registration.rejectReady(Error('No se pudo preparar el audio del navegador. Volvé a conectarlo.')),20000);
  }
+ async function startBrowser(registration){
+  // A rejected token can leave the SDK's connect() promise pending. Readiness
+  // must be able to reject immediately so the UI can offer authorization again.
+  await Promise.all([registration.player.connect().then(connected=>{
+   if(!connected)throw registration.failure||Error('No se pudo conectar el audio. Verificá Spotify Premium y los permisos de reproducción.');
+  }),registration.ready]);
+ }
  async function connect(ctx){
+  if(ctx.settings.browserMissingScopes?.length)throw browserAuthorizationError();
   if(browser?.id===ctx.id&&browser.session===ctx.session){
    const registration=browser,wasSelected=registration.selected;
    registration.selected=true;await registration.player.activateElement();
-   if(!registration.available){prepareBrowserReady(registration);if(!await registration.player.connect()){const error=Error('No se pudo reconectar el audio del navegador.');registration.rejectReady(error);throw error;}}
+   if(!registration.available){prepareBrowserReady(registration);await startBrowser(registration);}
    await registration.ready;
    if(registration.deviceId)await linkBrowser(ctx,registration.deviceId,registration,!wasSelected);
    return;
@@ -249,14 +264,19 @@
   await loadSdk();if(!live(ctx))return;stopBrowser();
   const player=new Spotify.Player({name:'TOCÁ · '+(state.detail?.name||'Mi Bar'),volume:.5,getOAuthToken:callback=>{
    if(ctx.session!==state.token){stopBrowser();return}
-   api(musicPath(ctx.id)+'/browser-token',{signal:new AbortController().signal}).then(data=>{if(ctx.session===state.token&&browser?.player===player)callback(data.accessToken)}).catch(error=>{if(browser?.player===player)browser.rejectReady(error);notify(current,error.message)});
+   api(musicPath(ctx.id)+'/browser-token',{signal:new AbortController().signal}).then(data=>{if(ctx.session===state.token&&browser?.player===player)callback(data.accessToken)}).catch(error=>{
+    if(browser?.player!==player)return;
+    if(/Renová los permisos de Spotify|Spotify rechazó la autorización/i.test(error.message))error=browserAuthorizationError();
+    browser.rejectReady(error);if(error.browserAuthorization)stopBrowser();reportError(current,error);
+   });
   }});
   const registration={id:ctx.id,session:ctx.session,player,selected:true,selection:0,available:false};browser=registration;prepareBrowserReady(registration);
   ['initialization_error','authentication_error','account_error','playback_error'].forEach(type=>player.addListener(type,error=>{
    if(browser!==registration)return;
-   const detail=error.message||'Spotify no informó el motivo.';registration.rejectReady(Error(detail));
+   const detail=error.message||'Spotify no informó el motivo.';
    const labels={initialization_error:'No se pudo preparar el audio de este navegador.',authentication_error:'Spotify rechazó la autorización. Reconectá la cuenta.',account_error:'La cuenta no permite reproducir en el navegador. Verificá Spotify Premium.',playback_error:'Spotify interrumpió la reproducción.'};
-   notify(current,labels[type]+' '+detail);
+   const failure=type==='authentication_error'?browserAuthorizationError():Error(labels[type]+' '+detail);
+   registration.rejectReady(failure);if(failure.browserAuthorization)stopBrowser();reportError(current,failure);
   }));
   player.addListener('autoplay_failed',()=>{if(browser===registration)notify(current,'Pulsá Reproducir para habilitar el audio en este navegador.');});
   player.addListener('ready',async({device_id})=>{
@@ -270,7 +290,7 @@
    if(registration.selected)notify(current,'El audio del navegador se desconectó. Volvé a habilitarlo.');
   });
   player.addListener('player_state_changed',data=>{const ctx=current;if(live(ctx)&&browserOutput(ctx)){if(data)window.tocaMusicPlayback.sdk(ctx,data,{id:browser.deviceId,name:'TOCÁ · '+(state.detail?.name||'Mi Bar')});else void readBrowser(ctx)}});
-  try{if(!await player.connect())throw Error('No se pudo conectar el audio. Verificá Spotify Premium y los permisos de reproducción.');await registration.ready;}
+  try{await startBrowser(registration);}
   catch(error){if(browser===registration)stopBrowser();throw error}
   finally{clearTimeout(registration.readyTimer)}
  }
@@ -327,7 +347,7 @@
    if(button.hasAttribute('data-play-position'))body={action:'start',position:Number(button.dataset.playPosition)};
    if(body?.action==='start'){const track=ctx.playlist?.tracks[body.position];if(!track?.id)throw Error('La canción no está disponible. Actualizá la playlist.');body={...body,trackId:track.id,playlistId:ctx.playlist.id,snapshot:ctx.playlist.snapshot};}
    if(body){button.disabled=true;await control(ctx,body)}
-  }catch(error){notify(ctx,error.message)}finally{if(button.isConnected)button.disabled=false;updateButtons(ctx)}
+  }catch(error){reportError(ctx,error)}finally{if(button.isConnected)button.disabled=false;updateButtons(ctx)}
  });
  document.addEventListener('change',async event=>{
   const ctx=current,input=event.target;if(!ctx||!live(ctx)||!input.closest('[data-admin-studio]'))return;

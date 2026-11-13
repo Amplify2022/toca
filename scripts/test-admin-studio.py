@@ -260,7 +260,7 @@ with sync_playwright() as p:
   # First connection state hides unusable player and playlist controls.
   connected[0]=False;page.reload();root.locator('.cabina-empty').wait_for()
   assert root.locator('.cabina-player').count()==0
-  assert root.locator('[data-action="connect-spotify"]').is_visible()
+  assert root.locator('.cabina-empty [data-action="connect-spotify"]').is_visible()
   assert not errors,errors
   # First-bar registration uses the dedicated guided flow; its full paths are
   # covered by test-venue-onboarding.py.

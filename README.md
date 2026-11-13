@@ -145,6 +145,8 @@ La aplicación aplica las migraciones Flyway `V1` y `V2` automáticamente. No in
 
 **Técnico:** una solicitud confirmada no equivale a una canción reproducida; la cola de TOCÁ y el estado del reproductor se muestran por separado. Algunas API de Spotify, cuotas y campos (por ejemplo `product`) pueden cambiar o dejar de estar disponibles: las pruebas OAuth requieren validación con una cuenta de prueba real.
 
+Si al activar **Usar audio de este navegador** aparece `Invalid token scopes`, entrá a **Música y Spotify → Conexión → Renovar permisos** y autorizá la misma cuenta. El reproductor necesita `streaming`, `user-read-email` y `user-read-private`. Renovar la autorización conserva la playlist y la configuración del bar; refrescar la página o renovar un token vencido no agrega permisos nuevos.
+
 ## 5. ¿Qué incluye?
 
 | Módulo | Implementación |

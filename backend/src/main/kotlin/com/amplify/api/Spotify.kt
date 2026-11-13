@@ -278,8 +278,7 @@ class Spotify(
         val challenge=Base64.getUrlEncoder().withoutPadding().encodeToString(MessageDigest.getInstance("SHA-256").digest(verifier.toByteArray()))
         db.exec("INSERT INTO spotify_oauth_state(state,venue_id,owner_id,verifier,expires_at) VALUES(?,?,?,?,?)",
             state,venue["id"],owner["id"],verifier,java.sql.Timestamp.from(Instant.now().plusSeconds(600)))
-        val scopes="streaming user-read-email user-read-private user-read-playback-state user-read-currently-playing user-modify-playback-state playlist-read-private playlist-modify-public playlist-modify-private"
-        val args=mapOf("response_type" to "code","client_id" to clientId,"redirect_uri" to redirectUri,"scope" to scopes,"state" to state,"code_challenge_method" to "S256","code_challenge" to challenge)
+        val args=mapOf("response_type" to "code","client_id" to clientId,"redirect_uri" to redirectUri,"scope" to SpotifyScopes.requested,"show_dialog" to "true","state" to state,"code_challenge_method" to "S256","code_challenge" to challenge)
         return "https://accounts.spotify.com/authorize?"+args.entries.joinToString("&") { "${enc(it.key)}=${enc(it.value)}" }
     }
     fun callback(code:String,state:String):String {
@@ -288,8 +287,7 @@ class Spotify(
         // One-time state prevents replay. No user token is required on the callback.
         db.exec("DELETE FROM spotify_oauth_state WHERE state=?",state)
         val token=form("https://accounts.spotify.com/api/token",mapOf("grant_type" to "authorization_code","code" to code,"redirect_uri" to redirectUri,"client_id" to clientId,"code_verifier" to (st["verifier"] as String)))
-        // Scopes are not credentials; logging them helps diagnose insufficient_client_scope.
-        System.err.println("SPOTIFY_GRANTED_SCOPES: ${token.path("scope").asText("")}")
+        val scopes=token.get("scope")?.takeIf { it.isTextual }?.asText()?.let(SpotifyScopes::normalize)
         val access=token.path("access_token").asText()
         val refresh=token.path("refresh_token").asText()
         if(access.isBlank()||refresh.isBlank())fail(HttpStatus.BAD_GATEWAY,"Spotify no devolvió tokens")
@@ -301,9 +299,9 @@ class Spotify(
         val venueId=st["venue_id"] as UUID
         val saveConnection = {
             db.exec("""UPDATE venue SET spotify_account_id=?,spotify_name=?,spotify_premium=true,
-                  spotify_access_encrypted=?,spotify_refresh_encrypted=?,spotify_expires_at=?,updated_at=now() WHERE id=?""",
+                  spotify_access_encrypted=?,spotify_refresh_encrypted=?,spotify_expires_at=?,spotify_scopes=?,updated_at=now() WHERE id=?""",
                 account,me.path("display_name").asText("Spotify Premium"),seal(access),seal(refresh),
-                java.sql.Timestamp.from(Instant.now().plusSeconds(token.path("expires_in").asLong(3600))),venueId)
+                java.sql.Timestamp.from(Instant.now().plusSeconds(token.path("expires_in").asLong(3600))),scopes,venueId)
         }
         db.transaction {
             val existing=db.one("SELECT spotify_account_id FROM venue WHERE id=? FOR UPDATE",venueId)
@@ -316,10 +314,11 @@ class Spotify(
         return "$frontendOrigin/#/admin/spotify"
     }
     @Synchronized
-    private fun access(venueId:UUID):String {
-        val v=db.one("SELECT spotify_access_encrypted,spotify_refresh_encrypted,spotify_expires_at,spotify_premium FROM venue WHERE id=?",venueId)
+    private fun access(venueId:UUID,forBrowser:Boolean=false):String {
+        val v=db.one("SELECT spotify_access_encrypted,spotify_refresh_encrypted,spotify_expires_at,spotify_premium,spotify_scopes FROM venue WHERE id=?",venueId)
             ?: fail(HttpStatus.NOT_FOUND,"Bar no encontrado")
         if(v["spotify_access_encrypted"]==null||v["spotify_premium"]!=true)fail(HttpStatus.PRECONDITION_FAILED,"El bar debe conectar Spotify Premium")
+        if(forBrowser)SpotifyScopes.requireBrowser(v["spotify_scopes"] as? String)
         val expires=(v["spotify_expires_at"] as java.sql.Timestamp).toInstant()
         if(expires.isAfter(Instant.now().plusSeconds(60)))return unseal(v["spotify_access_encrypted"] as String)
         val refresh=unseal(v["spotify_refresh_encrypted"] as String)
@@ -327,8 +326,12 @@ class Spotify(
         val freshAccess=token.path("access_token").asText()
         if(freshAccess.isBlank())fail(HttpStatus.BAD_GATEWAY,"No se pudo renovar token Spotify")
         val freshRefresh=token.path("refresh_token").asText().ifBlank {refresh}
-        db.exec("UPDATE venue SET spotify_access_encrypted=?,spotify_refresh_encrypted=?,spotify_expires_at=?,updated_at=now() WHERE id=?",
-            seal(freshAccess),seal(freshRefresh),java.sql.Timestamp.from(Instant.now().plusSeconds(token.path("expires_in").asLong(3600))),venueId)
+        // Refresh cannot add permissions. An omitted scope retains the previous
+        // grant; an explicit scope (including empty) replaces it.
+        val scopes=token.get("scope")?.takeIf { it.isTextual }?.asText()?.let(SpotifyScopes::normalize)
+        db.exec("UPDATE venue SET spotify_access_encrypted=?,spotify_refresh_encrypted=?,spotify_expires_at=?,spotify_scopes=COALESCE(?::text,spotify_scopes),updated_at=now() WHERE id=?",
+            seal(freshAccess),seal(freshRefresh),java.sql.Timestamp.from(Instant.now().plusSeconds(token.path("expires_in").asLong(3600))),scopes,venueId)
+        if(forBrowser)SpotifyScopes.requireBrowser(scopes ?: v["spotify_scopes"] as? String)
         return freshAccess
     }
     fun status(v:Map<String,Any?>):Map<String,Any?> = mapOf(
@@ -338,6 +341,7 @@ class Spotify(
         "premium" to (v["spotify_premium"]==true),
         "premiumVerification" to "not_available_via_me",
         "profile" to (v["spotify_name"] ?: ""),
+        "browserMissingScopes" to SpotifyScopes.missingBrowser(v["spotify_scopes"] as? String),
         "playlistId" to (v["playlist_id"] ?: ""),
         "deviceId" to (v["spotify_device_id"] ?: ""),
         "controlEnabled" to controlEnabled, "playlistWriteEnabled" to playlistWriteEnabled
@@ -345,7 +349,7 @@ class Spotify(
     fun disconnect(id:UUID) {
         changeVenueWithoutRequest(id) { connection ->
             connection.prepareStatement("""UPDATE venue SET spotify_account_id=NULL,spotify_name=NULL,spotify_premium=false,
-                  spotify_access_encrypted=NULL,spotify_refresh_encrypted=NULL,spotify_expires_at=NULL,playlist_id=NULL,spotify_device_id=NULL,active=false,
+                  spotify_access_encrypted=NULL,spotify_refresh_encrypted=NULL,spotify_expires_at=NULL,spotify_scopes=NULL,playlist_id=NULL,spotify_device_id=NULL,active=false,
                   updated_at=now() WHERE id=?""").use { statement ->
                 statement.setObject(1,id);statement.executeUpdate()
             }
@@ -588,7 +592,7 @@ class Spotify(
     }
     fun browserToken(venue:UUID):Map<String,Any> {
         requirePlayerControl()
-        return mapOf("accessToken" to access(venue),"expiresIn" to 60)
+        return mapOf("accessToken" to access(venue,forBrowser=true),"expiresIn" to 60)
     }
     private fun requirePlayerControl() {
         if(!controlEnabled)fail(HttpStatus.PRECONDITION_FAILED,"El control de reproducción está desactivado en este entorno")
