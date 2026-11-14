@@ -159,24 +159,39 @@
    reportError(ctx,error);
   }finally{ctx.controlling=false;ctx.savingPlaybackSettings=false;ctx.polling=false;updateButtons(ctx)}
  }
- function browserOutput(ctx){return browser?.id===ctx.id&&browser.selected!==false&&browser.session===ctx.session&&browser.deviceId&&ctx.settings.deviceId===browser.deviceId&&(!ctx.playback?.device?.id||ctx.playback.device.id===browser.deviceId);}
+ function browserSelected(ctx){return browser?.id===ctx.id&&browser.selected!==false&&browser.session===ctx.session&&browser.deviceId&&ctx.settings.deviceId===browser.deviceId;}
+ function browserOutput(ctx){return browserSelected(ctx)&&(!ctx.playback?.device?.id||ctx.playback.device.id===browser.deviceId);}
  async function readBrowser(ctx){
-  if(!live(ctx)||!browserOutput(ctx)||!browser.player.getCurrentState||ctx.readingSdk)return;
-  ctx.readingSdk=true;const player=browser.player;
-  try{const data=await player.getCurrentState();if(live(ctx)&&browser?.player===player&&browserOutput(ctx))window.tocaMusicPlayback.sdk(ctx,data,{id:browser.deviceId,name:'TOCÁ · '+(state.detail?.name||'Mi Bar')});}catch{}finally{ctx.readingSdk=false}
+  // The SDK returns null when this browser is inactive. A delayed HTTP device
+  // sample must not prevent it from reporting that local audio has changed.
+  if(!live(ctx)||!browserSelected(ctx)||!browser.player.getCurrentState||ctx.readingSdk)return;
+  ctx.readingSdk=true;const player=browser.player,revision=ctx.sdkEventRevision||0;
+  try{const data=await player.getCurrentState();if(live(ctx)&&browser?.player===player&&browserSelected(ctx)&&revision===(ctx.sdkEventRevision||0))window.tocaMusicPlayback.sdk(ctx,data,{id:browser.deviceId,name:'TOCÁ · '+(state.detail?.name||'Mi Bar')});}catch{}finally{ctx.readingSdk=false}
  }
  async function poll(ctx,force=false){
   if(!live(ctx)){dispose(ctx);return}
   if(document.hidden||(!force&&(ctx.polling||ctx.controlling)))return;
+  if(!force){
+   if(Date.now()<(ctx.playerRetryAt||0))return;
+   // Local audio reports track changes directly. Keep the HTTP fallback light;
+   // Spotify Connect needs a faster read because it has no SDK event stream.
+   if(browserOutput(ctx)&&ctx.sdkSampledAt!=null&&performance.now()-ctx.sdkSampledAt<1500&&Date.now()-(ctx.playerPolledAt||0)<7000)return;
+  }
   const generation=(ctx.playbackGeneration||0)+1;ctx.playbackGeneration=generation;ctx.polling=true;
+  const sdkRevision=ctx.sdkEventRevision||0;ctx.playerPolledAt=Date.now();
   try{
-   const data=await api(musicPath(ctx.id)+'/player');if(!live(ctx)||generation!==ctx.playbackGeneration)return;
-   if(!ctx.pendingPlayback&&browserOutput(ctx)&&ctx.sdkSampledAt&&performance.now()-ctx.sdkSampledAt<2000&&data.device?.id===browser.deviceId){ctx.playback={...ctx.playback,device:data.device,repeat:data.repeat,shuffle:data.shuffle};renderPlayback(ctx);}
-   else window.tocaMusicPlayback.sample(ctx,data);
+   const data=await api(musicPath(ctx.id)+'/player',{cache:'no-store'});if(!live(ctx)||generation!==ctx.playbackGeneration)return;
+   ctx.playerFailures=0;ctx.playerRetryAt=0;
+   // A track-change event received after this request began is newer than its
+   // response. Do not put the previous song back on screen while it settles.
+   if(sdkRevision===(ctx.sdkEventRevision||0)){
+    if(!ctx.pendingPlayback&&browserOutput(ctx)&&ctx.sdkSampledAt!=null&&performance.now()-ctx.sdkSampledAt<2000&&data.device?.id===browser.deviceId){ctx.playback={...ctx.playback,device:data.device,repeat:data.repeat,shuffle:data.shuffle};renderPlayback(ctx);}
+    else window.tocaMusicPlayback.sample(ctx,data);
+   }
    if(Date.now()-(ctx.activityRefreshedAt||0)>20000){
     ctx.activityRefreshedAt=Date.now();await refreshActivity(ctx);
    }
-  }catch(error){if(generation===ctx.playbackGeneration)notify(ctx,error.message)}finally{if(generation===ctx.playbackGeneration)ctx.polling=false}
+  }catch(error){if(live(ctx)&&generation===ctx.playbackGeneration){ctx.playerFailures=(ctx.playerFailures||0)+1;ctx.playerRetryAt=Date.now()+(error.status===429?60000:Math.min(30000,1000*2**Math.min(ctx.playerFailures,5)));notify(ctx,error.message)}}finally{if(generation===ctx.playbackGeneration)ctx.polling=false}
  }
  function editFeedback(ctx,body){
   const feedback={action:body.action,trackId:body.trackId,until:performance.now()+5000};
@@ -351,7 +366,7 @@
    registration.available=false;
    if(registration.selected)notify(current,'El audio del navegador se desconectó. Volvé a habilitarlo.');
   });
-  player.addListener('player_state_changed',data=>{const ctx=current;if(live(ctx)&&browserOutput(ctx)){if(data)window.tocaMusicPlayback.sdk(ctx,data,{id:browser.deviceId,name:'TOCÁ · '+(state.detail?.name||'Mi Bar')});else void readBrowser(ctx)}});
+  player.addListener('player_state_changed',data=>{const ctx=current;if(browser===registration&&live(ctx)&&browserSelected(ctx)){ctx.sdkEventRevision=(ctx.sdkEventRevision||0)+1;if(data)window.tocaMusicPlayback.sdk(ctx,data,{id:browser.deviceId,name:'TOCÁ · '+(state.detail?.name||'Mi Bar')});else void readBrowser(ctx)}});
   try{await startBrowser(registration);}
   catch(error){if(browser===registration)stopBrowser();throw error}
   finally{clearTimeout(registration.readyTimer)}
@@ -369,7 +384,7 @@
   }catch(error){notify(ctx,error.message)}
   if(!live(ctx))return;
   try{await reload(ctx);await poll(ctx)}catch(error){notify(ctx,error.message)}
-  if(live(ctx)){ctx.syncTimer=setInterval(()=>void syncPlaylist(ctx),7000);ctx.timer=setInterval(()=>{if(browser&&browser.session!==state.token)stopBrowser();void poll(ctx)},7000);ctx.clockTimer=setInterval(()=>{if(!live(ctx)){dispose(ctx);return}if(!document.hidden)renderTime(ctx);if(!document.hidden&&performance.now()-(ctx.sdkReadAt||0)>=1000){ctx.sdkReadAt=performance.now();void readBrowser(ctx)}},250);}
+  if(live(ctx)){ctx.syncTimer=setInterval(()=>void syncPlaylist(ctx),7000);ctx.timer=setInterval(()=>{if(browser&&browser.session!==state.token)stopBrowser();void poll(ctx)},1000);ctx.clockTimer=setInterval(()=>{if(!live(ctx)){dispose(ctx);return}if(!document.hidden)renderTime(ctx);if(!document.hidden&&performance.now()-(ctx.sdkReadAt||0)>=500){ctx.sdkReadAt=performance.now();void readBrowser(ctx)}},250);}
  };
  document.addEventListener('click',async event=>{
   const button=event.target.closest('[data-admin-studio] button');const ctx=current;

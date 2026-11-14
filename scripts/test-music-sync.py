@@ -21,7 +21,7 @@ with sync_playwright() as p:
   venue=dict(id=ID,name='Sync Bar',address='Test street 123',city='Montevideo',active=True,published=True,requestAccessMode='NEARBY',openingHours='W2|-|19:00-00:00|19:00-00:00|19:00-00:00|21:00-05:00|21:00-05:00|18:00-00:00')
   playlist=dict(id='P'*22,name='Night',snapshot='s1',tracks=[CAT[A].copy(),CAT[B].copy()])
   player=dict(now=CAT[A].copy(),isPlaying=True,contextUri='spotify:playlist:'+playlist['id'],progressMs=5000,repeat='off',shuffle=False,device=dict(id='speakers',name='Bar speakers',volume=50))
-  edits=[];controls=[];saved={};lag=[];held=[];hold_edit=[False];hold_control=[False];conflict=[False];external=[False];uncertain=[False];pending=[None];version=[1];player_reads=[]
+  edits=[];controls=[];saved={};lag=[];held=[];hold_edit=[False];hold_control=[False];conflict=[False];external=[False];uncertain=[False];pending=[None];version=[1];player_reads=[];hold_player=[False];held_players=[]
   def bump():version[0]+=1;playlist['snapshot']='s'+str(version[0])
   def reply(route,data,status=200):route.fulfill(status=status,content_type='application/json',body=json.dumps(data),headers={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'*','Access-Control-Allow-Methods':'GET,POST,PUT,OPTIONS'})
   def apply_control(body):
@@ -38,7 +38,10 @@ with sync_playwright() as p:
    if path.endswith('/spotify/device'):player['device']['id']=body['deviceId'];return reply(route,{})
    if path.endswith('/music/browser-token'):return reply(route,dict(accessToken='synthetic-spotify-token',expiresIn=60))
    if path.endswith('/music/player'):
-    if method=='GET':player_reads.append(path);return reply(route,player)
+    if method=='GET':
+     player_reads.append(path)
+     if hold_player[0]:hold_player[0]=False;held_players.append((route,copy.deepcopy(player)));return
+     return reply(route,player)
     controls.append(body)
     if hold_control[0]:hold_control[0]=False;held.append((route,body));return
     apply_control(body);return reply(route,dict(accepted=True))
@@ -65,13 +68,22 @@ with sync_playwright() as p:
    return reply(route,[])
   page.route('http://localhost:8080/**',api);page.route('https://**/*',lambda r:r.abort())
   page.route('https://sdk.scdn.co/spotify-player.js',lambda r:r.fulfill(content_type='application/javascript',body="""
-   window.Spotify={Player:class {constructor(o){this.o=o;this.listeners={};window.__sdk=this;this.s=null}addListener(k,v){this.listeners[k]=v}activateElement(){return Promise.resolve()}disconnect(){}connect(){this.o.getOAuthToken(()=>this.listeners.ready({device_id:'browser'}));return Promise.resolve(true)}emit(s){this.s=s;this.at=performance.now();this.listeners.player_state_changed(s)}getCurrentState(){if(!this.s)return Promise.resolve(null);return Promise.resolve({...this.s,position:this.s.position+(this.s.paused?0:performance.now()-this.at)})}}};window.onSpotifyWebPlaybackSDKReady();
+   window.Spotify={Player:class {constructor(o){this.o=o;this.listeners={};window.__sdk=this;this.s=null}addListener(k,v){this.listeners[k]=v}activateElement(){return Promise.resolve()}disconnect(){}connect(){this.o.getOAuthToken(()=>this.listeners.ready({device_id:'browser'}));return Promise.resolve(true)}emit(s){this.s=s;this.at=performance.now();this.listeners.player_state_changed(s)}getCurrentState(){const sample=this.s?{...this.s,position:this.s.position+(this.s.paused?0:performance.now()-this.at)}:null;if(this.hold){this.hold=false;return new Promise(resolve=>this.release=()=>resolve(sample));}return Promise.resolve(sample)}}};window.onSpotifyWebPlaybackSDKReady();
   """))
   def open_music():
    if page.url==BASE+'/#/admin/music':page.reload()
    else:page.goto(BASE+'/#/admin/music')
    page.locator('[data-track-index="0"]').wait_for();return page.locator('[data-admin-studio]')
-  root=open_music();hold_edit[0]=True
+  root=open_music()
+  # Spotify Connect has no browser event stream: detect an actual remote track
+  # change within one polling second, without sending any playback command.
+  player.update(now=CAT[B].copy(),progressMs=0)
+  page.clock.run_for(1100)
+  assert root.locator('[data-player-title]').inner_text()=='Track B' and not controls
+  player.update(now=CAT[A].copy(),progressMs=5000)
+  page.clock.run_for(1100)
+  assert root.locator('[data-player-title]').inner_text()=='Track A'
+  hold_edit[0]=True
   root.locator('[data-cabina-open=add]').click();root.locator('[data-studio-search]').fill('Track C')
   with page.expect_request(lambda r:'/music/edits/' in r.url):root.locator('[data-studio-edit=add]').click()
   page.wait_for_function("document.querySelector('[data-studio-edit=add]').textContent==='Agregando…'")
@@ -114,10 +126,30 @@ with sync_playwright() as p:
   assert 'Audio conectado' in root.locator('[data-studio-status]').inner_text()
   page.clock.fast_forward(200)
   assert root.locator('[data-studio-status]').inner_text()==''
-  def sdk(paused,position=5000):
-   page.evaluate("s=>window.__sdk.emit(s)",dict(paused=paused,position=position,duration=180000,context=dict(uri='spotify:playlist:'+playlist['id']),track_window=dict(current_track=dict(id=A,name='Track A',artists=[dict(name='Test band')],duration_ms=180000))))
+  def sdk(paused,position=5000,track=A):
+   page.evaluate("s=>window.__sdk.emit(s)",dict(paused=paused,position=position,duration=180000,context=dict(uri='spotify:playlist:'+playlist['id']),track_window=dict(current_track=dict(id=track,name=CAT[track]['title'],artists=[dict(name='Test band')],duration_ms=180000))))
   sdk(False);assert root.locator('[data-player-elapsed]').inner_text()=='0:05'
   reads=len(player_reads);page.clock.fast_forward(1250);assert root.locator('[data-player-elapsed]').inner_text()=='0:06';assert len(player_reads)==reads
+  # A natural track change updates title/clock immediately, including when an
+  # older SDK getCurrentState or HTTP response is still in flight.
+  page.evaluate('window.__sdk.hold=true');page.clock.run_for(550)
+  page.wait_for_function('typeof window.__sdk.release==="function"')
+  sdk(False,0,B);assert root.locator('[data-player-title]').inner_text()=='Track B'
+  page.evaluate('window.__sdk.release()')
+  assert root.locator('[data-player-title]').inner_text()=='Track B'
+  assert root.locator('[data-player-elapsed]').inner_text()=='0:00'
+  # A missing SDK event falls back to local sampling within half a second.
+  page.evaluate("""s=>{window.__sdk.s=s;window.__sdk.at=performance.now()}""",dict(paused=False,position=0,duration=180000,context=dict(uri='spotify:playlist:'+playlist['id']),track_window=dict(current_track=dict(id=A,name='Track A',artists=[dict(name='Test band')],duration_ms=180000))))
+  page.clock.run_for(550);assert root.locator('[data-player-title]').inner_text()=='Track A'
+  # The next remote read may be older than an SDK event; it must not revert it.
+  hold_player[0]=True;page.clock.run_for(7100)
+  page.wait_for_function('true')
+  assert held_players
+  sdk(False,0,B)
+  route,old=held_players.pop();reply(route,old)
+  page.wait_for_load_state('networkidle')
+  assert root.locator('[data-player-title]').inner_text()=='Track B'
+  sdk(False)
   # An old playing sample cannot undo immediate pause feedback while its reply waits.
   hold_control[0]=True
   with page.expect_request(lambda r:r.url.endswith('/music/player') and r.method=='POST'):root.locator('[data-player-toggle]').click()
@@ -145,6 +177,6 @@ with sync_playwright() as p:
   assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
   page.locator('.vp-hours-card').screenshot(path=f'/tmp/toca-hours-summary-{width}.png')
   assert not errors,errors
-  context.close();print('PASS confirmed playlist, bounded conflict recovery, duplicate safety, 5s feedback, SDK clock, instant controls and hours:',width,flush=True)
+  context.close();print('PASS playlist consistency, feedback, Connect track change within 1s, immediate SDK change, 0.5s fallback, stale-sample fencing, clock, controls and hours:',width,flush=True)
  browser.close()
 server.shutdown()

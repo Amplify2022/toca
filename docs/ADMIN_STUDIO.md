@@ -91,7 +91,12 @@ La edición por posición conserva duplicados. Los snapshots detectan lecturas/e
 
 ## Validación reproducible
 
+El reproductor del administrador actualiza canción, carátula y controles al recibir el evento del Web Playback SDK. Si falta ese evento, consulta el estado local del SDK cada 500 ms. Las respuestas HTTP o lecturas del SDK iniciadas antes de un evento de cambio no pueden reemplazar ese evento con el tema anterior; los eventos de una instancia desconectada también se descartan. Una respuesta HTTP antigua sobre el dispositivo no bloquea las lecturas del audio local seleccionado.
+
+Para Spotify Connect se consulta el estado cada segundo, sin solapar consultas. Mientras el SDK del navegador informa estado vigente, el respaldo HTTP sigue siendo cada 7 segundos para los datos del dispositivo y preferencias. Se pausa el sondeo en pestañas ocultas y, si hay errores, se espacian los reintentos (60 segundos ante HTTP 429). Las consultas del reproductor usan `cache: no-store`. La actualización depende también del tiempo que Spotify tarde en informar el estado.
+
 - `node scripts/test-bio-hours.cjs`: ejemplos de horas completas/incompletas, días, eventos, fechas y conflictos.
+- `python scripts/test-music-sync.py`: móvil y escritorio; cambios de canción mediante Connect y SDK, fallback sin evento y respuestas antiguas en vuelo, con proveedor simulado.
 - `python scripts/test-admin-studio.py`: frontend real a 390 y 1440 px; proveedores y SDK de audio simulados; precarga selectiva sin autoguardado, edición y conexión.
 - `python scripts/test-studio-http.py`: API real de pruebas en 8081 con rol DB restringido; autorización por propietario, ausencia de credenciales, flags y alta con datos importados.
 - Tests JUnit `VenueImportTest` y `MusicEditPlanTest`: horarios nocturnos/partidos, perfiles y URLs, índices y snapshots.
