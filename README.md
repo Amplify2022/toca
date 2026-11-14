@@ -141,7 +141,7 @@ La aplicación aplica las migraciones Flyway `V1` y `V2` automáticamente. No in
 4. Generá `SPOTIFY_TOKEN_ENCRYPTION_KEY_BASE64` mediante `openssl rand -base64 32`, reiniciá el backend y conservá esa clave segura.
 5. Incorporá en Spotify Dashboard los usuarios de pruebas permitidos por tu modo de aplicación, teniendo en cuenta los límites y la aprobación de Spotify.
 6. En modo API, creá tu usuario administrador, registrá un bar, entrá a **Spotify Premium → Conectar**, autorizá la cuenta y seleccioná playlist y dispositivo, si están disponibles.
-7. La lógica de solicitudes persiste en TOCÁ. Por defecto `SPOTIFY_PRIVATE_TEST_CONTROL=false` y aprobar una canción **no ejecuta comandos reales de reproducción**. Cambiarlo a `true` solo está previsto para pruebas privadas dentro de lo permitido.
+7. Los pedidos se sincronizan automáticamente con la playlist, sin aprobación del bar. Ante una respuesta perdida, TOCÁ comprueba y recupera el mismo pedido sin duplicarlo. `SPOTIFY_PRIVATE_TEST_PLAYLIST_WRITES` habilita esas escrituras; `SPOTIFY_PRIVATE_TEST_CONTROL` regula por separado los controles reales del reproductor.
 
 **Legal:** Spotify Premium es un requisito funcional del prototipo pero **no otorga licencia para reproducir música públicamente en bares**. Spotify también restringe apps comerciales dirigidas a negocios. Para un lanzamiento real será imprescindible autorización explícita del proveedor y los derechos musicales pertinentes. Por eso no hay pagos ni reproducción comercial habilitados.
 

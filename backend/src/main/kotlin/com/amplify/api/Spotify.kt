@@ -79,12 +79,12 @@ class Spotify(
                 if(node.isTextual)node.asText() else node.path("message").asText("")
             }.getOrDefault("").replace(Regex("[\r\n\t]")," ").take(180)
             System.err.println("SPOTIFY_ERROR: ${req.method()} ${req.uri().path} HTTP ${res.statusCode()} $reason")
-            if(res.statusCode()==429)fail(HttpStatus.TOO_MANY_REQUESTS,"Spotify está limitando las solicitudes; reintentá más tarde")
-            if(res.statusCode()==401)fail(HttpStatus.BAD_GATEWAY,"Spotify rechazó la autorización")
-            if(res.statusCode()==403)fail(HttpStatus.FORBIDDEN,"Spotify no permite esta operación o falta Premium")
+            if(res.statusCode()==429)throw SpotifyHttpFailure(429,HttpStatus.TOO_MANY_REQUESTS,"Spotify está limitando las solicitudes; reintentá más tarde")
+            if(res.statusCode()==401)throw SpotifyHttpFailure(401,HttpStatus.BAD_GATEWAY,"Spotify rechazó la autorización")
+            if(res.statusCode()==403)throw SpotifyHttpFailure(403,HttpStatus.FORBIDDEN,"Spotify no permite esta operación o falta Premium")
             if(res.statusCode()==404 && req.uri().path.startsWith("/v1/me/player"))
-                fail(HttpStatus.PRECONDITION_FAILED,"No hay un dispositivo de reproducción activo. Elegí una salida de audio en la cabina.")
-            fail(HttpStatus.BAD_GATEWAY,"Spotify devolvió HTTP ${res.statusCode()}")
+                throw SpotifyHttpFailure(404,HttpStatus.PRECONDITION_FAILED,"No hay un dispositivo de reproducción activo. Elegí una salida de audio en la cabina.")
+            throw SpotifyHttpFailure(res.statusCode(),HttpStatus.BAD_GATEWAY,"Spotify devolvió HTTP ${res.statusCode()}")
         }
         return Pair(res.statusCode(),res.body())
     }
@@ -166,6 +166,8 @@ class Spotify(
         requirePlaylistWrites()
         val plan=savedRequestPlan(planJson)
         requireSelectedPlaylist(venueId,plan.playlistId)
+        var mutationStarted=false
+        var completedWrites=0
         val changed=try {
             RequestPlaylistReplay.apply(plan,{
                 beforeMutation() // Also fence the initial/final verification reads.
@@ -174,6 +176,7 @@ class Spotify(
                 // Durable ownership may have expired while reading provider
                 // state. Renew/check it immediately before issuing each write.
                 beforeMutation()
+                mutationStarted=true
                 when(step.action) {
                     "INSERTED" -> apiJson("POST","/playlists/${plan.playlistId}/items",token,
                         mapOf("uris" to listOf("spotify:track:${step.trackId}"),"position" to step.desiredIndex))
@@ -184,10 +187,19 @@ class Spotify(
                                 "range_length" to 1,"snapshot_id" to snapshot))
                     }
                 }
+                completedWrites++
                 Unit
             }
-        } catch (_:RequestPlaylistReplay.Drift) {
-            fail(HttpStatus.CONFLICT,"La playlist cambió fuera del pedido; revisá su sincronización")
+        } catch (error:Exception) {
+            val drift=error is RequestPlaylistReplay.Drift
+            val message=if(drift)"La playlist cambió mientras se procesaba el pedido. Volvé a intentarlo."
+                else (error as? io.micronaut.http.exceptions.HttpStatusException)?.message ?: "No se pudo consultar la playlist de Spotify"
+            // A failed read before the first write, or an explicit rejection of
+            // that first write, must not masquerade as an approval requirement.
+            if(!mutationStarted || (completedWrites==0 && error is SpotifyHttpFailure && error.providerStatus in 400..499))
+                throw RequestNotApplied(if(drift)HttpStatus.CONFLICT else (error as? io.micronaut.http.exceptions.HttpStatusException)?.status ?: HttpStatus.BAD_GATEWAY,message)
+            if(drift)fail(HttpStatus.CONFLICT,message)
+            throw error
         }
         beforeMutation() // Fence the successful result before its SQL commit.
         musicCache.remove(venueId)

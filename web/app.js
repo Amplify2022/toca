@@ -298,10 +298,11 @@ async function submitSynchronizedRequest(venueId, track) {
     result = await client.submit(venueId, track.id, {
       trackId: track.id, guestId: GUEST_ID
     });
-    for (let attempt=0; attempt<8 && ['PENDING','PROCESSING'].includes(result.status); attempt++) {
-      requestSyncFeedback(venueId, 'Pedido recibido. Estamos confirmando la playlist con Spotify…');
+    for (let attempt=0; attempt<90 && ['PENDING','PROCESSING','UNCERTAIN'].includes(result.status); attempt++) {
+      requestSyncFeedback(venueId, 'Estamos confirmando tu pedido con Spotify. Se agrega automáticamente, sin aprobación del bar.');
       if (!result.commandId || route().path !== '/request/' + venueId) break;
-      await new Promise(resolve => setTimeout(resolve,1000));
+      await new Promise(resolve => setTimeout(resolve,attempt<8?1000:3000));
+      if (route().path !== '/request/' + venueId) break;
       result = await client.refresh(venueId, track.id, result.commandId);
     }
   } catch (error) {
@@ -315,9 +316,7 @@ async function submitSynchronizedRequest(venueId, track) {
   } else if (result.status === 'FAILED') {
     requestSyncFeedback(venueId, result.message || 'El pedido no pudo completarse. Podés intentarlo nuevamente.');
   } else {
-    requestSyncFeedback(venueId, result.status === 'UNCERTAIN'
-      ? 'Tu pedido necesita revisión del bar. No lo reenviaremos mientras se confirma el resultado en Spotify.'
-      : 'Tu pedido quedó recibido y sigue en proceso. Podés consultar su estado volviendo a elegir este tema.');
+    requestSyncFeedback(venueId, 'Tu pedido sigue en proceso. La confirmación con Spotify es automática; no necesitás aprobación del bar.');
   }
   return result;
 }

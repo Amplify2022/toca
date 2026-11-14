@@ -74,8 +74,9 @@ Coverage:
 - Authenticated customer quotas despite changing guest IDs; cheap rejection.
 - Idempotent admissions and conflicting-key rejection.
 - Session/whitelist changes during metadata lookup prevent a provider mutation.
-- Durable remote plans, timeout-after-effect, read-only recovery, single local
-  event, worker crash/lease recovery, and ownership fencing before mutations.
+- Durable remote plans, automatic timeout-after-effect confirmation, resumed
+  known plans without bar approval, single local event, concurrent recovery,
+  worker crash/lease recovery, and ownership fencing before mutations.
 
 These are integration regressions, not live-provider OAuth/playback validation.
 

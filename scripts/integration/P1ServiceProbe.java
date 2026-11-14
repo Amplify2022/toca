@@ -109,6 +109,9 @@ public class P1ServiceProbe {
         Runnable duringMetadata=()->{};
         boolean failAfterEffect;
         boolean crashAfterEffect;
+        boolean failBeforeEffect;
+        boolean verifyUnavailable;
+        boolean rejected;
         final Set<String> appliedPlans=new HashSet<>();
         int effects;
         @Override public boolean getEnabled(){return true;}
@@ -124,13 +127,26 @@ public class P1ServiceProbe {
             applyCalls.incrementAndGet();
             var durable=db.one("SELECT status,plan_json FROM request_command WHERE venue_id=? ORDER BY sequence DESC LIMIT1".replace("LIMIT1","LIMIT 1"),venue);
             check(durable!=null && plan.equals(durable.get("plan_json")),"Plan must be durably saved before remote effect");
+            if(rejected)throw new RequestNotApplied(HttpStatus.FORBIDDEN,"Spotify rechazó los permisos de la playlist");
+            if(failBeforeEffect){failBeforeEffect=false;throw new RuntimeException("temporary provider outage before effect");}
             if(appliedPlans.add(plan)) effects++;
             if(crashAfterEffect){crashAfterEffect=false;throw new AssertionError("simulated worker death after remote effect");}
             if(failAfterEffect){failAfterEffect=false;throw new RuntimeException("simulated timeout after remote success");}
             return new RequestPlaylistResult("fixture-synchronized",1,null);
         }
         @Override public RequestPlaylistResult verify(UUID venue,String token,String plan) {
+            if(verifyUnavailable)throw new RuntimeException("temporary provider read outage");
             return appliedPlans.contains(plan) ? new RequestPlaylistResult("fixture-synchronized",1,null) : null;
+        }
+    }
+
+    static class ResumableSpotify extends FakeSpotify implements RecoverableRequestSpotifyGateway {
+        final AtomicInteger resumes=new AtomicInteger();
+        @Override public RequestPlaylistResult applyOwned(UUID venue,String token,String plan,kotlin.jvm.functions.Function0<kotlin.Unit> fence) {
+            fence.invoke();return apply(venue,token,plan);
+        }
+        @Override public RequestPlaylistResult resumeOwned(UUID venue,String token,String plan,kotlin.jvm.functions.Function0<kotlin.Unit> fence) {
+            resumes.incrementAndGet();return applyOwned(venue,token,plan,fence);
         }
     }
 
@@ -182,7 +198,7 @@ public class P1ServiceProbe {
     }
 
     static void uncertainRemoteEffect() {
-        UUID v=venue(),c=customer();var fake=new FakeSpotify();fake.failAfterEffect=true;
+        UUID v=venue(),c=customer();var fake=new FakeSpotify();fake.failAfterEffect=true;fake.verifyUnavailable=true;
         var commands=new RequestCommands(db,new VenuePresence(db),fake,false);
         String idem=key();commands.submit(v,c,body(TRACK_A,"guest-uncertain"),idem);
         commands.processVenue(v);
@@ -197,13 +213,58 @@ public class P1ServiceProbe {
         UUID id=(UUID)db.one("SELECT id FROM request_command WHERE venue_id=?",v).get("id");
         db.exec("UPDATE request_command SET lease_until=now()-interval '3 minutes' WHERE id=?",id);
         // A fresh service models a restarted worker; recovery reads saved state.
-        var restarted=new RequestCommands(db,new VenuePresence(db),fake,false);
-        restarted.reconcile(v,id);
-        check("SUCCEEDED".equals(db.one("SELECT status FROM request_command WHERE id=?",id).get("status")),"Read-only provider verification must finalize known success");
+        fake.verifyUnavailable=false;
+        var restarted=new RequestCommands(db,new VenuePresence(db),fake,true);
+        restarted.recoverPending();
+        check("SUCCEEDED".equals(db.one("SELECT status FROM request_command WHERE id=?",id).get("status")),"Automatic provider verification must finalize known success without bar approval");
         check(fake.effects==effects,"Reconciliation must not call mutation again");
         restarted.reconcile(v,id);
         check(((Number)db.one("SELECT count(*) AS n FROM song_request_event WHERE command_id=?",id).get("n")).intValue()==1,"Recovered command must create exactly one local event");
-        System.out.println("PASS outbox: unknown result preserved, retry/restart read-only verification avoids duplicate effect and event");
+        System.out.println("PASS outbox: automatic restart verification, no approval, duplicate effect or duplicate event");
+    }
+
+    static void automaticRecovery() throws Exception {
+        UUID completedVenue=venue(), completedCustomer=customer();var completed=new FakeSpotify();completed.failAfterEffect=true;
+        var immediate=new RequestCommands(db,new VenuePresence(db),completed,false);
+        var result=immediate.submit(completedVenue,completedCustomer,body(TRACK_A,"guest-auto-confirm"),key());
+        check("DISPATCHED".equals(result.get("status")),"Lost response must be confirmed automatically in the original request");
+        check(completed.effects==1&&completed.applyCalls.get()==1,"Immediate verification must not resend the song");
+
+        UUID rejectedVenue=venue(),rejectedCustomer=customer();var rejected=new FakeSpotify();rejected.rejected=true;
+        var rejectedCommands=new RequestCommands(db,new VenuePresence(db),rejected,true);
+        var denied=rejectedCommands.submit(rejectedVenue,rejectedCustomer,body(TRACK_A,"guest-provider-reject"),key());
+        check("FAILED".equals(denied.get("status"))&&denied.get("message").toString().contains("permisos"),"A definite rejection must show its error, not wait for bar approval");
+        check(rejected.effects==0,"Rejected playlist write must have no effect");
+
+        UUID v=venue(),c=customer();var fake=new ResumableSpotify();fake.failBeforeEffect=true;
+        var commands=new RequestCommands(db,new VenuePresence(db),fake,true);
+        String idem=key();var pending=commands.submit(v,c,body(TRACK_A,"guest-auto-resume"),idem);
+        check("UNCERTAIN".equals(pending.get("status")),"Unconfirmed operation must not claim success");
+        check(!pending.get("message").toString().contains("revisión del administrador"),"Customer must not be asked for bar approval");
+        commands.recoverPending();
+        check(fake.resumes.get()==0,"In-flight provider requests must settle before any automatic replay");
+        UUID id=(UUID)db.one("SELECT id FROM request_command WHERE venue_id=?",v).get("id");
+        db.exec("UPDATE request_command SET lease_until=now()-interval '3 minutes' WHERE id=?",id);
+        var workers=Executors.newFixedThreadPool(2);
+        try {
+            var first=workers.submit(()->commands.recoverPending());
+            var second=workers.submit(()->new RequestCommands(db,new VenuePresence(db),fake,true).recoverPending());
+            first.get(15,TimeUnit.SECONDS);second.get(15,TimeUnit.SECONDS);
+        } finally {workers.shutdownNow();}
+        check("DISPATCHED".equals(commands.status(id,c).get("status")),"A known saved state must resume without admin action");
+        check(fake.resumes.get()==1&&fake.effects==1,"Concurrent workers must resume exactly once");
+        commands.recoverPending();commands.submit(v,c,body(TRACK_A,"guest-repeat-auto-resume"),idem);
+        check(fake.resumes.get()==1&&fake.effects==1,"Further retries must not duplicate a completed recovery");
+        check(((Number)db.one("SELECT count(*) AS n FROM song_request_event WHERE command_id=?",id).get("n")).intValue()==1,"Automatic recovery creates a single event");
+
+        UUID closed=venue(),closedCustomer=customer();var blocked=new ResumableSpotify();blocked.failBeforeEffect=true;
+        var closedCommands=new RequestCommands(db,new VenuePresence(db),blocked,true);
+        closedCommands.submit(closed,closedCustomer,body(TRACK_A,"guest-auto-closed"),key());
+        db.exec("UPDATE request_command SET lease_until=now()-interval '3 minutes' WHERE venue_id=?",closed);
+        db.exec("UPDATE venue SET active=false WHERE id=?",closed);
+        closedCommands.recoverPending();
+        check(blocked.resumes.get()==0&&blocked.effects==0,"Recovery must revalidate a closed session before any write");
+        System.out.println("PASS automatic requests: immediate confirmation, resumed plan, grace period, concurrent ownership, single event and session revalidation");
     }
 
     static void crashedWorkerRecovery() {
@@ -222,7 +283,11 @@ public class P1ServiceProbe {
         restarted.recoverPending();
         check("UNCERTAIN".equals(db.one("SELECT status FROM request_command WHERE id=?",row.get("id")).get("status")),"Expired applying lease must become uncertain");
         check(fake.applyCalls.get()==1 && fake.effects==1,"Restart must not replay unknown remote effect");
-        System.out.println("PASS recovery: crashed worker retains plan; expired lease becomesUNCERTAIN without remote replay");
+        db.exec("UPDATE request_command SET lease_until=now()-interval '3 minutes' WHERE id=?",row.get("id"));
+        restarted.recoverPending();
+        check("SUCCEEDED".equals(db.one("SELECT status FROM request_command WHERE id=?",row.get("id")).get("status")),"Restart must automatically confirm the remote effect after settling");
+        check(fake.applyCalls.get()==1&&fake.effects==1,"Crash recovery must use read-only confirmation for an already applied plan");
+        System.out.println("PASS recovery: crashed worker retains plan and confirms automatically without resending");
     }
 
     static void authAtomicBudgets() throws Exception {
@@ -255,6 +320,11 @@ public class P1ServiceProbe {
         boolean expireOwnership;
         boolean expireAfterFirstEffect;
         boolean secondMutationReached;
+        @Override public RequestPlaylistResult verify(UUID venue,String token,String plan) {
+            // The first effect is only an intermediate state of this fixture's
+            // two-step plan, not evidence that the complete plan succeeded.
+            return expireAfterFirstEffect&&!secondMutationReached ? null : super.verify(venue,token,plan);
+        }
         @Override public RequestPlaylistResult applyOwned(UUID venue,String token,String plan,
                 kotlin.jvm.functions.Function0<kotlin.Unit> beforeMutation) {
             if(expireOwnership)db.exec("UPDATE request_command SET lease_until=now()-interval '1 second' WHERE venue_id=? AND status='APPLYING'",venue);
@@ -349,7 +419,7 @@ public class P1ServiceProbe {
         Flyway.configure().dataSource(datasource).locations("classpath:db/migration").load().migrate();
         db=new Db(datasource);
         try {
-            transactionReuse();adminMusicEdits();presenceEvidence();authAtomicBudgets();requestIdentityAndReplay();authenticatedWindowCap();policyRevalidation();uncertainRemoteEffect();crashedWorkerRecovery();lostOwnershipFencesMutation();
+            transactionReuse();adminMusicEdits();presenceEvidence();authAtomicBudgets();requestIdentityAndReplay();authenticatedWindowCap();policyRevalidation();uncertainRemoteEffect();automaticRecovery();crashedWorkerRecovery();lostOwnershipFencesMutation();
             System.out.println("PASS P1 regression assertions="+assertions);
         } finally {
             for(UUID owner:owners){db.exec("DELETE FROM venue WHERE owner_id=?",owner);db.exec("DELETE FROM admin_user WHERE id=?",owner);}

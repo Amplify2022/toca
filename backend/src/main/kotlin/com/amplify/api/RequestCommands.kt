@@ -27,8 +27,13 @@ interface OwnedRequestSpotifyGateway : RequestSpotifyGateway {
     fun applyOwned(venueId: UUID, token: String, planJson: String, beforeMutation: () -> Unit): RequestPlaylistResult
 }
 
+/** Recovery must recognize the saved plan's exact states before any write. */
+interface RecoverableRequestSpotifyGateway : OwnedRequestSpotifyGateway {
+    fun resumeOwned(venueId: UUID, token: String, planJson: String, beforeMutation: () -> Unit): RequestPlaylistResult
+}
+
 @Singleton
-class SpotifyRequestGateway(private val spotify: Spotify) : OwnedRequestSpotifyGateway {
+class SpotifyRequestGateway(private val spotify: Spotify) : RecoverableRequestSpotifyGateway {
     override val enabled get() = spotify.playlistWriteEnabled
     override fun metadata(venueId: UUID, trackId: String): Map<String, String> =
         spotify.getTrack(venueId, trackId).let { mapOf("title" to it["title"]?.toString().orEmpty(), "artist" to it["artist"]?.toString().orEmpty()) }
@@ -41,12 +46,14 @@ class SpotifyRequestGateway(private val spotify: Spotify) : OwnedRequestSpotifyG
         spotify.applyRequestPlan(venueId, token, planJson, beforeMutation).let { RequestPlaylistResult(it.action, it.position, it.warning) }
     override fun verify(venueId: UUID, token: String, planJson: String) =
         spotify.verifyRequestPlan(venueId, token, planJson)?.let { RequestPlaylistResult(it.action, it.position, it.warning) }
+    override fun resumeOwned(venueId: UUID, token: String, planJson: String, beforeMutation: () -> Unit) =
+        applyOwned(venueId, token, planJson, beforeMutation)
 }
 
 /**
  * Short PostgreSQL transactions admit/claim/finalize durable commands. Provider
  * I/O NEVER runs in a transaction or while holding a venue row lock. Unknown
- * outcomes stop this venue instead of blindly replaying a non-idempotent call.
+ * outcomes are checked automatically against the saved plan before resuming.
  */
 @Singleton
 class RequestCommands(private val db: Db, private val presence: VenuePresence,
@@ -181,25 +188,77 @@ class RequestCommands(private val db: Db, private val presence: VenuePresence,
             applying = true
             // No SQL transaction/row lock spans these calls. No player enqueue is
             // attempted: Spotify's live queue has no idempotency/replay primitive.
-            val assertOwner = {
-                val renewed = db.exec("""UPDATE request_command SET lease_until=now()+interval '15 minutes'
-                    WHERE id=? AND worker_id=? AND status='APPLYING' AND lease_until>now()""", id, owner)
-                if (renewed != 1) fail(HttpStatus.CONFLICT, "El proceso perdió la autorización para modificar Spotify")
-                Unit
-            }
+            val assertOwner = { renewOwnership(id, owner) }
             assertOwner()
             val result = if (gateway is OwnedRequestSpotifyGateway) gateway.applyOwned(venueId, token, plan, assertOwner)
                 else gateway.apply(venueId, token, plan)
             finalize(id, owner, result)
         } catch (error: Exception) {
-            val message = if (applying) "Spotify pudo haber modificado la playlist. El administrador debe verificar el resultado antes de continuar."
+            val uncertain = applying && error !is RequestNotApplied
+            val message = if (uncertain) "Estamos comprobando automáticamente el resultado en Spotify. No hace falta aprobación del bar."
                 else (error as? HttpStatusException)?.message?.take(500) ?: "No se pudo preparar el pedido. No se modificó Spotify."
             // If DB is unavailable, APPLYING remains durable and recovery marks
             // it uncertain. Never turn an unknown remote result into success.
             runCatching { db.exec("""UPDATE request_command SET status=?,error=?,updated_at=now(),
                 lease_until=CASE WHEN ? THEN now() ELSE lease_until END
                 WHERE id=? AND worker_id=? AND status IN ('PREPARING','APPLYING')""",
-                if (applying) "UNCERTAIN" else "FAILED", message, applying, id, owner) }
+                if (uncertain) "UNCERTAIN" else "FAILED", message, uncertain, id, owner) }
+        } finally { running.remove(id, owner) }
+        // A lost response or failed local commit often leaves the final playlist
+        // already correct. Confirm it now using reads only, without resending.
+        if (applying) runCatching { confirmUncertain(id) }
+    }
+
+    private fun renewOwnership(id: UUID, owner: UUID) {
+        val renewed = db.exec("""UPDATE request_command SET lease_until=now()+interval '15 minutes'
+            WHERE id=? AND worker_id=? AND status='APPLYING' AND lease_until>now()""", id, owner)
+        if (renewed != 1) fail(HttpStatus.CONFLICT, "El proceso perdió la autorización para modificar Spotify")
+    }
+
+    private fun confirmUncertain(id: UUID) {
+        val command = db.one("SELECT * FROM request_command WHERE id=? AND status='UNCERTAIN'", id) ?: return
+        val venueId = command.getValue("venue_id") as UUID
+        val plan = command["plan_json"] as? String ?: return
+        val result = gateway.verify(venueId, gateway.token(venueId), plan) ?: return
+        finalize(id, command.getValue("worker_id") as UUID, result)
+    }
+
+    /** One durable owner may resume an expired command, using its frozen plan.
+     * The grace period lets an in-flight provider request settle before writes.
+     * Verification and mutations remain outside SQL transactions. */
+    private fun recoverUncertain(id: UUID) {
+        val row = db.one("SELECT venue_id FROM request_command WHERE id=?", id) ?: return
+        val venueId = row.getValue("venue_id") as UUID
+        val owner = UUID.randomUUID()
+        val command = db.transaction {
+            lockVenue(venueId)
+            val current = db.one("SELECT * FROM request_command WHERE id=? FOR UPDATE", id) ?: return@transaction null
+            val lease = (current["lease_until"] as? Timestamp)?.toInstant() ?: return@transaction null
+            if (current["status"] != "UNCERTAIN" || running.containsKey(id) || lease.plusSeconds(120).isAfter(Instant.now())) return@transaction null
+            if (current["plan_json"] !is String) return@transaction null
+            db.exec("UPDATE request_command SET status='APPLYING',worker_id=?,lease_until=now()+interval '15 minutes',updated_at=now() WHERE id=?", owner, id)
+            current
+        } ?: return
+        running[id] = owner
+        try {
+            val token = gateway.token(venueId)
+            val plan = command.getValue("plan_json") as String
+            val verified = gateway.verify(venueId, token, plan)
+            val result = verified ?: run {
+                val recoverable = gateway as? RecoverableRequestSpotifyGateway
+                    ?: fail(HttpStatus.CONFLICT, "La integración no permite reanudar este pedido automáticamente")
+                db.transaction { currentForCommand(command) }
+                val assertOwner = { renewOwnership(id, owner) }
+                assertOwner()
+                recoverable.resumeOwned(venueId, token, plan, assertOwner)
+            }
+            finalize(id, owner, result)
+        } catch (_: Exception) {
+            // Back off for the same settling interval. An unrelated edit or
+            // provider outage is never reported as a successful request.
+            db.exec("""UPDATE request_command SET status='UNCERTAIN',lease_until=now(),updated_at=now(),
+                error='Seguimos comprobando automáticamente la sincronización con Spotify.'
+                WHERE id=? AND worker_id=? AND status='APPLYING'""", id, owner)
         } finally { running.remove(id, owner) }
     }
 
@@ -235,7 +294,7 @@ class RequestCommands(private val db: Db, private val presence: VenuePresence,
         val message = when (status) {
             "DISPATCHED" -> "La playlist confirmó tu pedido."
             "FAILED" -> command["error"] ?: "El pedido no pudo sincronizarse."
-            "UNCERTAIN" -> "El resultado en Spotify requiere revisión del administrador. No vuelvas a enviar el pedido."
+            "UNCERTAIN" -> "Estamos confirmando tu pedido automáticamente con Spotify. No necesitás aprobación del bar."
             else -> "Pedido recibido; esperando confirmación de Spotify."
         }
         return mapOf("commandId" to command["id"].toString(), "id" to (command["request_id"] ?: command["id"]).toString(),
@@ -281,12 +340,15 @@ class RequestCommands(private val db: Db, private val presence: VenuePresence,
     @Scheduled(fixedDelay = "5s", initialDelay = "5s")
     fun recoverPending() {
         if (!workerEnabled) return
-        // PREPARING has no remote writes. APPLYING may have succeeded remotely:
-        // preserve its saved plan and stop the venue until explicit inspection.
+        // Preserve the saved plan across a crash; recovery checks remote state
+        // and resumes only an exact known state after the original lease settles.
         db.exec("""UPDATE request_command SET status=CASE WHEN status='PREPARING' THEN 'FAILED' ELSE 'UNCERTAIN' END,
             error=CASE WHEN status='PREPARING' THEN 'El proceso terminó antes de modificar Spotify'
-              ELSE 'Se interrumpió la sincronización; verificá Spotify antes de continuar' END,updated_at=now()
+              ELSE 'Se interrumpió la sincronización; la app comprobará el resultado automáticamente' END,updated_at=now()
             WHERE status IN ('PREPARING','APPLYING') AND lease_until<now()""")
+        db.list("""SELECT id FROM request_command WHERE status='UNCERTAIN'
+            AND lease_until<now()-interval '120 seconds' ORDER BY lease_until,sequence LIMIT 5""")
+            .forEach { runCatching { recoverUncertain(it.getValue("id") as UUID) } }
         db.list("""SELECT venue_id FROM request_command WHERE status='PENDING' GROUP BY venue_id
             ORDER BY min(sequence) LIMIT 5""").forEach { runCatching { processVenue(it.getValue("venue_id") as UUID) } }
     }

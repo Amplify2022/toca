@@ -22,7 +22,7 @@ def scenario(browser, outcome):
       sessionStorage.setItem('toca:customer:session','synthetic-customer-session-abcdefghijklmnopqrstuvwxyz');
     """)
     page = context.new_page()
-    errors, keys = [], []
+    errors, keys, checks = [], [], []
     page.on('pageerror', lambda error: errors.append(str(error)))
     page.on('dialog', lambda dialog: dialog.accept())
 
@@ -52,7 +52,8 @@ def scenario(browser, outcome):
             data = dict(commandId='command-test', status='PENDING' if outcome == 'pending' else
                         'UNCERTAIN' if outcome == 'uncertain' else 'DISPATCHED')
         elif path.endswith('/request-commands/command-test'):
-            data = dict(commandId='command-test', status='DISPATCHED')
+            checks.append(True)
+            data = dict(commandId='command-test', status='UNCERTAIN' if outcome=='uncertain' and len(checks)<3 else 'DISPATCHED')
         route.fulfill(status=200, content_type='application/json', body=json.dumps(data),
                       headers={'Access-Control-Allow-Origin': '*'})
 
@@ -64,12 +65,11 @@ def scenario(browser, outcome):
     button.wait_for()
     button.click()
     if outcome == 'uncertain':
-        page.wait_for_function("document.getElementById('toca-request-sync-feedback')?.textContent.includes('revisión del bar')")
+        page.wait_for_function("document.getElementById('toca-request-sync-feedback')?.textContent.includes('sin aprobación del bar')")
         assert page.evaluate('location.hash').startswith('#/request/')
         assert 'Playlist actualizada' not in page.locator('#toast').inner_text()
-        button.click()
         page.wait_for_function("location.hash.startsWith('#/success/')")
-        assert len(keys) == 1, 'Consulting uncertain command must not issue a second POST'
+        assert len(checks)>=3 and len(keys)==1, 'Uncertain commands must be polled automatically without a second click or POST'
     elif outcome == 'lost-response':
         page.wait_for_function("document.getElementById('toca-request-sync-feedback')?.textContent.includes('conservamos el mismo pedido')")
         assert button.is_enabled(), 'Network errors must allow querying the retained request'
@@ -123,7 +123,7 @@ def admin_review(browser):
     page.route('https://**/*', lambda route: route.abort())
     page.goto('http://localhost:5173/#/admin/general')
     page.locator('[data-action="reconcile-request-command"]').wait_for()
-    assert not posts, 'Uncertain commands require an explicit administrator action'
+    assert not posts, 'The customer recovery flow must not invoke administrator-only diagnostic endpoints'
     page.locator('[data-action="reconcile-request-command"]').click()
     page.wait_for_function("document.getElementById('toca-request-commands')?.textContent.includes('No hay pedidos pendientes')")
     assert len(posts) == 1
@@ -139,5 +139,5 @@ if __name__ == '__main__':
             scenario(browser, outcome)
             print('PASS request UI:', outcome)
         admin_review(browser)
-        print('PASS request UI: explicit administrator reconciliation')
+        print('PASS request UI: optional administrator diagnostics')
         browser.close()

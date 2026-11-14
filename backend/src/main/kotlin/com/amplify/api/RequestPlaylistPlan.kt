@@ -48,7 +48,7 @@ data class RequestPlaylistPlan(
 data class RequestPlaylistSnapshot(val ids: List<String?>, val snapshotId: String)
 
 /** The caller records ambiguous failures; this class never retries a mutation.
- * A later, explicit reconciliation can safely resume at a known intermediate
+ * A later, fenced recovery can safely resume at a known intermediate
  * state, or recognize an already-applied command after a lost response/commit.
  */
 object RequestPlaylistReplay {
