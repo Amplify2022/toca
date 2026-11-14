@@ -133,9 +133,4 @@
       toast(removing?'Foto eliminada':'Portada actualizada');await render();
     }catch(err){b.disabled=false;toast('Error: '+err.message);}
   },true);
-  document.addEventListener('click',e=>{
-    const b=e.target.closest('[data-photo-preview]');if(!b)return;
-    const main=document.querySelector('.toca-detail-cover img');
-    if(main)main.src=b.dataset.photoPreview;
-  });
 })();

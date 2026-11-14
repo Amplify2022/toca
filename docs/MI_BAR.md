@@ -12,6 +12,8 @@ Las tarjetas abren pantallas independientes:
 
 La vista de resumen conserva la publicación, la vista pública y la eliminación del bar. Con varios bares, permite seleccionar cuál administrar. Música, pedidos y la cuenta de administrador conservan sus pantallas.
 
+En el perfil público del local (`#/venue/{id}`), todas las fotos se recorren en el carrusel de la cabecera. La portada va primero, sin duplicarse, y se conserva la proporción de las imágenes. Incluye flechas, desplazamiento horizontal, teclado y contador; no cambia de foto automáticamente. Las fotos ya no se repiten debajo de la descripción. Con una única foto no muestra controles de navegación; sin fotos conserva la imagen ilustrativa.
+
 ## Actualizar datos desde un perfil
 
 La comparación usa una copia separada de los datos guardados, sin montar un formulario oculto en la página. Los campos completos quedan desmarcados al buscar; se guardan solamente los seleccionados. Si cambia dirección, ciudad o coordenadas, se pasa por Datos y ubicación para confirmar el pin antes de guardar. Los horarios de una biografía requieren revisión, conservan los días no seleccionados y no inventan horas de cierre.
@@ -34,6 +36,7 @@ Es necesario reconstruir la API para habilitar PATCH y su preflight CORS. Al ter
 ## Verificado
 
 - `python scripts/test-venue-profile.py`: UI real en 390 y 1440 px, resumen sin formularios, editores, fotos, acceso, importación selectiva, horarios incompletos y mezcla parcial de la semana, pin bajo demanda, conflictos que conservan los campos y eliminación del bar.
+- `python scripts/test-venue-gallery.py`: perfil público a 390 y 1440 px, todas las fotos arriba, portada sin duplicados, flechas/teclado/desplazamiento, cambio de ancho y casos con una foto o sin fotos.
 - `TOCA_HTTP_TEST_URL=http://127.0.0.1:8096 python scripts/test-venue-profile-http.py`: API y PostgreSQL reales en una base de tests; autorización, cambios parciales, concurrencia, conflictos y CORS PATCH, con cuentas sintéticas que se eliminan al terminar.
 - `test-venue-onboarding.py`: alta completa por Google, Instagram y manual, borrador y publicación a ambos tamaños.
 - Regresiones: 45 tests del backend, 16 variantes de ingreso al panel, 8 escenarios de Google de clientes, 45 aserciones de extracción de horarios, estudio musical, acceso por distancia, navegación y recarga offline.
