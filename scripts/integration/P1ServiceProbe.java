@@ -53,6 +53,26 @@ public class P1ServiceProbe {
     static String key() { return UUID.randomUUID().toString(); }
     static final String TRACK_A="AAAAAAAAAAAAAAAAAAAAAA", TRACK_B="BBBBBBBBBBBBBBBBBBBBBB";
     static int credits(CustomerWallet wallet,UUID customer) { return ((Number)wallet.snapshot(customer).get("balance")).intValue(); }
+    static Map<String,UUID> legacyCreditFixture(boolean confirmed) {
+        UUID c=customer(false),v=venue(),id=UUID.randomUUID();
+        db.exec("INSERT INTO customer_wallet(customer_id,balance) VALUES(?,4)",c);
+        db.exec("INSERT INTO request_command(id,venue_id,customer_id,idempotency_key,track_id,guest_id,playlist_id,status) VALUES(?,?,?,?,?,?,?,?)",id,v,c,key(),TRACK_A,"legacy-fixture","p1-playlist",confirmed?"SUCCEEDED":"UNCERTAIN");
+        db.exec("INSERT INTO customer_token_hold(command_id,customer_id,amount,status) VALUES(?,?,1,?)",id,c,confirmed?"CAPTURED":"RESERVED");
+        db.exec("INSERT INTO customer_token_entry(id,customer_id,kind,amount,idempotency_key,pack_id) VALUES(?,?,'TOPUP',5,?,'5')",UUID.randomUUID(),c,key());
+        db.exec("INSERT INTO customer_token_entry(id,customer_id,kind,amount,command_id) VALUES(?,?,'RESERVE',-1,?)",UUID.randomUUID(),c,id);
+        return Map.of("customer",c,"command",id);
+    }
+    static void verifyCreditUpgrade(Map<String,UUID> pending,Map<String,UUID> confirmed) {
+        var wallet=new CustomerWallet(db,true);
+        check(credits(wallet,pending.get("customer"))==5,"Upgrade must restore the old 4 plus 1 unconfirmed token to 5");
+        check(credits(wallet,confirmed.get("customer"))==4,"An already confirmed charge must remain charged");
+        check(((List<?>)wallet.snapshot(pending.get("customer")).get("movements")).size()==1,"Unconfirmed internal movements must not appear in the wallet");
+        check(((List<?>)wallet.snapshot(confirmed.get("customer")).get("movements")).size()==2,"Old confirmed charge must stay in the history");
+        check("RETRY_AFTER_UPDATE".equals(db.one("SELECT action FROM request_command WHERE id=?",pending.get("command")).get("action")),"Old interrupted command must allow an explicit fresh retry");
+        wallet.capture(pending.get("command"));wallet.release(pending.get("command"));
+        check(credits(wallet,pending.get("customer"))==5,"Retired commands cannot change the restored balance");
+        System.out.println("PASS migration: 4 plus 1 pending restores 5; confirmed charges remain; no reservations in customer history");
+    }
     static void walletAndRequests() throws Exception {
         var wallet=new CustomerWallet(db,true);
         UUID c=customer(false),other=customer(false),v=venue();var fake=new FakeSpotify();
@@ -85,7 +105,7 @@ public class P1ServiceProbe {
             var futures=new ArrayList<Future<?>>();
             for(UUID bar:List.of(firstVenue,secondVenue))futures.add(workers.submit(()->{
                 try {check("DISPATCHED".equals(commands.submit(bar,c,body(TRACK_B,"guest-last-credit"),key()).get("status")),"Funded request must complete");accepted.incrementAndGet();}
-                catch(HttpStatusException error){if(error.getStatus()!=HttpStatus.PAYMENT_REQUIRED)throw error;denied.incrementAndGet();}
+                catch(HttpStatusException error){if(error.getStatus()!=HttpStatus.PAYMENT_REQUIRED&&error.getStatus()!=HttpStatus.CONFLICT)throw error;denied.incrementAndGet();}
             }));
             for(var future:futures)future.get(15,TimeUnit.SECONDS);
         }finally{workers.shutdownNow();}
@@ -103,17 +123,18 @@ public class P1ServiceProbe {
         UUID uncertain=customer(false),uncertainVenue=venue();wallet.topUp(uncertain,"5",key());var delayed=new FakeSpotify();delayed.failAfterEffect=true;delayed.verifyUnavailable=true;
         var recovery=new RequestCommands(db,new VenuePresence(db),delayed,wallet,true);
         var waiting=recovery.submit(uncertainVenue,uncertain,body(TRACK_A,"guest-held-token"),key());
-        check("UNCERTAIN".equals(waiting.get("status"))&&credits(wallet,uncertain)==4,"An uncertain outcome retains the original reservation");
-        check(((Number)wallet.snapshot(uncertain).get("reserved")).intValue()==1,"Pending reservation is visible to its owner");
+        check("UNCERTAIN".equals(waiting.get("status"))&&credits(wallet,uncertain)==5,"An uncertain outcome retains the original reservation");
+        check(!wallet.snapshot(uncertain).containsKey("reserved"),"Customer wallet must not expose reservations");
+        check(((java.util.List<?>)wallet.snapshot(uncertain).get("movements")).size()==1,"A pending request must not add a debit movement");
         db.exec("UPDATE request_command SET lease_until=now()-interval '3 minutes' WHERE customer_id=?",uncertain);delayed.verifyUnavailable=false;
         recovery.recoverPending();recovery.recoverPending();
-        check(credits(wallet,uncertain)==4&&((Number)wallet.snapshot(uncertain).get("reserved")).intValue()==0,"Recovered success captures the same token without charging again");
+        check(credits(wallet,uncertain)==4,"Recovered success captures the same token without charging again");
         check(delayed.effects==1&&delayed.applyCalls.get()==1,"Lost-response recovery must not duplicate Spotify writes");
 
         UUID interrupted=customer(false),interruptedVenue=venue();wallet.topUp(interrupted,"5",key());var crash=new FakeSpotify();
         crash.duringMetadata=()->{throw new AssertionError("crash before provider write");};var expired=new RequestCommands(db,new VenuePresence(db),crash,wallet,true);
         try{expired.submit(interruptedVenue,interrupted,body(TRACK_A,"guest-expired-hold"),key());throw new AssertionError("Fixture must interrupt preparation");}catch(AssertionError expected){check(expected.getMessage().contains("crash before"),"Unexpected fixture failure");}
-        check(credits(wallet,interrupted)==4,"Preparing request keeps its token reserved");
+        check(credits(wallet,interrupted)==5,"Preparing request keeps its token reserved");
         db.exec("UPDATE request_command SET status='PENDING' WHERE customer_id=?",interrupted);
         forbidden(()->expired.requireMutable(interruptedVenue),HttpStatus.CONFLICT,"A pending reserved order must prevent deleting or changing its bar");
         db.exec("UPDATE request_command SET status='PREPARING' WHERE customer_id=?",interrupted);
@@ -123,7 +144,7 @@ public class P1ServiceProbe {
         var conflictGateway=new ConflictingRecoverySpotify();conflictGateway.failAfterEffect=true;
         var conflictCommands=new RequestCommands(db,new VenuePresence(db),conflictGateway,wallet,true);
         var conflicted=conflictCommands.submit(conflictVenue,conflictCustomer,body(TRACK_A,"guest-conflicted-plan"),key());
-        check("UNCERTAIN".equals(conflicted.get("status"))&&credits(wallet,conflictCustomer)==4,"An unknown remote outcome must retain its reservation while settling");
+        check("UNCERTAIN".equals(conflicted.get("status"))&&credits(wallet,conflictCustomer)==5,"An unknown remote outcome must retain its reservation while settling");
         db.exec("UPDATE request_command SET lease_until=now()-interval '3 minutes' WHERE venue_id=?",conflictVenue);
         conflictCommands.recoverPending();conflictCommands.recoverPending();
         check("FAILED".equals(conflictCommands.status(UUID.fromString(conflicted.get("commandId").toString()),conflictCustomer).get("status")),"A settled incompatible plan must end automatically without human review");
@@ -237,6 +258,48 @@ public class P1ServiceProbe {
         @Override public RequestPlaylistResult resumeOwned(UUID venue,String token,String plan,kotlin.jvm.functions.Function0<kotlin.Unit> fence) {
             fence.invoke();throw new RequestNotApplied(HttpStatus.CONFLICT,"Playlist changed externally");
         }
+    }
+    static class PlaybackSpotify extends ResumableSpotify implements PlaybackRequestSpotifyGateway {
+        boolean playing,losePlaybackResponse,rejectPlayback;
+        int starts;
+        UUID customerId;
+        @Override public RequestPlaylistResult applyWithPlayback(UUID venue,String token,String plan,boolean attempted,kotlin.jvm.functions.Function0<kotlin.Unit> fence,kotlin.jvm.functions.Function0<kotlin.Unit> beforePlayback) {
+            var result=applyOwned(venue,token,plan,fence);
+            check(credits(new CustomerWallet(db,true),customerId)==5,"Playlist update must not charge before playback succeeds");
+            if(!attempted||!playing){
+                fence.invoke();beforePlayback.invoke();
+                check(Boolean.TRUE.equals(db.one("SELECT playback_attempted FROM request_command WHERE venue_id=? ORDER BY sequence DESC LIMIT 1",venue).get("playback_attempted")),"Playback intent must be durable before starting audio");
+                if(rejectPlayback)throw new RequestPlaybackRejected(HttpStatus.PRECONDITION_FAILED,"No audio device");
+                starts++;playing=true;
+                if(losePlaybackResponse){losePlaybackResponse=false;throw new RuntimeException("playback response lost");}
+            }
+            return result;
+        }
+        @Override public RequestPlaylistResult verifyWithPlayback(UUID venue,String token,String plan,boolean attempted) {
+            return attempted&&playing?super.verify(venue,token,plan):null;
+        }
+    }
+    static void playbackBeforeCharge() {
+        for(String mode:List.of("lost-playback","lost-playlist","rejected")){
+            UUID c=customer(false),v=venue();var wallet=new CustomerWallet(db,true);wallet.topUp(c,"5",key());
+            var fake=new PlaybackSpotify();fake.customerId=c;
+            fake.losePlaybackResponse=mode.equals("lost-playback");fake.failAfterEffect=mode.equals("lost-playlist");fake.rejectPlayback=mode.equals("rejected");
+            var commands=new RequestCommands(db,new VenuePresence(db),fake,wallet,true);
+            var result=commands.submit(v,c,body(TRACK_A,"restart-playlist"),key());
+            UUID id=UUID.fromString(result.get("commandId").toString());
+            if(mode.equals("lost-playlist")){
+                check("UNCERTAIN".equals(result.get("status"))&&credits(wallet,c)==5,"An unconfirmed restart must not charge");
+                db.exec("UPDATE request_command SET lease_until=now()-interval '3 minutes' WHERE id=?",id);commands.recoverPending();
+            }
+            if(mode.equals("rejected"))check("FAILED".equals(commands.status(id,c).get("status"))&&credits(wallet,c)==5,"Failed playback must leave balance unchanged");
+            else{
+                check("DISPATCHED".equals(commands.status(id,c).get("status"))&&credits(wallet,c)==4,"Only complete playlist and playback success costs one token");
+                check(fake.starts==1,"Recovery must not restart playback twice");
+                check(((List<?>)wallet.snapshot(c).get("movements")).size()==2,"Only topup and confirmed charge appear in history");
+            }
+            commands.recoverPending();check(fake.effects==1,"Recovery must not duplicate the playlist insertion");
+        }
+        System.out.println("PASS playback restart: durable intent, lost responses, one start, success-only charge and failure leaves balance intact");
     }
 
     static void requestIdentityAndReplay() {
@@ -505,10 +568,15 @@ public class P1ServiceProbe {
         datasource=new HikariDataSource();datasource.setJdbcUrl(jdbc);
         datasource.setUsername(user);datasource.setPassword(password);
         datasource.setMaximumPoolSize(8);datasource.setConnectionTimeout(1500);
-        Flyway.configure().dataSource(datasource).locations("classpath:db/migration").load().migrate();
+        var flyway=Flyway.configure().dataSource(datasource).locations("classpath:db/migration").load();
+        boolean fresh=flyway.info().current()==null;
+        if(fresh)Flyway.configure().dataSource(datasource).locations("classpath:db/migration").target("20").load().migrate();
         db=new Db(datasource);
         try {
-            transactionReuse();adminMusicEdits();presenceEvidence();authAtomicBudgets();requestIdentityAndReplay();authenticatedWindowCap();policyRevalidation();uncertainRemoteEffect();automaticRecovery();crashedWorkerRecovery();lostOwnershipFencesMutation();walletAndRequests();
+            var legacyPending=fresh?legacyCreditFixture(false):null;var legacyConfirmed=fresh?legacyCreditFixture(true):null;
+            flyway.migrate();
+            if(fresh)verifyCreditUpgrade(legacyPending,legacyConfirmed);
+            transactionReuse();adminMusicEdits();presenceEvidence();authAtomicBudgets();requestIdentityAndReplay();authenticatedWindowCap();policyRevalidation();uncertainRemoteEffect();automaticRecovery();crashedWorkerRecovery();lostOwnershipFencesMutation();walletAndRequests();playbackBeforeCharge();
             System.out.println("PASS P1 regression assertions="+assertions);
         } finally {
             for(UUID owner:owners){db.exec("DELETE FROM venue WHERE owner_id=?",owner);db.exec("DELETE FROM admin_user WHERE id=?",owner);}

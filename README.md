@@ -60,6 +60,8 @@ Los seis bares, las imágenes ambientales y las canciones del demo son **datos i
 
 **Tokens integrados en la app:** el perfil de cliente ahora muestra su saldo real en la base de datos. Las cuentas empiezan en cero; al pedir sin tokens, la app abre la recarga simulada del usuario y conserva la canción. Cada canción agregada consume 1 token y vuelve a la playlist. [Recorrido, actualización y pruebas](docs/CUSTOMER_TOKENS.md).
 
+El token se descuenta sólo al confirmar el éxito. Si Spotify sigue con recomendaciones después de terminar la playlist, un nuevo pedido se coloca primero y reinicia la playlist completa. Para actualizar desde la versión anterior, seguir los comandos de la guía: detener `api` antes de aplicar la migración de cobro.
+
 ### Abrir en un celular conectado a la misma red
 
 Obtené la IP LAN de tu computadora (por ejemplo `192.168.1.25`). Desde el celular, visitá `http://192.168.1.25:5173/#/explore`. Asegurate de que el firewall permita acceso a la computadora; el servidor Python escucha por defecto en todas las interfaces. Un QR impreso no debe usar `localhost` cuando lo va a abrir otro dispositivo: `localhost` en el celular apunta al propio celular. Para instalar la PWA como aplicación y usar funciones avanzadas, conviene HTTPS; los navegadores exigen un contexto seguro para muchas de ellas.

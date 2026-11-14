@@ -299,8 +299,7 @@ window.tocaRequestSong = async (venueId, track) => {
   tocaRequestsInFlight.add(key);
   try {
     if (state.demo) {demoRequest(venueId,track);toast('Canción agregada a la playlist de prueba');navigate(`#/venue/${encodeURIComponent(venueId)}`);return;}
-    // A reserved token belongs to the retained command: polling it must work
-    // even when the available balance is now zero.
+    // Retained commands are queried without starting another admission or charge.
     if (!requestSyncClient().pending(venueId,track.id) && !(await window.tocaWalletCanRequest(venueId,track))) return;
     if (!(await window.tocaPresenceEnsure(venueId))) return;
     return await submitSynchronizedRequest(venueId,track);
@@ -321,6 +320,8 @@ async function submitSynchronizedRequest(venueId, track) {
     result = await client.submit(venueId, track.id, {
       trackId: track.id, guestId: GUEST_ID
     });
+    if(result.status==='FAILED'&&result.code==='REQUEST_RETRY_AFTER_UPDATE')
+      result=await client.submit(venueId,track.id,{trackId:track.id,guestId:GUEST_ID});
     for (let attempt=0; attempt<90 && ['PENDING','PROCESSING','UNCERTAIN'].includes(result.status); attempt++) {
       if (!result.commandId || route().path !== flowPath || window.tocaCustomerUser?.()?.id!==customer) break;
       await new Promise(resolve => setTimeout(resolve,attempt<8?1000:3000));
@@ -340,11 +341,11 @@ async function submitSynchronizedRequest(venueId, track) {
     if (route().path === flowPath) navigate(`#/venue/${encodeURIComponent(venueId)}`);
   } else if (result.status === 'FAILED') {
     if(window.tocaWalletHandleInsufficient(result,venueId,track))return result;
-    const message=result.message || 'No pudimos agregar la canción. Tu token está disponible para volver a intentarlo.';
+    const message=result.message || 'No pudimos agregar la canción. No se descontaron tokens.';
     requestSyncFeedback(venueId,message);toast(message);
     if(route().path==='/profile/tokens')await window.tocaWalletPage();
   } else {
-    requestSyncFeedback(venueId, 'Tu canción sigue en proceso y tiene 1 token reservado. Podés consultar el mismo pedido sin gastar otro token.');
+    requestSyncFeedback(venueId, 'Tu canción sigue en proceso. El saldo sólo cambia cuando se confirma que se agregó.');
   }
   return result;
 }

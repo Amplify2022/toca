@@ -52,13 +52,13 @@
   };
   window.tocaWalletCard=(wallet,unavailable=false)=>`<section class="toca-wallet toca-wallet-widget" aria-label="Tus tokens">
     <div class="tw-heading"><h2>Tus tokens</h2><a href="#/profile/tokens">Ver movimientos ${iconSvg('arrow',16)}</a></div>
-    <div class="tw-balance"><span class="tw-ticket" aria-hidden="true">${iconSvg('music',28)}</span><div><small>Saldo disponible</small><strong data-wallet-balance>${wallet?count(wallet.balance):'Saldo no disponible'}</strong>${wallet?.reserved?`<small>${count(wallet.reserved)} en reserva</small>`:''}</div>
+    <div class="tw-balance"><span class="tw-ticket" aria-hidden="true">${iconSvg('music',28)}</span><div><small>Saldo disponible</small><strong data-wallet-balance>${wallet?count(wallet.balance):'Saldo no disponible'}</strong></div>
     <a class="tw-button" href="#/profile/tokens?recharge=1">${iconSvg('plus',14)} Recargar</a></div>
     <p class="tw-help">${unavailable?'No pudimos consultar tu saldo. Abrí tus movimientos para volver a intentarlo.':'Cada canción agregada usa 1 token.'}</p></section>`;
   function movements(wallet) {
     if(!wallet.movements.length)return '<p class="tw-empty">Todavía no tenés movimientos.<br>Tu primera recarga aparecerá acá.</p>';
     return wallet.movements.map(entry=>{
-      const title=entry.kind==='TOPUP'?'Recarga simulada':entry.kind==='RELEASE'?'Token devuelto':entry.holdStatus==='RESERVED'?'Pedido en proceso':entry.holdStatus==='RELEASED'?'Reserva liberada':'Canción agregada';
+      const title=entry.kind==='TOPUP'?'Recarga simulada':'Canción agregada';
       const detail=entry.kind==='TOPUP'?'Sin cobro de dinero':entry.title?`${entry.title}${entry.venueName?' · '+entry.venueName:''}`:'';
       const date=new Date(entry.createdAt),today=Number.isFinite(date.getTime())?date.toLocaleDateString('es-UY',{day:'numeric',month:'short'}):'';
       return `<article class="tw-movement"><span class="tw-movement-icon">${iconSvg(entry.kind==='TOPUP'?'plus':entry.kind==='RELEASE'?'back':'music',20)}</span><div><strong>${esc(title)}</strong><small>${esc(detail)}</small></div><time>${esc(today)}</time><b class="${entry.amount>0?'tw-credit':''}">${entry.amount>0?'+':'−'}${count(Math.abs(entry.amount))}</b></article>`;

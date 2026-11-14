@@ -17,7 +17,7 @@ class CustomerWallet(private val db: Db,
         mapOf("id" to "5", "tokens" to 5, "price" to 99),
         mapOf("id" to "12", "tokens" to 12, "price" to 199),
         mapOf("id" to "30", "tokens" to 30, "price" to 399))
-    private fun reserved(customer: UUID) = (db.one("SELECT coalesce(sum(amount),0) AS n FROM customer_token_hold WHERE customer_id=? AND status='RESERVED'", customer)!!.getValue("n") as Number).toInt()
+    private fun inFlight(customer: UUID) = (db.one("SELECT coalesce(sum(amount),0) AS n FROM customer_token_hold WHERE customer_id=? AND status='RESERVED'", customer)!!.getValue("n") as Number).toInt()
 
     private fun lock(customer: UUID): Int {
         db.exec("INSERT INTO customer_wallet(customer_id) VALUES(?) ON CONFLICT DO NOTHING", customer)
@@ -26,15 +26,17 @@ class CustomerWallet(private val db: Db,
 
     fun snapshot(customer: UUID): Map<String, Any?> = db.transaction {
         val balance = lock(customer)
-        val reserved = reserved(customer)
-        val movements = db.list("""SELECT e.id,e.kind,e.amount,e.pack_id AS "packId",e.created_at AS "createdAt",
-            h.status AS "holdStatus",c.title,c.artist,v.name AS "venueName"
+        val movements = db.list("""SELECT e.id,CASE WHEN e.kind='RESERVE' THEN 'SPEND' ELSE e.kind END AS kind,
+            e.amount,e.pack_id AS "packId",e.created_at AS "createdAt",c.title,c.artist,v.name AS "venueName"
             FROM customer_token_entry e LEFT JOIN customer_token_hold h ON h.command_id=e.command_id
             LEFT JOIN request_command c ON c.id=e.command_id LEFT JOIN venue v ON v.id=c.venue_id
-            WHERE e.customer_id=? ORDER BY e.created_at DESC,e.id DESC LIMIT 50""", customer).map {
+            WHERE e.customer_id=? AND (e.kind IN ('TOPUP','SPEND') OR
+                (e.kind='RESERVE' AND h.status='CAPTURED' AND NOT EXISTS
+                    (SELECT 1 FROM customer_token_entry n WHERE n.command_id=e.command_id AND n.kind='SPEND')))
+            ORDER BY e.created_at DESC,e.id DESC LIMIT 50""", customer).map {
             it + mapOf("createdAt" to (it["createdAt"] as? Timestamp)?.toInstant()?.toString())
         }
-        mapOf("balance" to balance, "reserved" to reserved, "requestCost" to 1,
+        mapOf("balance" to balance, "requestCost" to 1,
             "simulationEnabled" to simulatedTopupsEnabled, "currency" to "UYU", "packs" to packs, "movements" to movements)
     }
 
@@ -49,7 +51,7 @@ class CustomerWallet(private val db: Db,
             if (previous != null && previous["pack_id"] != packId) fail(HttpStatus.CONFLICT, "Esta recarga ya corresponde a otro paquete")
             val id = previous?.get("id") as? UUID ?: UUID.randomUUID()
             if (previous == null) {
-                if (balance + reserved(customer) > 1000000 - credits) fail(HttpStatus.CONFLICT, "Alcanzaste el saldo máximo de prueba")
+                if (balance > 1000000 - credits) fail(HttpStatus.CONFLICT, "Alcanzaste el saldo máximo de prueba")
                 db.exec("UPDATE customer_wallet SET balance=balance+?,updated_at=now() WHERE customer_id=?", credits, customer)
                 db.exec("INSERT INTO customer_token_entry(id,customer_id,kind,amount,idempotency_key,pack_id) VALUES(?,?,'TOPUP',?,?,?)", id, customer, credits, key, packId)
             }
@@ -57,17 +59,16 @@ class CustomerWallet(private val db: Db,
         }
     }
 
-    /** Nested in command admission: insufficient funds rolls back the command. */
-    fun reserve(customer: UUID, command: UUID) = db.transaction {
+    /** Coordinate concurrent requests without changing the balance or ledger. */
+    fun beginRequest(customer: UUID, command: UUID) = db.transaction {
         val balance = lock(customer)
         if (db.one("SELECT command_id FROM customer_token_hold WHERE command_id=?", command) != null) return@transaction
         if (balance < 1) throw InsufficientTokens()
-        db.exec("UPDATE customer_wallet SET balance=balance-1,updated_at=now() WHERE customer_id=?", customer)
+        if (balance <= inFlight(customer))fail(HttpStatus.CONFLICT,"Esperá a que termine tu pedido anterior antes de enviar otro.")
         db.exec("INSERT INTO customer_token_hold(command_id,customer_id,amount,status) VALUES(?,?,1,'RESERVED')", command, customer)
-        db.exec("INSERT INTO customer_token_entry(id,customer_id,kind,amount,command_id) VALUES(?,?,'RESERVE',-1,?)", UUID.randomUUID(), customer, command)
     }
 
-    /** A confirmed request consumes the reservation, never a second debit. */
+    /** Charge exactly once, in the same transaction that confirms the request. */
     fun capture(command: UUID) = settle(command, false)
     fun release(command: UUID) = settle(command, true)
     private fun settle(command: UUID, refund: Boolean) = db.transaction {
@@ -75,9 +76,9 @@ class CustomerWallet(private val db: Db,
         val customer = row.getValue("customer_id") as UUID
         lock(customer)
         val changed = db.exec("UPDATE customer_token_hold SET status=? WHERE command_id=? AND status='RESERVED'", if (refund) "RELEASED" else "CAPTURED", command)
-        if (changed == 1 && refund) {
-            db.exec("UPDATE customer_wallet SET balance=balance+1,updated_at=now() WHERE customer_id=?", customer)
-            db.exec("INSERT INTO customer_token_entry(id,customer_id,kind,amount,command_id) VALUES(?,?,'RELEASE',1,?)", UUID.randomUUID(), customer, command)
+        if (changed == 1 && !refund) {
+            db.exec("UPDATE customer_wallet SET balance=balance-1,updated_at=now() WHERE customer_id=?", customer)
+            db.exec("INSERT INTO customer_token_entry(id,customer_id,kind,amount,command_id) VALUES(?,?,'SPEND',-1,?)", UUID.randomUUID(), customer, command)
         }
     }
 }

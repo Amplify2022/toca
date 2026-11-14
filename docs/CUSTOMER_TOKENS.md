@@ -8,27 +8,30 @@ El saldo ahora está integrado con la API y PostgreSQL. Las cuentas nuevas y exi
 2. Sin saldo, abre **Mi perfil → Tus tokens** con el panel de recarga. No envía el pedido ni consulta Spotify para agregarlo. Conserva el tema y el bar elegidos.
 3. La recarga simulada permite elegir 5, 12 o 30 tokens. Se acredita en el servidor, cierra el panel y muestra una confirmación durante 5 segundos. No se cobra dinero.
 4. La canción elegida sigue visible con **Pedir · 1 token**. También se puede volver a la playlist y elegir otro tema.
-5. Con saldo, el servidor reserva 1 token y agrega el tema. Al confirmar el resultado, consume esa misma reserva, avisa **«se agregó a la playlist · 1 token»** y vuelve a la playlist del bar. No hay una pantalla intermedia de éxito ni un pedido de aprobación del bar.
-6. Si el pedido falla definitivamente, libera el token. Si la respuesta está pendiente, conserva la reserva y el mismo pedido hasta comprobar el resultado; refrescar no produce otro descuento.
+5. Con saldo, el servidor agrega el tema. **Sólo al confirmar el éxito descuenta 1 token**, avisa **«se agregó a la playlist · 1 token»** y vuelve a la playlist del bar. No hay una pantalla intermedia de éxito ni un pedido de aprobación del bar.
+6. Mientras se procesa, el saldo y los movimientos permanecen iguales. Si falla, no se descuenta ningún token. Los reintentos y pedidos simultáneos se coordinan internamente para impedir un doble gasto; no se muestran tokens en reserva.
+7. Si la playlist terminó y Spotify sigue con recomendaciones u otro contexto, coloca el tema pedido al principio y reinicia **toda la playlist** desde ese primer tema. Requiere la salida de audio y el control de reproducción que usa el bar. Si la playlist sigue sonando normalmente, el pedido mantiene el flujo habitual y no interrumpe la canción actual.
 
 La falta de saldo tiene un manejo común en la consulta inicial, el envío y los reintentos: abre la recarga y conserva la canción, sin quedarse en un aviso de error. También se reconocen respuestas guardadas de versiones anteriores.
 
 El panel del bar muestra actividad de solo lectura y se actualiza automáticamente. Los pedidos no se aprueban manualmente.
 
-Un conflicto persistente con la playlist no se convierte en una tarea de revisión del bar: después de comprobarlo con el proceso anterior ya detenido, la app puede terminar el pedido sin confirmar éxito, devolver su token y continuar con los siguientes. No sobrescribe una playlist incompatible ni informa una canción como agregada sin verificarlo.
+Un conflicto persistente con la playlist no se convierte en una tarea de revisión del bar: después de comprobarlo con el proceso anterior ya detenido, la app puede terminar el pedido sin descontar tokens y continuar con los siguientes. No sobrescribe una playlist incompatible ni informa una canción como agregada sin verificarlo.
 
 El perfil habitual mantiene foto, favoritos y accesos de cuenta. Ahora incluye saldo y un enlace a los movimientos. La pantalla de tokens se abre en **http://localhost:5173/#/profile/tokens** con sesión de cliente.
 
 ## Datos y API
 
-La migración `V20__customer_tokens.sql` crea el saldo, las reservas por pedido y los movimientos. Las reservas forman parte de la misma transacción que admite el pedido; no puede gastarse dos veces el último token, incluso desde distintos bares o pestañas. El descuento se realiza antes de cualquier llamada de sincronización del pedido a Spotify. Los pedidos anteriores a esta migración no reciben cargos retroactivos.
+La migración `V20__customer_tokens.sql` crea el saldo y los movimientos. `V21__charge_confirmed_requests.sql` cambia el cobro a la confirmación final: la admisión sólo coordina el acceso al crédito, sin alterar el saldo ni crear un débito. El descuento y el estado de pedido exitoso se confirman en la misma transacción. No puede gastarse dos veces el último token, incluso desde distintos bares o pestañas.
 
-- `GET /api/customers/me/wallet`: saldo disponible, reservado, costo de pedido, paquetes y últimos 50 movimientos.
+V21 devuelve los descuentos anteriores que no llegaron a confirmarse: **4 tokens + 1 pendiente vuelven a ser 5 tokens**. Conserva los cargos ya confirmados y su historial. Los pedidos viejos interrumpidos no se reproducen a ciegas: un nuevo clic en pedir vuelve a prepararlos automáticamente con las reglas actuales.
+
+- `GET /api/customers/me/wallet`: saldo, costo de pedido, paquetes y últimos 50 movimientos confirmados. No expone reservas.
 - `POST /api/customers/me/wallet/topups`: recarga simulada con `packId` y `Idempotency-Key` obligatoria. El servidor define los créditos; no acepta un importe o un usuario elegido por el cliente.
 - Ambas rutas requieren la sesión de cliente en `Authorization: Bearer …`, separada de la sesión del bar, y responden con `Cache-Control: no-store`.
 - Una admisión sin saldo devuelve HTTP 402 con `code: INSUFFICIENT_TOKENS` y no crea un comando ni modifica Spotify. La web también trata una pérdida de saldo entre la consulta y el pedido como una vuelta a recarga.
 
-Las recargas y los pedidos conservan sus claves de reintento por cuenta. Repetir una operación por pérdida de respuesta no acredita ni descuenta dos veces. El historial muestra reservas, consumos confirmados y devoluciones.
+Las recargas y los pedidos conservan sus claves de reintento por cuenta. Repetir una operación por pérdida de respuesta no acredita ni descuenta dos veces. El historial muestra recargas y canciones confirmadas.
 
 ## Configuración y actualización local
 
@@ -36,10 +39,11 @@ Las recargas y los pedidos conservan sus claves de reintento por cuenta. Repetir
 
 ```bash
 git pull origin main
+docker compose stop api
 docker compose up --build -d api web
 ```
 
-Compose ejecuta la migración antes de iniciar la API. No es necesario borrar volúmenes ni crear una cuenta nueva. Después, refrescar el navegador y abrir el perfil de cliente.
+La API anterior debe estar detenida durante esta migración para no mezclar las dos reglas de cobro. Compose ejecuta la migración antes de iniciar la API actualizada. Se conservan cuentas, bares, playlists y cargos confirmados. Después, refrescar el navegador y abrir el perfil de cliente.
 
 ## Verificación
 

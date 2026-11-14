@@ -32,8 +32,14 @@ interface RecoverableRequestSpotifyGateway : OwnedRequestSpotifyGateway {
     fun resumeOwned(venueId: UUID, token: String, planJson: String, beforeMutation: () -> Unit): RequestPlaylistResult
 }
 
+interface PlaybackRequestSpotifyGateway : RecoverableRequestSpotifyGateway {
+    fun applyWithPlayback(venueId: UUID, token: String, planJson: String, attempted: Boolean,
+        beforeMutation: () -> Unit, beforePlayback: () -> Unit): RequestPlaylistResult
+    fun verifyWithPlayback(venueId: UUID, token: String, planJson: String, attempted: Boolean): RequestPlaylistResult?
+}
+
 @Singleton
-class SpotifyRequestGateway(private val spotify: Spotify) : RecoverableRequestSpotifyGateway {
+class SpotifyRequestGateway(private val spotify: Spotify) : PlaybackRequestSpotifyGateway {
     override val enabled get() = spotify.playlistWriteEnabled
     override fun metadata(venueId: UUID, trackId: String): Map<String, String> =
         spotify.getTrack(venueId, trackId).let { mapOf("title" to it["title"]?.toString().orEmpty(), "artist" to it["artist"]?.toString().orEmpty()) }
@@ -48,6 +54,11 @@ class SpotifyRequestGateway(private val spotify: Spotify) : RecoverableRequestSp
         spotify.verifyRequestPlan(venueId, token, planJson)?.let { RequestPlaylistResult(it.action, it.position, it.warning) }
     override fun resumeOwned(venueId: UUID, token: String, planJson: String, beforeMutation: () -> Unit) =
         applyOwned(venueId, token, planJson, beforeMutation)
+    override fun applyWithPlayback(venueId: UUID, token: String, planJson: String, attempted: Boolean,
+        beforeMutation: () -> Unit, beforePlayback: () -> Unit) =
+        spotify.applyRequestPlan(venueId,token,planJson,beforeMutation,attempted,beforePlayback).let { RequestPlaylistResult(it.action,it.position,it.warning) }
+    override fun verifyWithPlayback(venueId: UUID, token: String, planJson: String, attempted: Boolean) =
+        spotify.verifyRequestPlan(venueId,token,planJson,attempted)?.let { RequestPlaylistResult(it.action,it.position,it.warning) }
 }
 
 /**
@@ -127,7 +138,7 @@ class RequestCommands(private val db: Db, private val presence: VenuePresence,
                 val id = UUID.randomUUID()
                 db.exec("""INSERT INTO request_command(id,venue_id,customer_id,idempotency_key,track_id,guest_id,playlist_id,session_started_at,status)
                     VALUES(?,?,?,?,?,?,?,?,'PENDING')""", id, venueId, customerId, key, trackId, guestId, venue["playlist_id"], venue["queue_started_at"])
-                wallet.reserve(customerId, id)
+                wallet.beginRequest(customerId, id)
                 id
             }
         }
@@ -192,11 +203,12 @@ class RequestCommands(private val db: Db, private val presence: VenuePresence,
             // attempted: Spotify's live queue has no idempotency/replay primitive.
             val assertOwner = { renewOwnership(id, owner) }
             assertOwner()
-            val result = if (gateway is OwnedRequestSpotifyGateway) gateway.applyOwned(venueId, token, plan, assertOwner)
+            val result = if(gateway is PlaybackRequestSpotifyGateway) gateway.applyWithPlayback(venueId,token,plan,false,assertOwner,{ markPlayback(id,owner) })
+                else if (gateway is OwnedRequestSpotifyGateway) gateway.applyOwned(venueId, token, plan, assertOwner)
                 else gateway.apply(venueId, token, plan)
             finalize(id, owner, result)
         } catch (error: Exception) {
-            val uncertain = applying && error !is RequestNotApplied
+            val uncertain = applying && error !is RequestNotApplied && error !is RequestPlaybackRejected
             val message = if (uncertain) "Estamos comprobando automáticamente el resultado en Spotify. No hace falta aprobación del bar."
                 else (error as? HttpStatusException)?.message?.take(500) ?: "No se pudo preparar el pedido. No se modificó Spotify."
             // If DB is unavailable, APPLYING remains durable and recovery marks
@@ -221,11 +233,24 @@ class RequestCommands(private val db: Db, private val presence: VenuePresence,
         if (renewed != 1) fail(HttpStatus.CONFLICT, "El proceso perdió la autorización para modificar Spotify")
     }
 
+    private fun markPlayback(id: UUID, owner: UUID) {
+        if(db.exec("""UPDATE request_command SET playback_attempted=true
+            WHERE id=? AND worker_id=? AND status='APPLYING' AND lease_until>now()""",id,owner)!=1)
+            fail(HttpStatus.CONFLICT,"El pedido perdió la autorización para iniciar la playlist")
+    }
+
+    private fun verified(command: Map<String,Any?>, token: String): RequestPlaylistResult? {
+        val venue=command.getValue("venue_id") as UUID
+        val plan=command.getValue("plan_json") as String
+        return if(gateway is PlaybackRequestSpotifyGateway) gateway.verifyWithPlayback(venue,token,plan,command["playback_attempted"]==true)
+            else gateway.verify(venue,token,plan)
+    }
+
     private fun confirmUncertain(id: UUID) {
         val command = db.one("SELECT * FROM request_command WHERE id=? AND status='UNCERTAIN'", id) ?: return
         val venueId = command.getValue("venue_id") as UUID
         val plan = command["plan_json"] as? String ?: return
-        val result = gateway.verify(venueId, gateway.token(venueId), plan) ?: return
+        val result = verified(command,gateway.token(venueId)) ?: return
         finalize(id, command.getValue("worker_id") as UUID, result)
     }
 
@@ -250,7 +275,7 @@ class RequestCommands(private val db: Db, private val presence: VenuePresence,
         try {
             val token = gateway.token(venueId)
             val plan = command.getValue("plan_json") as String
-            val verified = gateway.verify(venueId, token, plan)
+            val verified = verified(command, token)
             val result = verified ?: run {
                 val recoverable = gateway as? RecoverableRequestSpotifyGateway
                     ?: fail(HttpStatus.CONFLICT, "La integración no permite reanudar este pedido automáticamente")
@@ -258,7 +283,8 @@ class RequestCommands(private val db: Db, private val presence: VenuePresence,
                 val assertOwner = { renewOwnership(id, owner) }
                 assertOwner()
                 resuming = true
-                recoverable.resumeOwned(venueId, token, plan, assertOwner)
+                if(gateway is PlaybackRequestSpotifyGateway) gateway.applyWithPlayback(venueId,token,plan,command["playback_attempted"]==true,assertOwner,{markPlayback(id,owner)})
+                else recoverable.resumeOwned(venueId, token, plan, assertOwner)
             }
             finalize(id, owner, result)
         } catch (error: Exception) {
@@ -266,14 +292,14 @@ class RequestCommands(private val db: Db, private val presence: VenuePresence,
             // rejected authorization cannot require human approval of a song.
             // End this unconfirmed request honestly, refund it, and unblock the
             // following requests. Transient outages still back off and retry.
-            val terminal = (!resuming || error is RequestNotApplied) && error is HttpStatusException &&
+            val terminal = (!resuming || error is RequestNotApplied || error is RequestPlaybackRejected) && error is HttpStatusException &&
                 error.status in setOf(HttpStatus.CONFLICT, HttpStatus.FORBIDDEN, HttpStatus.PRECONDITION_FAILED)
             db.transaction {
                 lockVenue(venueId)
                 val changed = db.exec("""UPDATE request_command SET status=?,lease_until=now(),updated_at=now(),error=?
                     WHERE id=? AND worker_id=? AND status='APPLYING'""",
                     if(terminal) "FAILED" else "UNCERTAIN",
-                    if(terminal) "No pudimos confirmar la canción en la playlist. El token fue devuelto."
+                    if(terminal) "No pudimos completar el pedido. No se descontaron tokens."
                     else "Seguimos comprobando automáticamente la sincronización con Spotify.", id, owner)
                 if(changed==1 && terminal) wallet.release(id)
             }
@@ -316,6 +342,7 @@ class RequestCommands(private val db: Db, private val presence: VenuePresence,
             else -> "Estamos agregando tu canción."
         }
         return mapOf("commandId" to command["id"].toString(), "id" to (command["request_id"] ?: command["id"]).toString(),
+            "code" to if(command["action"]=="RETRY_AFTER_UPDATE") "REQUEST_RETRY_AFTER_UPDATE" else null,
             "requiresApproval" to false,
             "status" to status, "trackId" to command["track_id"], "title" to command["title"], "action" to command["action"],
             "playlistPosition" to command["playlist_position"], "warning" to command["warning"], "message" to message,
@@ -337,7 +364,7 @@ class RequestCommands(private val db: Db, private val presence: VenuePresence,
         if (running.containsKey(commandId) || (command["lease_until"] as? Timestamp)?.toInstant()?.plusSeconds(120)?.isAfter(Instant.now()) == true)
             fail(HttpStatus.CONFLICT, "El proceso original todavía puede estar terminando. Esperá antes de revisar el resultado.")
         val plan = command["plan_json"] as? String ?: fail(HttpStatus.CONFLICT, "Este pedido no tiene un plan remoto para verificar")
-        val result = gateway.verify(venueId, gateway.token(venueId), plan)
+        val result = verified(command,gateway.token(venueId))
         if (result != null) finalize(commandId, command.getValue("worker_id") as UUID, result)
         return response(db.one("SELECT * FROM request_command WHERE id=?", commandId)!!)
     }

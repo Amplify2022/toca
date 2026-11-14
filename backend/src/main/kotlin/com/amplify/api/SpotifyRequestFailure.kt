@@ -9,3 +9,6 @@ class SpotifyHttpFailure(val providerStatus: Int, status: HttpStatus, message: S
 
 /** The first attempt proved that none of its playlist writes took effect. */
 class RequestNotApplied(status: HttpStatus, message: String) : HttpStatusException(status, message)
+
+/** The playlist may be updated, but Spotify explicitly rejected starting audio. */
+class RequestPlaybackRejected(status: HttpStatus, message: String) : HttpStatusException(status, message)

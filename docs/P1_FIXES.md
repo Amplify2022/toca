@@ -57,7 +57,7 @@ El dashboard muestra **Actividad de canciones**, una vista de solo lectura que s
 
 Un proceso original todavía activo o dentro del margen de espera impide finalizar prematuramente. Si, una vez vencido ese margen, se comprueba que el plan ya no es compatible o falta autorización y la comprobación no emitió nuevas escrituras inciertas, el pedido termina como fallido y devuelve el token. Los pedidos siguientes pueden continuar; el bar no debe aprobar ni cerrar una revisión. Las respuestas todavía ambiguas y las caídas transitorias conservan su reserva y se vuelven a comprobar automáticamente.
 
-El saldo y las recargas simuladas ya están [integrados con la API](CUSTOMER_TOKENS.md). Se requiere saldo antes de admitir un pedido, se reserva 1 token y se confirma o devuelve con su resultado. La pantalla dirige al usuario sin saldo a recargar en su perfil y vuelve a la playlist después de agregar una canción.
+El saldo y las recargas simuladas ya están [integrados con la API](CUSTOMER_TOKENS.md). Se requiere saldo para admitir un pedido, pero el descuento de 1 token se realiza sólo al confirmar su éxito. La pantalla dirige al usuario sin saldo a recargar en su perfil y vuelve a la playlist después de agregar una canción. No se muestran reservas ni movimientos de pedidos pendientes.
 
 ## Protección del acceso
 

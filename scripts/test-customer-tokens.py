@@ -20,10 +20,10 @@ def scenario(browser,width):
       sessionStorage.setItem('toca:request:customer-test:77777777-7777-4777-8777-777777777777:AAAAAAAAAAAAAAAAAAAAAA',JSON.stringify({commandId:'legacy-free-command'}));
     """)
     page=context.new_page();errors=[];dialogs=[];orders=[];topup_calls=[];credited={};movements=[]
-    model=dict(balance=0,reserved=0,order='success',topup='success',checks=0)
+    model=dict(balance=0,processing=False,order='success',topup='success',checks=0)
     page.on('pageerror',lambda error:errors.append(str(error)))
     page.on('dialog',lambda dialog:(dialogs.append(dialog.message),dialog.dismiss()))
-    def wallet():return dict(balance=model['balance'],reserved=model['reserved'],requestCost=1,simulationEnabled=True,currency='UYU',packs=PACKS,**({'movements':movements} if movements else {}))
+    def wallet():return dict(balance=model['balance'],requestCost=1,simulationEnabled=True,currency='UYU',packs=PACKS,**({'movements':movements} if movements else {}))
     def api(route):
         request=route.request;path=request.url.split('8080',1)[1].split('?',1)[0];data=[];status=200
         if path=='/api/customers/me':data=dict(id='customer-test',name='Nacho',email='nacho@example.test',roles=['CUSTOMER'])
@@ -57,19 +57,24 @@ def scenario(browser,width):
                 data=dict(message='No tenés tokens suficientes. Recargá para pedir esta canción.')
                 if model['order']=='race-code':data=dict(code='INSUFFICIENT_TOKENS',message='Recargá tu saldo.')
                 if model['order']=='failed-no-funds':data.update(commandId='rejected-command',status='FAILED')
-            elif model['order']=='failed':data=dict(commandId='command-test',status='FAILED',message='No pudimos agregar la canción. Tu token fue devuelto.')
+            elif model['order']=='failed':data=dict(commandId='command-test',status='FAILED',message='No pudimos agregar la canción. No se descontaron tokens.')
             else:
-                assert model['balance']>=1;model['balance']-=1;model['checks']=0
+                assert model['balance']>=1;model['checks']=0
                 state='UNCERTAIN' if model['order'] in ('uncertain','reload') else 'DISPATCHED'
-                model['reserved']=int(state=='UNCERTAIN');data=dict(commandId='command-test',status=state)
+                model['processing']=state=='UNCERTAIN'
+                if state=='DISPATCHED':model['balance']-=1
+                data=dict(commandId='command-test',status=state)
         elif path.endswith('/request-commands/command-test'):
             model['checks']+=1
             done=model['order']!='reload' and (model['order']!='uncertain' or model['checks']>=3)
-            model['reserved']=int(not done);data=dict(commandId='command-test',status='DISPATCHED' if done else 'UNCERTAIN')
+            if done and model['processing']:model['balance']-=1
+            model['processing']=not done;data=dict(commandId='command-test',status='DISPATCHED' if done else 'UNCERTAIN')
+        elif path.endswith('/request-commands/old-command'):
+            data=dict(commandId='old-command',status='FAILED',code='REQUEST_RETRY_AFTER_UPDATE',message='El pedido anterior no se confirmó.')
         route.fulfill(status=status,content_type='application/json',body=json.dumps(data),headers={'Access-Control-Allow-Origin':'*'})
     page.route('http://localhost:8080/**',api);page.route('https://**/*',lambda route:route.abort())
     def search():
-        page.goto(BASE+'/#/request/'+VENUE_ID);page.wait_for_load_state('networkidle');page.locator('#song-search').fill('Original')
+        page.goto(BASE+'/#/request/'+VENUE_ID);page.wait_for_load_state('networkidle');page.locator('#song-search').fill('');page.locator('#song-search').fill('Original')
         button=page.locator(f'[data-action="request"][data-track="{TRACK_ID}"]');button.wait_for();return button
     button=search();button.click()
     sheet=page.locator('#toca-token-recharge');expect(sheet).to_be_visible()
@@ -113,19 +118,26 @@ def scenario(browser,width):
     expect(page.locator('[data-wallet-balance]')).to_have_text('12 tokens')
     assert topup_calls[-1]==topup_calls[-2] and model['balance']==12
     model['order']='failed';page.locator('[data-wallet-request]').click()
-    expect(page.locator('#toast')).to_contain_text('token fue devuelto')
+    expect(page.locator('#toast')).to_contain_text('No se descontaron tokens')
     expect(page.locator('[data-wallet-balance]')).to_have_text('12 tokens')
     # The final available token can remain reserved until the same order settles.
     model['balance']=1;model['order']='uncertain';page.locator('[data-wallet-request]').click()
     expect(page).to_have_url(re.compile('/#/venue/'+VENUE_ID+'$'),timeout=12000)
-    assert model['balance']==0 and model['reserved']==0
+    assert model['balance']==0 and not model['processing']
     # A reload must retain the pending command even when available balance is zero.
     model['balance']=1;model['order']='reload';button=search();button.click()
+    assert model['balance']==1,'Pending request must not change the balance'
+    assert 'en reserva' not in page.locator('body').inner_text()
     page.wait_for_function("Object.keys(sessionStorage).some(k=>k.startsWith('toca:request:credits-v1:')&&JSON.parse(sessionStorage.getItem(k)).commandId)")
     order_count=len(orders);page.reload();model['order']='success';page.wait_for_load_state('networkidle')
     page.locator('#song-search').fill('Original');button=page.locator(f'[data-action="request"][data-track="{TRACK_ID}"]');button.click()
     expect(page).to_have_url(re.compile('/#/venue/'+VENUE_ID+'$'))
     assert len(orders)==order_count and model['balance']==0
+    # A migrated interrupted command is prepared afresh on this explicit click.
+    model['balance']=1;model['order']='upgrade';order_count=len(orders)
+    page.evaluate("""([venue,track])=>sessionStorage.setItem(`toca:request:credits-v1:customer-test:${venue}:${track}`,JSON.stringify({commandId:'old-command',idempotencyKey:'legacy-update-key'}))""",[VENUE_ID,TRACK_ID])
+    button=search();button.click();expect(page).to_have_url(re.compile('/#/venue/'+VENUE_ID+'$'))
+    assert len(orders)==order_count+1 and model['balance']==0
     assert not dialogs and not errors,(dialogs,errors)
     assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
     context.close();print('PASS integrated credits: zero redirect, recharge, selected song, one charge, playlist return, reload, server race and lost-response retry:',width,flush=True)

@@ -140,29 +140,27 @@ class Spotify(
         val playback=apiGet("/me/player",token)
         val context=playback?.path("context")?.path("uri")?.asText("") ?: ""
         val currentTrack=playback?.path("item")?.path("id")?.asText("") ?: ""
-        val samePlaylist=context=="spotify:playlist:$expectedPlaylistId"
-        val calculated=PlaylistPlanner.reconcile(before.ids,currentTrack,samePlaylist,orderedQueue,trackId)
+        val samePlaylist=RequestedPlaylistPlayback.usesPlaylist(expectedPlaylistId,before.ids,context,currentTrack)
+        if(!samePlaylist && !controlEnabled)fail(HttpStatus.PRECONDITION_FAILED,"La playlist terminó. Habilitá el control de reproducción del bar para reiniciarla automáticamente.")
+        val calculated=PlaylistPlanner.reconcile(before.ids,currentTrack,samePlaylist,if(samePlaylist)orderedQueue else listOf(trackId),trackId)
         if(calculated.expected.size>1000)
             fail(HttpStatus.CONFLICT,"La playlist superaría el máximo de 1000 canciones de las pruebas")
         val plan=RequestPlaylistPlan(expectedPlaylistId,trackId,before.ids,
             calculated.steps.filter {it.action!="ALREADY_IN_ORDER"},
-            calculated.protectedPrefix+calculated.activeQueue.indexOf(trackId),!samePlaylist)
+            calculated.protectedPrefix+calculated.activeQueue.indexOf(trackId),!samePlaylist,!samePlaylist)
         check(plan.states().last()==calculated.expected) { "Saved Spotify plan does not match calculated result" }
-        json.writeValueAsString(mapOf(
-            "version" to 1,"playlistId" to plan.playlistId,"requestedTrack" to plan.requestedTrack,
-            "initialIds" to plan.initialIds,"position" to plan.position,"outsideContext" to plan.outsideContext,
-            "steps" to plan.steps.map {mapOf("trackId" to it.trackId,"desiredIndex" to it.desiredIndex,
-                "existingIndex" to it.existingIndex,"action" to it.action)}))
+        RequestPlanCodec.encode(json,plan)
     }
 
     /** Executes a saved command, never a newly calculated insertion point. No
      * player-queue endpoint is called: that operation has no idempotency key.
      * The outbox owner handles ambiguous failures and exclusive ownership. */
     fun applyRequestPlan(venueId:UUID, token:String, planJson:String):PlaylistChange =
-        applyRequestPlan(venueId,token,planJson) {}
+        applyRequestPlan(venueId,token,planJson,{})
 
     fun applyRequestPlan(venueId:UUID, token:String, planJson:String,
-                         beforeMutation:()->Unit):PlaylistChange = withRequestBudget {
+                         beforeMutation:()->Unit, playbackAttempted:Boolean=false,
+                         beforePlayback:()->Unit={}):PlaylistChange = withRequestBudget {
         requirePlaylistWrites()
         val plan=savedRequestPlan(planJson)
         requireSelectedPlaylist(venueId,plan.playlistId)
@@ -201,19 +199,48 @@ class Spotify(
             if(drift)fail(HttpStatus.CONFLICT,message)
             throw error
         }
+        if(plan.restartPlayback)restartRequestedPlaylist(venueId,token,plan,playbackAttempted,beforeMutation,beforePlayback)
         beforeMutation() // Fence the successful result before its SQL commit.
         musicCache.remove(venueId)
+        if(plan.restartPlayback)cache.remove(venueId.toString())
         requestPlanResult(plan,changed)
     }
 
     /** Read-only recovery: a lost response/DB commit may leave the complete
      * desired result on Spotify. Partial or unrelated state is not success. */
-    fun verifyRequestPlan(venueId:UUID, token:String, planJson:String):PlaylistChange? = withRequestBudget {
+    fun verifyRequestPlan(venueId:UUID, token:String, planJson:String, playbackAttempted:Boolean=false):PlaylistChange? = withRequestBudget {
         val plan=savedRequestPlan(planJson)
         requireSelectedPlaylist(venueId,plan.playlistId)
         if(readRequestSnapshot(plan.playlistId,token).ids!=plan.states().last())return@withRequestBudget null
+        if(plan.restartPlayback && (!playbackAttempted || !requestPlaylistPlaying(plan,apiGet("/me/player",token))))return@withRequestBudget null
         musicCache.remove(venueId)
+        if(plan.restartPlayback)cache.remove(venueId.toString())
         requestPlanResult(plan,false)
+    }
+
+    private fun requestPlaylistPlaying(plan:RequestPlaylistPlan,player:JsonNode?):Boolean =
+        player?.path("is_playing")?.asBoolean(false)==true && RequestedPlaylistPlayback.usesPlaylist(
+            plan.playlistId,plan.states().last(),player.path("context").path("uri").asText(""),player.path("item").path("id").asText(""))
+
+    private fun restartRequestedPlaylist(venueId:UUID,token:String,plan:RequestPlaylistPlan,attempted:Boolean,
+                                        beforeMutation:()->Unit,beforePlayback:()->Unit) {
+        if(!controlEnabled)throw RequestPlaybackRejected(HttpStatus.PRECONDITION_FAILED,"El bar no tiene habilitado el reinicio automático de la playlist. No se descontaron tokens.")
+        try {
+            val player=apiGet("/me/player",token)
+            if(!RequestedPlaylistPlayback.shouldRestart(true,attempted,requestPlaylistPlaying(plan,player)))return
+            val configured=db.one("SELECT spotify_device_id FROM venue WHERE id=?",venueId)?.get("spotify_device_id") as? String
+            val active=player?.path("device")?.takeIf {it.path("is_active").asBoolean(false) && !it.path("is_restricted").asBoolean(false)}?.path("id")?.asText("")
+            val device=active?.takeIf {it.isNotBlank()}?:configured?.takeIf {it.isNotBlank()}
+            val query=if(device==null)"" else "&device_id=${enc(device)}"
+            if(player?.path("shuffle_state")?.asBoolean(false)==true){beforeMutation();apiPutEmpty("/me/player/shuffle?state=false$query",token)}
+            if(player?.path("repeat_state")?.asText()=="track"){beforeMutation();apiPutEmpty("/me/player/repeat?state=off$query",token)}
+            beforeMutation();beforePlayback()
+            apiJson("PUT","/me/player/play"+(if(device==null)"" else "?device_id=${enc(device)}"),token,
+                RequestedPlaylistPlayback.body(plan.playlistId,plan.states().last()))
+        }catch(error:SpotifyHttpFailure){
+            if(error.providerStatus in 400..499)throw RequestPlaybackRejected(error.status,"No pudimos reiniciar la playlist. ${error.message}. No se descontaron tokens.")
+            throw error
+        }
     }
 
     private fun requirePlaylistWrites() {
@@ -257,27 +284,14 @@ class Spotify(
     }
 
     private fun savedRequestPlan(planJson:String):RequestPlaylistPlan = try {
-        require(planJson.length<=200_000)
-        val node=json.readTree(planJson)
-        require(node.path("version").asInt(-1)==1 && node.path("initialIds").isArray && node.path("steps").isArray)
-        require(node.path("position").isInt && node.path("outsideContext").isBoolean)
-        val initial=node.path("initialIds").map {
-            require(it.isNull || (it.isTextual && it.asText().length<=128))
-            if(it.isNull)null else it.asText()
-        }
-        val steps=node.path("steps").map {
-            require(it.path("desiredIndex").isInt && (it.path("existingIndex").isNull || it.path("existingIndex").isInt))
-            PlaylistPlanner.OrderStep(it.path("trackId").asText(),it.path("desiredIndex").asInt(),
-                if(it.path("existingIndex").isNull)null else it.path("existingIndex").asInt(),it.path("action").asText())
-        }
-        RequestPlaylistPlan(node.path("playlistId").asText(),node.path("requestedTrack").asText(),initial,steps,
-            node.path("position").asInt(),node.path("outsideContext").asBoolean()).also {it.states()}
+        RequestPlanCodec.decode(json,planJson)
     } catch (_:Exception) {
         fail(HttpStatus.CONFLICT,"El plan guardado del pedido no es válido; revisá su sincronización")
     }
 
     private fun requestPlanResult(plan:RequestPlaylistPlan, changed:Boolean):PlaylistChange {
-        val note=if(plan.outsideContext)
+        val note=if(plan.restartPlayback)"Se reinició la playlist desde la primera canción."
+        else if(plan.outsideContext)
             "Playlist sincronizada. No está activa en el reproductor; retomála desde Spotify o el control del administrador."
         else "Playlist sincronizada; Spotify puede conservar una cola de reproducción precargada."
         return PlaylistChange(if(changed)"FIFO_VERIFIED" else "ALREADY_QUEUED",plan.position,note,plan.outsideContext)

@@ -134,7 +134,7 @@ def wallet_http(customer_token, admin_token, other_token):
     status,_,_=request('/api/customers/me/wallet',headers={"Authorization":"Bearer "+admin_token},method='GET')
     assert status==401,'Bar administrator identity must not authorize a customer wallet'
     status,_,data=request('/api/customers/me/wallet',headers=headers,method='GET')
-    assert status==200 and data['balance']==0 and data['requestCost']==1
+    assert status==200 and data['balance']==0 and data['requestCost']==1 and 'reserved' not in data
     idem=str(uuid.uuid4());topup_headers={**headers,'Idempotency-Key':idem}
     status,_,data=request('/api/customers/me/wallet/topups',{'packId':'5','tokens':999999,'price':0,'customerId':'ignored'},headers=topup_headers)
     assert status==200 and data['balance']==5 and data['creditedTokens']==5 and data['simulated'] is True,'Only server-defined pack amount may be credited'

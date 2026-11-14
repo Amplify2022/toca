@@ -13,6 +13,7 @@ data class RequestPlaylistPlan(
     val steps: List<PlaylistPlanner.OrderStep>,
     val position: Int,
     val outsideContext: Boolean,
+    val restartPlayback: Boolean = false,
 ) {
     fun states(): List<List<String?>> {
         require(playlistId.matches(Regex("[A-Za-z0-9]{15,40}"))) { "Invalid saved playlist" }
