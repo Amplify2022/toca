@@ -11,8 +11,6 @@
     users:'<circle cx="9" cy="8" r="3"/><path d="M3 21v-2a6 6 0 0 1 12 0v2M16 5a3 3 0 0 1 0 6m2 4a5 5 0 0 1 3 5"/>',
     wallet:'<rect x="3" y="6" width="18" height="15" rx="3"/><path d="M17 6V3L5 6m16 6h-6v4h6"/><circle cx="17" cy="14" r=".5"/>',
     trend:'<path d="m3 17 6-6 4 4 8-10M15 5h6v6"/>',
-    clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
-    spark:'<path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5L12 3Z"/>',
     info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/>'
   };
   const icon = name => `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name] || paths.music}</svg>`;
@@ -23,8 +21,8 @@
   const week = [18,20,28,42,96,126];
   const month = [8,11,11,17,22,62,84,12,...week];
   const fixtures = {
-    week:{users:86,previousUsers:72,previousRequests:274,returning:34,range:'9–14 nov 2026',days:week.map((requests,i)=>({day:9+i,label:['Lun','Mar','Mié','Jue','Vie','Sáb'][i],requests})),hours:[33,92,152,53],songs:[18,14,12,11,9]},
-    month:{users:154,previousUsers:132,previousRequests:486,returning:64,range:'1–14 nov 2026',days:month.map((requests,i)=>({day:i+1,label:String(i+1),requests})),hours:[61,167,234,95],songs:[37,29,24,21,18]}
+    week:{users:86,previousUsers:72,previousRequests:274,returning:34,range:'9–14 nov 2026',days:week.map((requests,i)=>({day:9+i,label:['Lun','Mar','Mié','Jue','Vie','Sáb'][i],requests})),songs:[18,14,12,11,9]},
+    month:{users:154,previousUsers:132,previousRequests:486,returning:64,range:'1–14 nov 2026',days:month.map((requests,i)=>({day:i+1,label:String(i+1),requests})),songs:[37,29,24,21,18]}
   };
   const tracks = [['Original Prankster','The Offspring'],['Persiana Americana','Soda Stereo'],['Lamento Boliviano','Enanitos Verdes'],['De Música Ligera','Soda Stereo'],['El Sensei','Las Pastillas del Abuelo']];
   const state = {period:'week',metric:'requests'};
@@ -53,11 +51,6 @@
     document.querySelector('[data-chart-insight]').innerHTML=state.period==='week'?'<strong>El 67% de los pedidos llega el viernes y sábado.</strong> Son los días de mayor participación.':'<strong>La segunda semana concentró más pedidos.</strong> El sábado 14 fue el día con mayor actividad.';
   }
 
-  function renderHours(data) {
-    const sum=total(data);
-    document.getElementById('hours').innerHTML=data.hours.map((count,i)=>`<div class="ba-hour"><div><span>${['18:00 – 20:00','20:00 – 22:00','22:00 – 00:00','00:00 – 02:00'][i]}</span><strong>${Math.round(count/sum*100)}<small>%</small></strong></div><div class="ba-hour-track"><span class="${i===2?'peak':''}" style="width:${count/Math.max(...data.hours)*100}%"></span></div></div>`).join('');
-  }
-
   function renderSongs(data) {
     document.getElementById('top-songs').innerHTML=tracks.map(([title,artist],i)=>`<div class="ba-song-row"><span class="ba-rank">${i+1}</span><div class="ba-song-info"><div class="ba-record ba-record-${i}" aria-hidden="true">${icon('music')}</div><div><strong>${title}</strong><small>${artist}</small></div></div><strong class="ba-song-count">${data.songs[i]}</strong></div>`).join('');
   }
@@ -71,7 +64,7 @@
     const data=fixtures[state.period];
     document.querySelector('[data-date-range]').textContent=data.range;
     document.querySelectorAll('[data-period]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.period===state.period)));
-    renderKpis(data);renderChart(data);renderHours(data);renderSongs(data);renderAudience(data);
+    renderKpis(data);renderChart(data);renderSongs(data);renderAudience(data);
   }
   document.addEventListener('click',event=>{
     const period=event.target.closest('[data-period]');
