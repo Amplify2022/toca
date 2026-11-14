@@ -15,6 +15,8 @@ El saldo ahora está integrado con la API y PostgreSQL. Las cuentas nuevas y exi
 
 Para bares con control por distancia, la ubicación validada por el servidor sigue vigente durante 20 minutos dentro de la misma sesión del bar. Los pedidos siguientes reutilizan esa validación; un reinicio de playlist no la invalida. Al vencer o comenzar otra sesión del bar, se vuelve a pedir ubicación. Los bares que permiten pedidos desde cualquier lugar no solicitan GPS.
 
+Una falla temporal del proveedor de ubicación se reintenta automáticamente, con el mismo límite de precisión. Si no se recupera, se vuelve a consultar la autorización del servidor antes de mostrar un error. El usuario puede intentar nuevamente sin refrescar la página; no se envía el pedido ni se toca el saldo sin acceso validado.
+
 La falta de saldo tiene un manejo común en la consulta inicial, el envío y los reintentos: abre la recarga y conserva la canción, sin quedarse en un aviso de error. También se reconocen respuestas guardadas de versiones anteriores.
 
 El panel del bar muestra actividad de solo lectura y se actualiza automáticamente. Los pedidos no se aprueban manualmente.

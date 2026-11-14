@@ -1,6 +1,7 @@
 package com.amplify.api
 
 import io.micronaut.http.HttpStatus
+import io.micronaut.http.HttpResponse
 import io.micronaut.http.annotation.*
 import io.micronaut.scheduling.TaskExecutors
 import io.micronaut.scheduling.annotation.ExecuteOn
@@ -20,19 +21,23 @@ class VenueAccessController(
     @Get("/venues/{id}/presence")
     fun currentPresence(id: String,
         @Header(value="X-TOCA-Customer",defaultValue="") customerAuthorization: String
-    ): Map<String, Any?> {
+    ): HttpResponse<Map<String, Any?>> {
         val customerId = customerAuth.user(customerAuthorization)["id"] as java.util.UUID
-        return presence.status(safeUuid(id),customerId)
+        return privatePresence(presence.status(safeUuid(id),customerId))
     }
 
     @Post("/venues/{id}/presence")
     fun checkIn(id: String,
         @Header(value="X-TOCA-Customer",defaultValue="") customerAuthorization: String,
         @Body body: Map<String, Any?>
-    ): Map<String, Any?> {
+    ): HttpResponse<Map<String, Any?>> {
         val customerId = customerAuth.user(customerAuthorization)["id"] as java.util.UUID
-        return presence.checkIn(safeUuid(id),customerId,body)
+        return privatePresence(presence.checkIn(safeUuid(id),customerId,body))
     }
+
+    private fun privatePresence(body: Map<String, Any?>): HttpResponse<Map<String, Any?>> =
+        HttpResponse.ok(body).header("Cache-Control","no-store, private")
+            .header("Vary","X-TOCA-Customer")
 
     @Put("/admin/venues/{id}/request-access")
     fun updatePolicy(id: String,

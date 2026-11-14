@@ -87,6 +87,74 @@ def verify_test_database_binding():
     return token
 
 
+def presence_http(token,other_token):
+    """Real HTTP serialization, customer isolation and browser location recovery."""
+    owner=str(uuid.uuid4());venue=str(uuid.uuid4())
+    created.extend([('venue',venue),('admin_user',owner)])
+    sql(f"INSERT INTO admin_user(id,name,email,password_hash) VALUES('{owner}','Location fixture','{owner}@example.test','unused');"
+        f"INSERT INTO venue(id,owner_id,name,slug,address,city,latitude,longitude,join_token,active,request_access_mode,queue_started_at) VALUES('{venue}','{owner}','Location fixture','{venue}','Test','Test',-34.9,-56.17,'{venue}',true,'NEARBY',now());")
+    path=f'/api/venues/{venue}/presence';headers={'X-TOCA-Customer':'Bearer '+token}
+    status,_,_=request(path,method='GET');assert status==401
+    status,cache,data=request(path,headers=headers,method='GET')
+    assert status==200 and data.get('allowed') is not True
+    assert 'no-store' in cache.get('Cache-Control','') and 'private' in cache.get('Cache-Control','')
+    assert 'X-TOCA-Customer' in cache.get('Vary','')
+    status,cache,data=request(path,dict(latitude=-34.9,longitude=-56.17,accuracy=10),headers=headers)
+    assert status==200 and data['allowed'] is True and 'no-store' in cache.get('Cache-Control','')
+    for _ in range(2):
+        status,_,data=request(path,headers=headers,method='GET')
+        assert status==200 and data['allowed'] is True,'Consecutive reads must preserve the server check-in'
+    status,_,data=request(path,headers={'X-TOCA-Customer':'Bearer '+other_token},method='GET')
+    assert status==200 and data.get('allowed') is not True,'A customer cannot reuse another customer grant'
+    sql(f"UPDATE venue SET request_cycle_started_at=now() WHERE id='{venue}'")
+    status,_,data=request(path,headers=headers,method='GET')
+    assert status==200 and data['allowed'] is True,'Playlist restart must preserve location authorization'
+    sql(f"UPDATE venue_customer_presence SET expires_at=now()-interval '1 second' WHERE venue_id='{venue}'")
+    status,_,data=request(path,headers=headers,method='GET')
+    assert status==200 and data.get('allowed') is not True,'Expiry must require a new check-in'
+    status,_,_=request(path,dict(latitude=-34.9,longitude=-56.17,accuracy=101),headers=headers)
+    assert status==403,'Fallback must not relax server precision checks'
+    print('PASS presence HTTP: private uncached responses, consecutive reads, account isolation, playlist cycle, expiry and precision')
+    if not os.environ.get('TOCA_TEST_WEB_URL'):return
+    from urllib.parse import urlsplit
+    from playwright.sync_api import sync_playwright
+    web=os.environ['TOCA_TEST_WEB_URL'];parsed=urlsplit(web)
+    assert parsed.scheme=='http' and parsed.hostname in ('localhost','127.0.0.1'),'Test web must be local'
+    with sync_playwright() as p:
+        browser=p.chromium.launch(executable_path='/usr/bin/chromium',args=['--no-sandbox'])
+        context=browser.new_context(viewport=dict(width=390,height=900),service_workers='block')
+        context.add_init_script("localStorage.setItem('amplify-mode','live');localStorage.setItem('amplify-api',"+json.dumps(f'http://{host}:{port}')+");sessionStorage.setItem('toca:customer:session',"+json.dumps(token)+");"+"""
+          window.__gpsCalls=0;window.__gpsSequence=[{code:2},{accuracy:15}];
+          navigator.geolocation.getCurrentPosition=(success,failure)=>{
+            window.__gpsCalls++;
+            const next=window.__gpsSequence.shift()||{code:2};
+            if(next.code)return failure({code:next.code});
+            success({coords:{latitude:-34.9,longitude:-56.17,accuracy:next.accuracy}});
+          };
+        """)
+        page=context.new_page();errors=[];posts=[]
+        page.on('pageerror',lambda error:errors.append(str(error)))
+        page.on('request',lambda r:posts.append(r.url) if r.method=='POST' and r.url.endswith('/presence') else None)
+        page.route('https://**/*',lambda route:route.abort())
+        page.goto(web+'/#/request/'+venue);page.wait_for_load_state('networkidle')
+        page.wait_for_function('window.tocaCustomerVerified?.()')
+        origin=page.evaluate('performance.timeOrigin')
+        assert page.evaluate('id=>tocaPresenceEnsure(id)',venue) is True
+        assert page.evaluate('window.__gpsCalls')==2 and len(posts)==1
+        assert page.evaluate('id=>tocaPresenceEnsure(id)',venue) is True
+        assert page.evaluate('window.__gpsCalls')==2 and len(posts)==1,'Second check must not ask GPS again'
+        sql(f"UPDATE venue_customer_presence SET expires_at=now()-interval '1 second' WHERE venue_id='{venue}'")
+        page.evaluate('window.__gpsSequence=[{code:2},{code:3}]')
+        assert page.evaluate('id=>tocaPresenceEnsure(id)',venue) is False
+        assert len(posts)==1,'A failed reading cannot create a check-in'
+        page.evaluate('window.__gpsSequence=[{accuracy:10}]')
+        assert page.evaluate('id=>tocaPresenceEnsure(id)',venue) is True
+        assert len(posts)==2 and page.evaluate('performance.timeOrigin')==origin,'A later retry must recover on the same page'
+        assert not errors,errors
+        context.close();browser.close()
+    print('PASS presence browser + real API + PostgreSQL: temporary GPS recovery, second check without GPS, expiry and retry without refresh')
+
+
 def unfunded_request_http(token):
     headers={'Authorization':'Bearer '+token}
     status,_,user=request('/api/customers/me',headers=headers,method='GET');assert status==200
@@ -210,6 +278,7 @@ def tests():
         tokens[table]=data['token']
         print("PASS", path, "10 attempts/client, forwarding headers ignored, independent owner still logs in")
 
+    presence_http(tokens['customer_account'],sentinel_token)
     if os.environ.get('TOCA_TEST_REQUEST_FLOW')=='true':unfunded_request_http(tokens['customer_account'])
     wallet_http(tokens['customer_account'],tokens['admin_user'],sentinel_token)
 

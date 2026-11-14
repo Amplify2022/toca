@@ -69,6 +69,11 @@ Coverage:
 
 - Nested Db connection reuse with eight concurrent lock waiters.
 - Distance-only access without QR, 99/101 meter boundary checks, expiry and explicit ANYWHERE access.
+- Presence HTTP responses are private and uncached, grants remain scoped to the
+  customer/bar, and expiry and precision remain enforced. With
+  `TOCA_TEST_WEB_URL`, Chromium verifies temporary GPS failure recovery,
+  consecutive requests without extra GPS, expiry, and retries without reload
+  against the real API/PostgreSQL (GPS itself is simulated).
 - Separate playback cycles after automatic restarts: historical requests do not
   occupy waiting positions, current location grants survive, retries preserve
   the cycle, and explicit repeat requests get a current queue timestamp. V22
