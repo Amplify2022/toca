@@ -110,31 +110,44 @@ function instagramLink(handle) {
   </a>`;
 }
 
-// TOCÁ v1.7.3.4: ficha compacta del bar en el mapa, con foto completa y enlaces discretos.
+// Photo-led map preview. Keep the venue photo and actions in one surface.
 function tocaVenuePopup(v) {
   const name = String(v.name || 'Establecimiento');
-  const genre = String(v.genre || 'Música');
+  const genre = String(v.genre || 'Música').split(/[,•·]/).map(x=>x.trim()).filter(Boolean).join(' · ');
   const imagePath = String(v.coverPhotoUrl || '');
-  // La API devuelve rutas relativas a sus propias fotos; no aceptamos URLs arbitrarias.
-  const photoUrl = imagePath.startsWith('/api/venues/') ? mediaUrl(imagePath) : '';
+  // Venue uploads belong to the API; local sample photos are for demo bars only.
+  const photoUrl = imagePath.startsWith('/api/venues/') ? mediaUrl(imagePath)
+    : state.demo && typeof photoFor === 'function' ? photoFor(v,state.venues.findIndex(x=>x.id===v.id)) : '';
   const image = photoUrl
-    ? `<img class="toca-popup-cover" src="${esc(photoUrl)}" alt="Foto de ${esc(name)}" loading="lazy">`
-    : `<img class="toca-popup-placeholder" src="/assets/icon.svg" alt="" aria-hidden="true">`;
+    ? `<img class="toca-popup-cover" src="${esc(photoUrl)}" alt="Foto de ${esc(name)}">`
+    : '';
   const instagram = String(v.instagramHandle || '').trim().replace(/^@/, '');
   const instagramLink = /^[A-Za-z0-9._]{1,30}$/.test(instagram)
-    ? `<a class="toca-popup-link toca-map-popup-v1844c-instagram" href="https://www.instagram.com/${encodeURIComponent(instagram)}/" target="_blank" rel="noopener noreferrer" aria-label="Instagram de ${esc(name)} (se abre en otra pestaña)" style="display:inline-flex!important;align-items:center!important;justify-content:center!important;gap:6px!important;flex:0 1 auto!important;box-sizing:border-box!important;padding:8px 0!important;margin:0!important;border:0!important;border-radius:0!important;background:transparent!important;color:#f2faf7!important;box-shadow:none!important;text-decoration:none!important;font-weight:800!important;font-size:12px!important;line-height:1.2!important;white-space:nowrap!important;"><svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:block!important;width:17px!important;height:17px!important;min-width:17px!important;min-height:17px!important;max-width:17px!important;max-height:17px!important;flex:0 0 17px!important;position:static!important;transform:none!important;vertical-align:middle!important"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg> Instagram</a>`
+    ? `<a class="toca-popup-link toca-popup-instagram" href="https://www.instagram.com/${encodeURIComponent(instagram)}/" target="_blank" rel="noopener noreferrer" aria-label="Instagram de ${esc(name)} (se abre en otra pestaña)" title="Instagram de ${esc(name)}"><svg aria-hidden="true" width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="2.5" width="19" height="19" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg></a>`
     : '';
-  return `<article class="toca-popup-card">
-    <div class="toca-popup-media ${photoUrl ? 'has-photo' : 'no-photo'}">${image}</div>
+  return `<article class="toca-popup-card" aria-label="${esc(name)}">
+    <div class="toca-popup-media ${photoUrl ? 'has-photo' : 'no-photo'}">${image}<img class="toca-popup-placeholder" src="/assets/icon.svg" alt="" aria-hidden="true"></div>
+    <p class="toca-popup-status ${v.active ? 'is-active' : 'is-inactive'}"><span aria-hidden="true"></span>${v.active ? 'Música activa' : 'Música inactiva'}</p>
     <div class="toca-popup-copy">
-      <strong class="toca-popup-name">${esc(name)}</strong>
-      <span class="toca-popup-meta">${esc(genre)}</span>
-      <nav class="toca-popup-links" aria-label="Enlaces de ${esc(name)}" style="display:flex!important;align-items:center!important;justify-content:flex-start!important;column-gap:clamp(8px,1.5vw,10px)!important;row-gap:8px!important;flex-wrap:nowrap!important;">
-        <a class="toca-popup-link toca-map-popup-v1844c-primary" href="#/venue/${encodeURIComponent(v.id)}" style="display:inline-flex!important;align-items:center!important;justify-content:center!important;gap:7px!important;flex:0 0 auto!important;box-sizing:border-box!important;padding:10px 13px!important;margin:0!important;border:0!important;border-radius:999px!important;background:#aaff56!important;color:#102016!important;-webkit-text-fill-color:#102016!important;text-shadow:none!important;box-shadow:none!important;text-decoration:none!important;font-weight:800!important;font-size:12px!important;line-height:1.2!important;white-space:nowrap!important;">Ver bar <span style="font-size:17px!important;line-height:1!important;color:#102016!important;-webkit-text-fill-color:#102016!important;text-shadow:none!important" aria-hidden="true">→</span></a>
+      <strong class="toca-popup-name" title="${esc(name)}">${esc(name)}</strong>
+      <span class="toca-popup-meta" title="${esc(genre)}">${esc(genre)}</span>
+      <nav class="toca-popup-links" aria-label="Enlaces de ${esc(name)}">
+        <a class="toca-popup-link toca-popup-open" href="#/venue/${encodeURIComponent(v.id)}">Ver bar</a>
         ${instagramLink}
       </nav>
     </div>
   </article>`;
+}
+
+function tocaPrepareVenuePopup(popup) {
+ const element=popup.getElement();
+ const close=element?.querySelector('.leaflet-popup-close-button');
+ if(close){close.setAttribute('aria-label','Cerrar ficha del bar');close.title='Cerrar';}
+ const image=element?.querySelector('.toca-popup-cover');
+ if(image){
+  const fallback=()=>{image.closest('.toca-popup-media')?.classList.replace('has-photo','no-photo');image.remove();};
+  image.onerror=fallback;if(image.complete&&!image.naturalWidth)fallback();
+ }
 }
 
 function initMap(){
@@ -142,15 +155,19 @@ function initMap(){
  try{
   if(state.map){state.map.remove();state.map=null;}
   const map=L.map(el,{zoomControl:false}).setView([-34.906,-56.173],12);state.map=map;
-  L.control.zoom({position:'topright'}).addTo(map);
+  L.control.zoom({position:'bottomright'}).addTo(map);
   const layer=window.tocaMapLayer().addTo(map),bounds=[];
   filteredVenues().forEach(v=>{
    if(v.latitude===null||v.longitude===null||v.latitude===''||v.longitude==='')return;
    const lat=Number(v.latitude),lon=Number(v.longitude);if(!Number.isFinite(lat)||!Number.isFinite(lon)||Math.abs(lat)>90||Math.abs(lon)>180)return;
    const pt=[lat,lon];bounds.push(pt);
    const pin=L.divIcon({html:`<div class="toca-map-venue-pin-v1845" style="width:32px;height:32px;background:${v.active?'#b9fc89':'#b6b7c3'};border:3px solid #fff;border-radius:50%;display:grid;place-items:center;font-size:17px;color:#13271b;box-shadow:0 3px 9px #0006">♫</div>`,className:'',iconSize:[34,34]});
-   L.marker(pt,{icon:pin}).addTo(map).bindPopup(tocaVenuePopup(v));
+   const marker=L.marker(pt,{icon:pin,title:String(v.name||'Establecimiento')}).addTo(map).bindPopup(tocaVenuePopup(v),{
+    className:'toca-venue-popup',minWidth:240,maxWidth:304,offset:[0,-38],autoPanPadding:[16,16]
+   });
+   marker.getPopup().on('contentupdate',event=>tocaPrepareVenuePopup(event.target));
   });
+  map.on('popupopen',event=>tocaPrepareVenuePopup(event.popup));
   if(bounds.length)map.fitBounds(bounds,{padding:[40,40],maxZoom:14});
   map.invalidateSize({pan:false});return {map,layer};
  }catch(error){if(state.map){state.map.remove();state.map=null;}console.warn('Map unavailable',error);return null;}

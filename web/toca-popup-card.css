@@ -1,145 +1,240 @@
-/* TOCÁ v1.7.3.4 — Tarjeta del mapa: foto completa, texto y links (sin botones). */
-.toca-map-art #leaflet-map .leaflet-popup-content-wrapper {
+/* Photo-led iOS-inspired place preview, anchored to its map pin. */
+#leaflet-map .toca-venue-popup {
+  --popup-width: min(304px, calc(100vw - 80px));
+  margin-bottom: 0;
+  filter: drop-shadow(0 10px 18px #0008);
+}
+#leaflet-map .toca-venue-popup .leaflet-popup-content-wrapper {
   padding: 0;
-  overflow: hidden;
-  background: #152327;
-  border: 1px solid #34464a;
-  color: #e9efef;
-  border-radius: 15px;
-  box-shadow: 0 14px 38px rgba(0,0,0,.40);
+  overflow: visible;
+  background: transparent;
+  border: 0;
+  border-radius: 24px;
+  box-shadow: none;
+  color: #fff;
 }
-.toca-map-art #leaflet-map .leaflet-popup-tip {
-  background: #152327;
-  border: 1px solid #34464a;
-}
-.toca-map-art #leaflet-map .leaflet-popup-content {
-  box-sizing: border-box;
+#leaflet-map .toca-venue-popup .leaflet-popup-content {
+  width: var(--popup-width) !important;
+  max-width: var(--popup-width);
+  min-width: 0;
   margin: 0 !important;
-  width: 258px !important;
-  min-width: 0 !important;
-  max-width: 258px !important;
-  line-height: 1.35;
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  line-height: 1.3;
 }
-.toca-map-art #leaflet-map .toca-popup-card {
-  display: block;
+#leaflet-map .toca-venue-popup .toca-popup-card {
+  position: relative;
+  isolation: isolate;
   width: 100%;
+  height: 248px;
   overflow: hidden;
+  border: 0;
+  border-radius: 24px;
+  background: #090b0c;
+  color: #fff;
 }
-.toca-map-art #leaflet-map .toca-popup-media {
-  height: 132px;
-  width: 100%;
+#leaflet-map .toca-venue-popup .toca-popup-media,
+#leaflet-map .toca-venue-popup .toca-popup-media::after {
+  position: absolute;
+  inset: 0;
+}
+#leaflet-map .toca-venue-popup .toca-popup-media {
   display: grid;
   place-items: center;
-  background: #0c181b;
   overflow: hidden;
+  background: radial-gradient(ellipse at 70% 15%, #304840, #162622 45%, #0b1111 85%);
 }
-.toca-map-art #leaflet-map .toca-popup-cover {
+#leaflet-map .toca-venue-popup .toca-popup-media::after {
+  content: '';
+  background: linear-gradient(180deg, #0005, transparent 26%, #0002 38%, #000b 68%, #090b0c 100%);
+  pointer-events: none;
+}
+#leaflet-map .toca-venue-popup .toca-popup-cover {
+  position: absolute;
+  inset: 0;
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
   object-position: center;
   border: 0;
 }
-.toca-map-art #leaflet-map .toca-popup-placeholder {
-  display: block;
-  width: 60px;
-  height: 60px;
-  object-fit: contain;
-  opacity: .75;
+#leaflet-map .toca-venue-popup .toca-popup-placeholder {
+  width: 66px;
+  height: 66px;
+  margin-top: -58px;
+  opacity: .4;
 }
-.toca-map-art #leaflet-map .toca-popup-copy {
-  padding: 13px 16px 15px;
-}
-.toca-map-art #leaflet-map .toca-popup-name {
-  display: block;
-  margin: 0;
-  color: #f3f6f6;
-  font-family: 'Outfit', 'DM Sans', system-ui, sans-serif;
-  font-size: 16px;
-  font-weight: 700;
-  line-height: 1.25;
-  overflow-wrap: anywhere;
-}
-.toca-map-art #leaflet-map .toca-popup-meta {
-  display: block;
-  margin-top: 5px;
-  color: #9badaf;
-  font-size: 12px;
-  font-weight: 400;
-  line-height: 1.45;
-  overflow-wrap: anywhere;
-}
-.toca-map-art #leaflet-map .toca-popup-links {
+#leaflet-map .toca-venue-popup .has-photo .toca-popup-placeholder { display: none; }
+#leaflet-map .toca-venue-popup .toca-popup-status {
+  position: absolute;
+  top: 16px;
+  left: 16px;
   display: flex;
-  gap: 18px;
-  flex-wrap: wrap;
   align-items: center;
-  margin-top: 14px;
-  padding-top: 11px;
-  border-top: 1px solid #304347;
+  gap: 7px;
+  max-width: calc(100% - 74px);
+  margin: 0;
+  color: #f6f7f6;
+  font-size: 11px;
+  font-weight: 500;
+  text-shadow: 0 1px 8px #000b;
 }
-/* Regla focalizada, de alta especificidad, para neutralizar estilos anteriores.
-   Ni fondo, ni bordes, ni aspecto de botón. */
-.toca-map-art #leaflet-map .leaflet-popup-content .toca-popup-links > a.toca-popup-link,
-.toca-map-art #leaflet-map .leaflet-popup-content .toca-popup-links > a.toca-popup-link:visited {
-  display: inline-flex !important;
-  align-items: center !important;
-  gap: 5px !important;
-  width: auto !important;
-  min-width: 0 !important;
-  min-height: 0 !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  background: transparent !important;
-  background-color: transparent !important;
-  background-image: none !important;
-  border: 0 !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
-  color: #cbdadb !important;
-  -webkit-text-fill-color: #cbdadb !important;
-  text-decoration: none !important;
-  font-family: 'DM Sans', system-ui, sans-serif !important;
-  font-size: 12.5px !important;
-  font-weight: 600 !important;
-  line-height: 1.45 !important;
-  letter-spacing: 0 !important;
-  text-transform: none !important;
-  text-shadow: none !important;
-  white-space: nowrap !important;
-  transform: none !important;
-  opacity: 1 !important;
-  transition: color .14s ease;
-}
-.toca-map-art #leaflet-map .leaflet-popup-content .toca-popup-links > a.toca-popup-link:hover,
-.toca-map-art #leaflet-map .leaflet-popup-content .toca-popup-links > a.toca-popup-link:focus-visible {
-  color: #e5f3e8 !important;
-  -webkit-text-fill-color: #e5f3e8 !important;
-  text-decoration: underline !important;
-  text-underline-offset: 3px;
-}
-.toca-map-art #leaflet-map .toca-popup-link span {
-  color: #839c9f;
-  -webkit-text-fill-color: #839c9f;
-}
-.toca-map-art #leaflet-map .leaflet-popup-close-button {
-  z-index: 5;
-  display: grid;
-  place-items: center;
-  top: 8px;
-  right: 8px;
-  width: 25px;
-  height: 25px;
+#leaflet-map .toca-venue-popup .toca-popup-status > span {
+  flex: 0 0 7px;
+  height: 7px;
   border-radius: 50%;
-  background: rgba(12,22,25,.82);
-  color: #e0ebeb;
-  line-height: 1;
-  font-size: 19px;
+  background: #aaff64;
+}
+#leaflet-map .toca-venue-popup .is-inactive > span { background: #bec4c3; }
+#leaflet-map .toca-venue-popup .toca-popup-copy {
+  position: absolute;
+  right: 14px;
+  bottom: 13px;
+  left: 14px;
+  padding: 0;
+}
+#leaflet-map .toca-venue-popup .toca-popup-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  margin: 0;
+  color: #fff;
+  font-family: inherit;
+  font-size: 23px;
+  font-weight: 650;
+  letter-spacing: -.6px;
+  line-height: 1.15;
+  text-shadow: 0 1px 12px #0004;
+}
+#leaflet-map .toca-venue-popup .toca-popup-meta {
+  display: block;
+  overflow: hidden;
+  margin-top: 5px;
+  color: #d2d4d3;
+  font-size: 13px;
+  font-weight: 400;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+#leaflet-map .toca-venue-popup .toca-popup-links {
+  display: flex;
+  align-items: stretch;
+  height: 44px;
+  gap: 0;
+  margin-top: 13px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid #ffffff14;
+  border-radius: 999px;
+  background: #27282bd9;
+  -webkit-backdrop-filter: blur(18px) saturate(130%);
+  backdrop-filter: blur(18px) saturate(130%);
+}
+#leaflet-map .toca-venue-popup .toca-popup-links > a {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #fff;
+  -webkit-text-fill-color: #fff;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  text-shadow: none;
+  transition: background-color 150ms ease;
+}
+#leaflet-map .toca-venue-popup .toca-popup-links > .toca-popup-open {
+  flex: 1;
+  justify-content: flex-start;
+  padding: 0 16px;
+}
+#leaflet-map .toca-venue-popup .toca-popup-links > .toca-popup-instagram {
+  position: relative;
+  flex: 0 0 48px;
+  justify-content: center;
+  padding: 0;
+}
+#leaflet-map .toca-venue-popup .toca-popup-instagram::before {
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  left: 0;
+  width: 1px;
+  background: #ffffff26;
+  content: '';
+}
+#leaflet-map .toca-venue-popup .toca-popup-instagram svg {
+  position: static;
+  inset: auto;
+  display: block;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+#leaflet-map .toca-venue-popup .toca-popup-links > a:hover,
+#leaflet-map .toca-venue-popup .toca-popup-links > a:focus-visible {
+  background: #ffffff12;
+  color: #fff;
   text-decoration: none;
 }
-.toca-map-art #leaflet-map .leaflet-popup-close-button:hover {
-  background: rgba(12,22,25,.96);
-  color: white;
+#leaflet-map .toca-venue-popup .toca-popup-links > a:focus-visible {
+  outline: 2px solid #b9fc89;
+  outline-offset: -3px;
+  border-radius: 999px;
+}
+#leaflet-map .toca-venue-popup .leaflet-popup-close-button {
+  z-index: 2;
+  top: 11px;
+  right: 11px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #151719a8;
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  color: #fff;
+  font: 26px/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  text-decoration: none;
+}
+#leaflet-map .toca-venue-popup .leaflet-popup-close-button:hover {
+  background: #353739d9;
+  color: #fff;
+}
+#leaflet-map .toca-venue-popup .leaflet-popup-close-button:focus-visible {
+  outline: 2px solid #b9fc89;
+  outline-offset: 2px;
+}
+#leaflet-map .toca-venue-popup .leaflet-popup-tip-container {
+  width: 28px;
+  height: 14px;
+  margin-top: -1px;
+  margin-left: -14px;
+}
+#leaflet-map .toca-venue-popup .leaflet-popup-tip {
+  width: 28px;
+  height: 14px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: #090b0c;
+  box-shadow: none;
+  transform: none;
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+}
+@media (max-width: 360px) {
+  #leaflet-map .toca-venue-popup .toca-popup-card { height: 232px; }
+  #leaflet-map .toca-venue-popup .toca-popup-name { font-size: 21px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #leaflet-map .toca-venue-popup .toca-popup-links > a { transition: none; }
 }

@@ -13,6 +13,8 @@ Los chequeos simultáneos de la misma cuenta/bar comparten una única consulta e
 
 El mapa recupera el estilo vectorial VersaTiles Gray Dark mediante Leaflet + MapLibre. Los SDK y sus CSS se cargan bajo demanda y en orden. El contenedor conserva dimensiones reales durante la inicialización; al cargar se recalculan mapa/canvas. Si falla el proveedor, permanece la ilustración alternativa en lugar de un panel vacío. El editor de ubicación del administrador usa el mismo cargador y estilo.
 
+La tarjeta del mapa usa la foto del bar a pantalla completa dentro de la ficha, con texto superpuesto y una barra oscura translúcida para **Ver bar** e Instagram (sólo el icono). No muestra dirección, barrio, flecha en el enlace ni marco exterior. El pico inferior apunta al pin con un espacio de 8 px. El zoom queda abajo a la derecha para no tapar el cierre en móvil. El indicador de música activa/inactiva corresponde a la sesión del bar; no agrega consultas de reproducción. Si falta la foto o no carga, muestra una alternativa con el icono de TOCÁ; si no hay un Instagram válido, conserva únicamente **Ver bar**.
+
 ## Actualización local
 
 ```bash
@@ -30,7 +32,7 @@ Para probar con un equipo cuyo GPS no es preciso, se puede seleccionar ANYWHERE 
 - `python scripts/test-customer-tokens.py`: pedidos, saldo y recuperación del GPS sin refrescar, en móvil y escritorio, con API simulada.
 - La [sonda HTTP](../scripts/integration/README.md) comprueba presencia, aislamiento entre clientes, caducidad y precisión contra la API real. Con `TOCA_TEST_WEB_URL` también verifica la recuperación del navegador contra PostgreSQL real, sin cuentas externas.
 - `bash scripts/integration/run-p1-services.sh`: PostgreSQL real, 99 metros permitidos, 101 rechazados, precisión insuficiente, caducidad y ANYWHERE; Spotify simulado.
-- `python scripts/test-map-layout.py`: SDK Leaflet/MapLibre reales, móvil/escritorio, dimensiones del canvas, pines y filtros. El contenido del estilo se simula para no depender del servicio de teselas.
+- `python scripts/test-map-layout.py`: SDK Leaflet/MapLibre reales a 320, 390 y 1440 px; dimensiones del canvas, filtros, tarjeta con foto, alineación del pico/pin, enlaces, cierre por teclado, nombres largos, datos ausentes y foto fallida. El contenido del estilo se simula para no depender del servicio de teselas.
 - `python scripts/test-runtime.py`: fallback sin proveedores y apertura offline.
 
 El SDK de mapas y las teselas necesitan conexión. Estas pruebas no certifican disponibilidad permanente del proveedor externo.
