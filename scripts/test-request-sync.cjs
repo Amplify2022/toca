@@ -24,6 +24,8 @@ const settings = storage => ({storage, customerId: ()=>'customer-1', bearer: ()=
   assert.match(calls[2].url,/request-commands\/command-1$/);
   assert.equal(calls[2].options.headers.Authorization,'Bearer customer');
   assert.equal(calls.filter(x=>x.options.method==='POST').length,2);
+  client.clearUnadmitted('venue','track');
+  assert.equal(client.pending('venue','track'),true,'A retained admitted command must survive a no-funds check to prevent a second charge');
 
   const statuses = ['UNCERTAIN','DISPATCHED'];
   client = create({...settings(storage),api:async()=>({commandId:'command-1',status:statuses.shift()})});

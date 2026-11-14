@@ -246,6 +246,7 @@ class RequestCommands(private val db: Db, private val presence: VenuePresence,
             current
         } ?: return
         running[id] = owner
+        var resuming = false
         try {
             val token = gateway.token(venueId)
             val plan = command.getValue("plan_json") as String
@@ -256,15 +257,26 @@ class RequestCommands(private val db: Db, private val presence: VenuePresence,
                 db.transaction { currentForCommand(command) }
                 val assertOwner = { renewOwnership(id, owner) }
                 assertOwner()
+                resuming = true
                 recoverable.resumeOwned(venueId, token, plan, assertOwner)
             }
             finalize(id, owner, result)
-        } catch (_: Exception) {
-            // Back off for the same settling interval. An unrelated edit or
-            // provider outage is never reported as a successful request.
-            db.exec("""UPDATE request_command SET status='UNCERTAIN',lease_until=now(),updated_at=now(),
-                error='Seguimos comprobando automáticamente la sincronización con Spotify.'
-                WHERE id=? AND worker_id=? AND status='APPLYING'""", id, owner)
+        } catch (error: Exception) {
+            // Once the previous owner has settled, a conflicting playlist or
+            // rejected authorization cannot require human approval of a song.
+            // End this unconfirmed request honestly, refund it, and unblock the
+            // following requests. Transient outages still back off and retry.
+            val terminal = (!resuming || error is RequestNotApplied) && error is HttpStatusException &&
+                error.status in setOf(HttpStatus.CONFLICT, HttpStatus.FORBIDDEN, HttpStatus.PRECONDITION_FAILED)
+            db.transaction {
+                lockVenue(venueId)
+                val changed = db.exec("""UPDATE request_command SET status=?,lease_until=now(),updated_at=now(),error=?
+                    WHERE id=? AND worker_id=? AND status='APPLYING'""",
+                    if(terminal) "FAILED" else "UNCERTAIN",
+                    if(terminal) "No pudimos confirmar la canción en la playlist. El token fue devuelto."
+                    else "Seguimos comprobando automáticamente la sincronización con Spotify.", id, owner)
+                if(changed==1 && terminal) wallet.release(id)
+            }
         } finally { running.remove(id, owner) }
     }
 
@@ -304,6 +316,7 @@ class RequestCommands(private val db: Db, private val presence: VenuePresence,
             else -> "Estamos agregando tu canción."
         }
         return mapOf("commandId" to command["id"].toString(), "id" to (command["request_id"] ?: command["id"]).toString(),
+            "requiresApproval" to false,
             "status" to status, "trackId" to command["track_id"], "title" to command["title"], "action" to command["action"],
             "playlistPosition" to command["playlist_position"], "warning" to command["warning"], "message" to message,
             "note" to "La playlist y la cola de reproducción de Spotify son objetos distintos; no se garantiza reproducción inmediata.")
@@ -314,7 +327,7 @@ class RequestCommands(private val db: Db, private val presence: VenuePresence,
         ?: fail(HttpStatus.NOT_FOUND, "Pedido no encontrado"))
 
     fun listForVenue(venueId: UUID): List<Map<String, Any?>> = db.list(
-        "SELECT * FROM request_command WHERE venue_id=? AND status<>'SUCCEEDED' ORDER BY sequence DESC LIMIT 50", venueId).map(::response)
+        "SELECT * FROM request_command WHERE venue_id=? ORDER BY sequence DESC LIMIT 50", venueId).map(::response)
 
     /** Read-only provider check. Uncertain effects are NEVER automatically replayed. */
     fun reconcile(venueId: UUID, commandId: UUID): Map<String, Any?> {

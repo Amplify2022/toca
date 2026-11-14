@@ -15,7 +15,7 @@
       ...options,cache:'no-store',headers:{Authorization:bearer,...(options.body?{'Content-Type':'application/json'}:{}),...options.headers}
     });
     const data=await response.json().catch(()=>({}));
-    if(!response.ok){const error=Error(data._embedded?.errors?.[0]?.message||data.message||'No pudimos consultar tus tokens.');error.status=response.status;throw error;}
+    if(!response.ok){const error=Error(data._embedded?.errors?.[0]?.message||data.message||'No pudimos consultar tus tokens.');error.status=response.status;error.code=data.code||data._embedded?.errors?.[0]?.code;throw error;}
     // Micronaut omits empty collections from map responses. An account with
     // no movements still has a valid, server-confirmed zero balance.
     if(data.movements==null)data.movements=[];
@@ -30,6 +30,14 @@
   window.tocaWalletNeedsTopup=(venueId,track)=>{
     save(key('song'),{venueId,venueName:String(state.detail?.id===venueId?state.detail.name:'Tu bar'),track:{id:track.id,title:String(track.title||'Tu canción').slice(0,300),artist:String(track.artist||'').slice(0,300)}});
     navigate('#/profile/tokens?recharge=1');
+  };
+  window.tocaWalletHandleInsufficient=(error,venueId,track)=>{
+    const code=error?.code||error?.errorCode;
+    const message=String(error?.message||'');
+    // Support the structured response and retained responses from older APIs.
+    const noFunds=Number(error?.status)===402 || code==='INSUFFICIENT_TOKENS' || /no ten[eé]s (?:tokens|cr[eé]ditos) suficientes/i.test(message);
+    if(!noFunds)return false;
+    window.tocaWalletNeedsTopup(venueId,track);return true;
   };
   window.tocaWalletCanRequest=async(venueId,track)=>{
     const currentOwner=owner();

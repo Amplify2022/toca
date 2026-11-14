@@ -61,7 +61,7 @@ class CustomerWallet(private val db: Db,
     fun reserve(customer: UUID, command: UUID) = db.transaction {
         val balance = lock(customer)
         if (db.one("SELECT command_id FROM customer_token_hold WHERE command_id=?", command) != null) return@transaction
-        if (balance < 1) fail(HttpStatus.PAYMENT_REQUIRED, "No tenés tokens suficientes. Recargá para pedir esta canción.")
+        if (balance < 1) throw InsufficientTokens()
         db.exec("UPDATE customer_wallet SET balance=balance-1,updated_at=now() WHERE customer_id=?", customer)
         db.exec("INSERT INTO customer_token_hold(command_id,customer_id,amount,status) VALUES(?,?,1,'RESERVED')", command, customer)
         db.exec("INSERT INTO customer_token_entry(id,customer_id,kind,amount,command_id) VALUES(?,?,'RESERVE',-1,?)", UUID.randomUUID(), customer, command)

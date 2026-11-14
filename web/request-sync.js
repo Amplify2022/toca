@@ -19,6 +19,9 @@
     }
     return {
       pending(venueId, trackId) { return !!read(keyFor(venueId,trackId)); },
+      clearUnadmitted(venueId,trackId) {
+        const key=keyFor(venueId,trackId);if(!read(key)?.commandId)storage.removeItem(key);
+      },
       async submit(venueId, trackId, body) {
         const key = keyFor(venueId, trackId);
         const value = read(key) || {idempotencyKey: makeId()};

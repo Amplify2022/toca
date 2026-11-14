@@ -28,7 +28,10 @@ def scenario(browser,width):
         request=route.request;path=request.url.split('8080',1)[1].split('?',1)[0];data=[];status=200
         if path=='/api/customers/me':data=dict(id='customer-test',name='Nacho',email='nacho@example.test',roles=['CUSTOMER'])
         elif path=='/api/customers/me/avatar':data=dict(avatar=None)
-        elif path=='/api/customers/me/wallet':data=wallet()
+        elif path=='/api/customers/me/wallet':
+            if model.get('walletError'):
+                model['walletError']=False;status=500;data=dict(message='No tenés tokens suficientes. Recargá para pedir esta canción.')
+            else:data=wallet()
         elif path=='/api/customers/me/wallet/topups':
             assert request.method=='POST' and request.headers.get('authorization','').startswith('Bearer synthetic-')
             body=request.post_data_json;assert list(body)==['packId']
@@ -48,8 +51,12 @@ def scenario(browser,width):
         elif path.endswith('/requests') and request.method=='POST':
             assert request.headers.get('x-toca-customer','').startswith('Bearer synthetic-')
             assert request.headers.get('idempotency-key');orders.append(request.headers['idempotency-key'])
-            if model['order']=='race':
-                model['balance']=0;status=402;data=dict(message='No tenés tokens suficientes. Recargá para pedir esta canción.')
+            if model['order'] in ('race','race-code','race-legacy','failed-no-funds'):
+                model['balance']=0
+                status={'race':402,'race-code':409,'race-legacy':500,'failed-no-funds':200}[model['order']]
+                data=dict(message='No tenés tokens suficientes. Recargá para pedir esta canción.')
+                if model['order']=='race-code':data=dict(code='INSUFFICIENT_TOKENS',message='Recargá tu saldo.')
+                if model['order']=='failed-no-funds':data.update(commandId='rejected-command',status='FAILED')
             elif model['order']=='failed':data=dict(commandId='command-test',status='FAILED',message='No pudimos agregar la canción. Tu token fue devuelto.')
             else:
                 assert model['balance']>=1;model['balance']-=1;model['checks']=0
@@ -71,6 +78,16 @@ def scenario(browser,width):
     assert 'Necesitás 1 token' in sheet.inner_text()
     assert 'Estamos confirmando tu pedido con Spotify' not in page.locator('body').inner_text()
     page.screenshot(path=str(SHOTS/f'empty-{width}.png'))
+    # All funding failures open the same recharge route, never a generic toast.
+    for mode in ('preflight','race-code','race-legacy','failed-no-funds'):
+        sheet.get_by_role('button',name='Cancelar',exact=True).click()
+        model['balance']=0 if mode=='preflight' else 1;model['order']=mode
+        if mode=='preflight':model['walletError']=True
+        button=search();button.click();expect(sheet).to_be_visible()
+        expect(page.locator('[data-wallet-balance]')).to_have_text('0 tokens')
+        assert 'Error: No tenés' not in page.locator('#toast').inner_text()
+        assert page.evaluate("Object.keys(sessionStorage).filter(k=>k.startsWith('toca:request:credits-v1:')).length")==0
+    orders.clear();model['order']='success'
     sheet.locator('.tw-packs label').filter(has=page.locator('input[value="5"]')).click()
     expect(sheet.locator('[data-topup-total]')).to_have_text('5 tokens')
     sheet.locator('[data-wallet-topup]').dblclick();expect(sheet).not_to_be_visible()

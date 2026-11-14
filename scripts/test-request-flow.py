@@ -87,51 +87,37 @@ def scenario(browser, outcome):
     context.close()
 
 
-def admin_review(browser):
-    context = browser.new_context()
+def admin_activity(browser):
+    context=browser.new_context()
     context.add_init_script("""
       localStorage.setItem('amplify-mode','live');
       sessionStorage.setItem('amplify-token','synthetic-admin-session-abcdefghijklmnopqrstuvwxyz');
       sessionStorage.setItem('amplify-user',JSON.stringify({id:'owner-test',name:'Owner',email:'owner@example.test'}));
     """)
-    page = context.new_page()
-    page.on('dialog', lambda dialog: dialog.accept())
-    reconciled, posts, errors = [], [], []
-    page.on('pageerror', lambda error: errors.append(str(error)))
-
+    page=context.new_page();page.clock.install();checks=[];posts=[];errors=[]
+    page.on('pageerror',lambda error:errors.append(str(error)))
     def route_api(route):
-        path = route.request.url.split('8080', 1)[1].split('?', 1)[0]
-        data = []
-        if path == '/api/auth/me':
-            data = dict(id='owner-test', name='Owner', email='owner@example.test', roles=['VENUE_ADMIN'])
-        elif path == '/api/admin/venues':
-            data = [dict(VENUE, joinToken='synthetic-current-qr', playlistId='P' * 22)]
-        elif path == f'/api/venues/{VENUE_ID}':
-            data = VENUE
-        elif path.endswith('/request-commands/command-test/reconcile'):
-            assert route.request.method == 'POST'
-            posts.append(path)
-            reconciled.append(True)
-            data = dict(commandId='command-test', status='DISPATCHED')
+        request=route.request;path=request.url.split('8080',1)[1].split('?',1)[0];data=[]
+        if request.method=='POST':posts.append(path)
+        if path=='/api/auth/me':data=dict(id='owner-test',name='Owner',email='owner@example.test',roles=['VENUE_ADMIN'])
+        elif path=='/api/admin/venues':data=[dict(VENUE,playlistId='P'*22)]
+        elif path==f'/api/venues/{VENUE_ID}':data=VENUE
         elif path.endswith('/request-commands'):
-            data = [] if reconciled else [dict(commandId='command-test', status='UNCERTAIN',
-                                               title='Needs Review', message='Check Spotify')]
-        elif path.endswith('/stats'):
-            data = dict(tracks=0,repeats=0,synced=0,days=[])
-        elif path.endswith('/music-status'):
-            data = dict(active=True, isPlaying=False, now=None, playlist=[])
-        route.fulfill(status=200, content_type='application/json', body=json.dumps(data),
-                      headers={'Access-Control-Allow-Origin': '*'})
-
-    page.route('http://localhost:8080/**', route_api)
-    page.route('https://**/*', lambda route: route.abort())
+            checks.append(True)
+            data=[dict(commandId='command-test',status='UNCERTAIN' if len(checks)==1 else 'DISPATCHED',title='Automatic song',message='Revisá la playlist en Spotify',requiresApproval=False)]
+        elif path.endswith('/stats'):data=dict(tracks=1,repeats=0,synced=1,days=[])
+        elif path.endswith('/music-status'):data=dict(active=True,isPlaying=False,now=None,playlist=[])
+        route.fulfill(status=200,content_type='application/json',body=json.dumps(data),headers={'Access-Control-Allow-Origin':'*'})
+    page.route('http://localhost:8080/**',route_api);page.route('https://**/*',lambda route:route.abort())
     page.goto(BASE+'/#/admin/general')
-    page.locator('[data-action="reconcile-request-command"]').wait_for()
-    assert not posts, 'The customer recovery flow must not invoke administrator-only diagnostic endpoints'
-    page.locator('[data-action="reconcile-request-command"]').click()
-    page.wait_for_function("document.getElementById('toca-request-commands')?.textContent.includes('No hay pedidos pendientes')")
-    assert len(posts) == 1
-    assert not errors, errors
+    page.locator('#toca-request-commands').get_by_text('Reintentando automáticamente').wait_for()
+    assert page.locator('[data-action="reconcile-request-command"],[data-action="cancel-request-command"],[data-action="approve"]').count()==0
+    assert 'Revisá la playlist' not in page.locator('#toca-request-commands').inner_text()
+    page.clock.fast_forward(5100)
+    page.locator('#toca-request-commands').get_by_text('Agregada a la playlist',exact=True).wait_for()
+    assert len(checks)>=2 and not posts,'Activity refresh must be automatic and read-only'
+    page.screenshot(path='/tmp/toca-admin-automatic-activity.png')
+    assert not errors,errors
     context.close()
 
 
@@ -142,6 +128,6 @@ if __name__ == '__main__':
         for outcome in ['pending', 'uncertain', 'lost-response']:
             scenario(browser, outcome)
             print('PASS request UI:', outcome)
-        admin_review(browser)
-        print('PASS request UI: optional administrator diagnostics')
+        admin_activity(browser)
+        print('PASS request UI: automatic read-only activity without review or approval')
         browser.close()

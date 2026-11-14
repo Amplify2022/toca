@@ -40,7 +40,7 @@ const state={demo:(window.TOCA_CONFIG?.mode||localStorage.getItem('amplify-mode'
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt=(d)=>{try{return new Intl.DateTimeFormat('es-UY',{hour:'2-digit',minute:'2-digit'}).format(new Date(d))}catch{return ''}};
 const toast=(msg,duration=3600)=>{let n=document.getElementById('toast');n.innerHTML=`<div class="toasty">${esc(msg)}</div>`;clearTimeout(window.toastTimeout);window.toastTimeout=setTimeout(()=>n.innerHTML='',duration)};
-const api=async(path,opts={})=>{const res=await fetch(`${API_URL}${path}`,{method:opts.method||'GET',headers:{...(path.match(/^\/api\/venues\/[^/]+\/requests$/) && (opts.method||'GET')==='POST' && window.tocaCustomerBearer?.()?{'X-TOCA-Customer':window.tocaCustomerBearer()}:{}),...(state.token?{Authorization:`Bearer ${state.token}`}:{}),...(opts.body?{'Content-Type':'application/json'}:{}),...(opts.headers||{})},body:opts.body?JSON.stringify(opts.body):undefined,signal:opts.signal||((opts.method||'GET')==='GET'?window.tocaNavigationSignal?.():undefined)});let data;try{data=await res.json()}catch{data={}}if(!res.ok){const error=Error(data._embedded?.errors?.[0]?.message||data.message||data.error||`Error HTTP ${res.status}`);error.status=res.status;throw error}return data};
+const api=async(path,opts={})=>{const res=await fetch(`${API_URL}${path}`,{method:opts.method||'GET',headers:{...(path.match(/^\/api\/venues\/[^/]+\/requests$/) && (opts.method||'GET')==='POST' && window.tocaCustomerBearer?.()?{'X-TOCA-Customer':window.tocaCustomerBearer()}:{}),...(state.token?{Authorization:`Bearer ${state.token}`}:{}),...(opts.body?{'Content-Type':'application/json'}:{}),...(opts.headers||{})},body:opts.body?JSON.stringify(opts.body):undefined,signal:opts.signal||((opts.method||'GET')==='GET'?window.tocaNavigationSignal?.():undefined)});let data;try{data=await res.json()}catch{data={}}if(!res.ok){const error=Error(data._embedded?.errors?.[0]?.message||data.message||data.error||`Error HTTP ${res.status}`);error.status=res.status;error.code=data.code||data._embedded?.errors?.[0]?.code;throw error}return data};
 const joinKey=(id)=>`toca:join:${id}`;
 function rememberJoin(id,token){
   if(!id)return '';
@@ -293,7 +293,8 @@ function requestSyncFeedback(venueId, message) {
 const tocaRequestsInFlight = new Set();
 window.tocaRequestSong = async (venueId, track) => {
   if (!state.demo && !(await window.tocaCustomerRequireForRequest(location.hash))) return;
-  const key = `${window.tocaCustomerUser?.()?.id}:${venueId}:${track.id}`;
+  const customerId=window.tocaCustomerUser?.()?.id;
+  const key = `${customerId}:${venueId}:${track.id}`;
   if (tocaRequestsInFlight.has(key)) return;
   tocaRequestsInFlight.add(key);
   try {
@@ -303,6 +304,12 @@ window.tocaRequestSong = async (venueId, track) => {
     if (!requestSyncClient().pending(venueId,track.id) && !(await window.tocaWalletCanRequest(venueId,track))) return;
     if (!(await window.tocaPresenceEnsure(venueId))) return;
     return await submitSynchronizedRequest(venueId,track);
+  } catch(error) {
+    if(window.tocaCustomerUser?.()?.id!==customerId)return;
+    if(window.tocaWalletHandleInsufficient(error,venueId,track)){
+      requestSyncClient().clearUnadmitted(venueId,track.id);return;
+    }
+    throw error;
   } finally {tocaRequestsInFlight.delete(key);}
 };
 async function submitSynchronizedRequest(venueId, track) {
@@ -322,7 +329,7 @@ async function submitSynchronizedRequest(venueId, track) {
     }
   } catch (error) {
     if (window.tocaCustomerUser?.()?.id!==customer) return;
-    if (error.status===402) {window.tocaWalletNeedsTopup(venueId,track);return;}
+    if (window.tocaWalletHandleInsufficient(error,venueId,track)) {client.clearUnadmitted(venueId,track.id);return;}
     requestSyncFeedback(venueId, 'No pudimos confirmar la respuesta. Volvé a consultar este tema: conservamos el mismo pedido para evitar duplicados.');
     throw error;
   }
@@ -332,6 +339,7 @@ async function submitSynchronizedRequest(venueId, track) {
     toast(`“${track.title}” se agregó a la playlist · 1 token`);
     if (route().path === flowPath) navigate(`#/venue/${encodeURIComponent(venueId)}`);
   } else if (result.status === 'FAILED') {
+    if(window.tocaWalletHandleInsufficient(result,venueId,track))return result;
     const message=result.message || 'No pudimos agregar la canción. Tu token está disponible para volver a intentarlo.';
     requestSyncFeedback(venueId,message);toast(message);
     if(route().path==='/profile/tokens')await window.tocaWalletPage();
@@ -341,41 +349,37 @@ async function submitSynchronizedRequest(venueId, track) {
   return result;
 }
 
-async function tocaLoadRequestCommands(venueId) {
-  const dashboard = document.querySelector('.toca-ad-dashboard');
-  if (!dashboard || state.demo) return;
-  let panel = dashboard.querySelector('#toca-request-commands');
-  if (!panel) {
-    panel = document.createElement('section'); panel.id = 'toca-request-commands';
-    panel.className = 'toca-ad-card'; dashboard.prepend(panel);
-  }
-  panel.dataset.venueId = venueId;
-  panel.innerHTML = '<h2>Estado de pedidos</h2><p role="status">Consultando pedidos pendientes…</p>';
-  try {
-    const commands = await api(`/api/admin/venues/${encodeURIComponent(venueId)}/request-commands`);
-    if (!panel.isConnected || panel.dataset.venueId !== venueId) return;
-    const labels = {PENDING:'Recibido',PROCESSING:'Confirmando',UNCERTAIN:'Requiere revisión',FAILED:'No completado'};
-    panel.innerHTML = `<div class="toca-section-title"><h2>Estado de pedidos</h2><button type="button" class="btn small" data-action="refresh-request-commands" data-venue="${esc(venueId)}">Actualizar</button></div>` +
-      (commands.length ? commands.map(command => `<div class="toca-panel"><strong>${esc(command.title || command.trackId)}</strong><p>${esc(labels[command.status] || command.status)} · ${esc(command.message || '')}</p>${command.status==='UNCERTAIN' ? `<p>Revisá la playlist en Spotify antes de cerrar el pedido.</p><button type="button" class="btn small" data-action="reconcile-request-command" data-venue="${esc(venueId)}" data-command="${esc(command.commandId)}">Comprobar en Spotify</button> <button type="button" class="btn small ghost" data-action="cancel-request-command" data-venue="${esc(venueId)}" data-command="${esc(command.commandId)}">Cerrar tras revisar</button>` : ''}</div>`).join('') : '<p>No hay pedidos pendientes de confirmación.</p>');
-  } catch (error) {
-    if (panel.isConnected) panel.textContent = 'No se pudo consultar el estado de pedidos: ' + error.message;
-  }
+let tocaRequestActivityTimer;
+function scheduleRequestActivity(panel,venueId) {
+  clearTimeout(tocaRequestActivityTimer);
+  tocaRequestActivityTimer=setTimeout(()=>{
+    if(!panel.isConnected)return;
+    if(document.visibilityState==='hidden')scheduleRequestActivity(panel,venueId);
+    else void tocaLoadRequestCommands(venueId);
+  },5000);
 }
-document.addEventListener('click', async event => {
-  const button = event.target.closest('[data-action]');
-  if (!button || !['refresh-request-commands','reconcile-request-command','cancel-request-command'].includes(button.dataset.action)) return;
-  if (button.disabled) return;
-  const venueId = button.dataset.venue;
-  if (button.dataset.action === 'cancel-request-command' && !confirm('Confirmá que ya revisaste la playlist. Cerrar este pedido no elimina canciones de Spotify.')) return;
-  button.disabled = true;
+async function tocaLoadRequestCommands(venueId) {
+  const dashboard=document.querySelector('.toca-ad-dashboard');
+  if(!dashboard||state.demo)return;
+  let panel=dashboard.querySelector('#toca-request-commands');
+  if(!panel){
+    panel=document.createElement('section');panel.id='toca-request-commands';
+    panel.className='toca-ad-card';dashboard.append(panel);
+    panel.innerHTML='<h2>Actividad de canciones</h2><p role="status">Cargando actividad…</p>';
+  }
+  panel.dataset.venueId=venueId;
   try {
-    if (button.dataset.command) await api(`/api/admin/venues/${encodeURIComponent(venueId)}/request-commands/${encodeURIComponent(button.dataset.command)}/${button.dataset.action==='reconcile-request-command'?'reconcile':'cancel'}`, {
-      method:'POST', ...(button.dataset.action==='cancel-request-command'?{body:{acknowledgeProviderState:true}}:{})
-    });
-    await tocaLoadRequestCommands(venueId);
-  } catch (error) { toast(error.message); }
-  finally { if (button.isConnected) button.disabled = false; }
-});
+    const data=await api(`/api/admin/venues/${encodeURIComponent(venueId)}/request-commands`);
+    if(!panel.isConnected||panel.dataset.venueId!==venueId)return;
+    const commands=Array.isArray(data)?data.slice(0,5):[];
+    const labels={PENDING:'Agregando a la playlist',PROCESSING:'Agregando a la playlist',UNCERTAIN:'Reintentando automáticamente',DISPATCHED:'Agregada a la playlist',FAILED:'No se pudo agregar'};
+    panel.innerHTML='<div class="toca-section-title"><h2>Actividad de canciones</h2><span>Actualización automática</span></div>'+
+      (commands.length?commands.map(command=>`<div class="toca-song-row"><div class="toca-song-meta"><strong>${esc(command.title||'Canción solicitada')}</strong><small>${esc(labels[command.status]||'En proceso')}</small>${command.status==='FAILED'?`<small>${esc(command.message||'El pedido no pudo completarse.')}</small>`:''}</div></div>`).join(''):'<p class="toca-muted">Los pedidos con saldo se agregan directamente a la playlist.</p>');
+  }catch(error){
+    if(panel.isConnected)panel.innerHTML='<h2>Actividad de canciones</h2><p class="toca-muted">No pudimos actualizar la actividad. Volveremos a intentarlo automáticamente.</p>';
+  }finally{if(panel.isConnected)scheduleRequestActivity(panel,venueId);}
+}
+window.addEventListener('hashchange',()=>clearTimeout(tocaRequestActivityTimer));
 
 async function render(){const r=route();state.error='';try{if(r.path==='/explore'||r.path==='/'){await explore();return}if(r.path==='/map'){state.venues=await fetchVenues();mount(mapView(),'map');if(!window.L){if(!document.getElementById('leaflet-style')){const s=document.createElement('link');s.id='leaflet-style';s.rel='stylesheet';s.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';document.head.append(s)}const s=document.createElement('script');s.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';s.onload=initMap;s.onerror=()=>console.info('Offline map fallback active');document.head.append(s)}else initMap();return}if(r.path.startsWith('/venue/')){setGuestVenue(decodeURIComponent(r.path.split('/')[2]),r.params.get('join')||'');await viewVenue(decodeURIComponent(r.path.split('/')[2]));return}if(r.path==='/admin/requests'){location.replace('#/admin/general');return;}if(r.path==='/admin/onboarding')return await window.tocaVenueOnboarding();if(r.path==='/admin/profile'||r.path.startsWith('/admin/profile/'))return await window.tocaVenueProfile();if(r.path.startsWith('/admin')){state.adminTab=r.path.split('/')[2]||'general';await admin();return}if(r.path==='/login'){loginPage();return}if(r.path==='/register'){loginPage(true);return}if(r.path==='/settings'){settingsView();return}if(r.path==='/my-requests'){requestsView();return}if(r.path==='/about'){aboutView();return}navigate('#/explore')}catch(e){console.error(e);mount(`<div class="card empty"><div class="big">⚠</div><h2>No pudimos cargar esta pantalla</h2><p style="margin:13px auto;max-width:450px">${esc(e.message)}</p><a href="#/settings" class="btn ghost" style="margin-top:20px">Revisar conexión</a></div>`,'explore')}}
 // Event handling: one listener per event type, no handlers injected into dynamic HTML.

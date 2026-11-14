@@ -77,6 +77,8 @@ public class P1ServiceProbe {
             db.exec("UPDATE request_command SET created_at=now()-interval '20 seconds' WHERE customer_id=?",c);
         }
         check(credits(wallet,c)==1,"Successful requests cost one token each");
+        check(commands.listForVenue(v).stream().anyMatch(row->"DISPATCHED".equals(row.get("status"))),"Read-only activity must include completed requests");
+        check(commands.listForVenue(v).stream().allMatch(row->Boolean.FALSE.equals(row.get("requiresApproval"))),"Requests must never require bar approval");
         UUID firstVenue=venue(),secondVenue=venue();var accepted=new AtomicInteger();var denied=new AtomicInteger();
         workers=Executors.newFixedThreadPool(2);
         try {
@@ -117,7 +119,19 @@ public class P1ServiceProbe {
         db.exec("UPDATE request_command SET status='PREPARING' WHERE customer_id=?",interrupted);
         db.exec("UPDATE request_command SET lease_until=now()-interval '1 second' WHERE customer_id=?",interrupted);expired.recoverPending();expired.recoverPending();
         check(credits(wallet,interrupted)==5&&crash.applyCalls.get()==0,"An expired pre-write request releases its token exactly once");
-        System.out.println("PASS tokens: zero balance, no provider work without funds, account isolation, idempotent topups, last-token race, one debit, refunds and recovery");
+        UUID conflictCustomer=customer(false),conflictVenue=venue();wallet.topUp(conflictCustomer,"5",key());
+        var conflictGateway=new ConflictingRecoverySpotify();conflictGateway.failAfterEffect=true;
+        var conflictCommands=new RequestCommands(db,new VenuePresence(db),conflictGateway,wallet,true);
+        var conflicted=conflictCommands.submit(conflictVenue,conflictCustomer,body(TRACK_A,"guest-conflicted-plan"),key());
+        check("UNCERTAIN".equals(conflicted.get("status"))&&credits(wallet,conflictCustomer)==4,"An unknown remote outcome must retain its reservation while settling");
+        db.exec("UPDATE request_command SET lease_until=now()-interval '3 minutes' WHERE venue_id=?",conflictVenue);
+        conflictCommands.recoverPending();conflictCommands.recoverPending();
+        check("FAILED".equals(conflictCommands.status(UUID.fromString(conflicted.get("commandId").toString()),conflictCustomer).get("status")),"A settled incompatible plan must end automatically without human review");
+        check(credits(wallet,conflictCustomer)==5,"Unconfirmed incompatible plan must refund its token exactly once");
+        check(conflictGateway.applyCalls.get()==1,"Incompatible playlist state must not be overwritten or blindly replayed");
+        db.exec("UPDATE request_command SET created_at=now()-interval '20 seconds' WHERE venue_id=?",conflictVenue);
+        check("DISPATCHED".equals(conflictCommands.submit(conflictVenue,conflictCustomer,body(TRACK_B,"guest-after-conflict"),key()).get("status")),"The next funded request must proceed without bar approval");
+        System.out.println("PASS tokens: zero balance, no provider work without funds, account isolation, idempotent topups, last-token race, one debit, refunds and recovery without manual review");
     }
 
     static void transactionReuse() throws Exception {
@@ -216,6 +230,12 @@ public class P1ServiceProbe {
         }
         @Override public RequestPlaylistResult resumeOwned(UUID venue,String token,String plan,kotlin.jvm.functions.Function0<kotlin.Unit> fence) {
             resumes.incrementAndGet();return applyOwned(venue,token,plan,fence);
+        }
+    }
+    static class ConflictingRecoverySpotify extends ResumableSpotify {
+        @Override public RequestPlaylistResult verify(UUID venue,String token,String plan) { return null; }
+        @Override public RequestPlaylistResult resumeOwned(UUID venue,String token,String plan,kotlin.jvm.functions.Function0<kotlin.Unit> fence) {
+            fence.invoke();throw new RequestNotApplied(HttpStatus.CONFLICT,"Playlist changed externally");
         }
     }
 

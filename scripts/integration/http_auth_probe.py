@@ -56,6 +56,7 @@ def sql(statement):
     ], text=True, capture_output=True)
     if result.returncode:
         raise RuntimeError("Local test database fixture operation failed")
+    return result.stdout.strip()
 
 
 def cleanup():
@@ -84,6 +85,46 @@ def verify_test_database_binding():
         headers={"Authorization": "Bearer " + token}, method="GET")
     assert status == 200 and data.get("id") == customer, f"Test DB identity check failed (HTTP {status}); no HTTP accounts created"
     return token
+
+
+def unfunded_request_http(token):
+    headers={'Authorization':'Bearer '+token}
+    status,_,user=request('/api/customers/me',headers=headers,method='GET');assert status==200
+    customer=str(uuid.UUID(user['id']));owner=str(uuid.uuid4());venue=str(uuid.uuid4())
+    created.extend([('venue',venue),('admin_user',owner)])
+    sql(f"INSERT INTO admin_user(id,name,email,password_hash) VALUES('{owner}','Flow fixture','{owner}@example.test','unused');"
+        f"INSERT INTO venue(id,owner_id,name,slug,address,city,latitude,longitude,join_token,active,spotify_premium,playlist_id,request_access_mode,queue_started_at) VALUES('{venue}','{owner}','Flow fixture','{venue}','Test','Test',-34.9,-56.17,'{venue}',true,true,'PPPPPPPPPPPPPPPPPPPPPP','ANYWHERE',now());")
+    track='A'*22;idem=str(uuid.uuid4())
+    status,_,data=request('/api/venues/'+venue+'/requests',{'trackId':track},headers={'X-TOCA-Customer':'Bearer '+token,'Idempotency-Key':idem})
+    assert status==402 and data.get('code')=='INSUFFICIENT_TOKENS',f'Expected structured no-funds response, got HTTP {status}'
+    assert sql(f"SELECT count(*) FROM request_command WHERE venue_id='{venue}'")=="0",'No funds must not create a request or an admin review item'
+    if os.environ.get('TOCA_TEST_WEB_URL'):
+        from playwright.sync_api import sync_playwright,expect
+        from urllib.parse import urlsplit
+        web=os.environ['TOCA_TEST_WEB_URL']
+        parsed=urlsplit(web);assert parsed.scheme=='http' and parsed.hostname in ('localhost','127.0.0.1'),'Test web must be local'
+        with sync_playwright() as p:
+            browser=p.chromium.launch(executable_path='/usr/bin/chromium',args=['--no-sandbox'])
+            context=browser.new_context(viewport=dict(width=390,height=900),service_workers='block')
+            pending_key=f'toca:request:credits-v1:{customer}:{venue}:{track}'
+            script="localStorage.setItem('amplify-mode','live');localStorage.setItem('amplify-api',"+json.dumps(f'http://{host}:{port}')+");sessionStorage.setItem('toca:customer:session',"+json.dumps(token)+");sessionStorage.setItem("+json.dumps(pending_key)+","+json.dumps(json.dumps({'idempotencyKey':str(uuid.uuid4())}))+ ");"
+            context.add_init_script(script)
+            page=context.new_page();errors=[];posts=[];page.on('pageerror',lambda e:errors.append(str(e)))
+            page.on('request',lambda r:posts.append(r.url) if r.method=='POST' and r.url.endswith('/requests') else None)
+            page.route('https://**/*',lambda route:route.abort())
+            page.goto(web+'/#/request/'+venue);page.wait_for_load_state('networkidle')
+            # Inject only catalog display data. The click handler, balance rejection,
+            # redirect, customer authentication and recharge page use the real API.
+            page.evaluate("""track=>{state.catalog=[track];document.getElementById('song-results').innerHTML=trackRow(track,1,'search')}""",dict(id=track,title='Zero-token song',artist='Fixture artist'))
+            page.locator('[data-action="request"]').click()
+            expect(page.locator('#toca-token-recharge')).to_be_visible()
+            expect(page.locator('[data-wallet-balance]')).to_have_text('0 tokens')
+            assert '/profile/tokens' in page.url and len(posts)==1
+            assert 'Error: No tenés' not in page.locator('#toast').inner_text()
+            assert not errors,errors
+            page.screenshot(path='/tmp/toca-zero-token-real-redirect.png')
+            context.close();browser.close()
+    print('PASS actual unfunded request: structured HTTP 402, no command or review created, browser opens recharge without error toast')
 
 
 def wallet_http(customer_token, admin_token, other_token):
@@ -169,6 +210,7 @@ def tests():
         tokens[table]=data['token']
         print("PASS", path, "10 attempts/client, forwarding headers ignored, independent owner still logs in")
 
+    if os.environ.get('TOCA_TEST_REQUEST_FLOW')=='true':unfunded_request_http(tokens['customer_account'])
     wallet_http(tokens['customer_account'],tokens['admin_user'],sentinel_token)
 
     # Invalid registrations count before expensive hashing/account creation.

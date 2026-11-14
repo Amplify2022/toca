@@ -49,17 +49,13 @@ Estados públicos:
 
 La web consulta automáticamente el estado con la sesión de cliente, incluyendo `UNCERTAIN`, y solo muestra éxito para `DISPATCHED`. Si se pierde una respuesta, volver a elegir el mismo tema consulta/reintenta el mismo comando pendiente.
 
-## Recuperación automática y herramientas de diagnóstico
+## Recuperación y actividad automáticas
 
 El worker comprueba los pedidos inciertos sin intervención del bar. Espera a que venza la autorización del proceso anterior más un margen de 120 segundos antes de reanudar escrituras, adquiere una nueva autorización exclusiva y vuelve a validar las reglas y la sesión. Una playlist modificada externamente que no coincida con ningún estado conocido no se sobrescribe. Una caída del proveedor mantiene el pedido pendiente y vuelve a comprobarlo después del margen de espera.
 
-Las herramientas del dashboard son opcionales para diagnóstico de una integración interrumpida; no son una aprobación de canciones:
+El dashboard muestra **Actividad de canciones**, una vista de solo lectura que se actualiza cada 5 segundos. Muestra el procesamiento, los reintentos automáticos, los errores y los temas ya agregados. No incluye botones para aprobar, comprobar en Spotify, cerrar revisiones ni actualizar manualmente.
 
-1. Revisá la playlist real en Spotify.
-2. **Comprobar en Spotify** hace una verificación de solo lectura contra el plan guardado. Si el resultado final coincide, confirma el pedido sin repetir la modificación.
-3. **Cerrar tras revisar** requiere una confirmación explícita. Cierra el comando como fallido y permite continuar; no revierte ni elimina canciones en Spotify.
-
-Un proceso original todavía activo o dentro del margen de espera impide cerrar prematuramente. Si el proveedor cambió externamente, el sistema conserva el pedido incierto en lugar de reconstruir un nuevo pedido a ciegas.
+Un proceso original todavía activo o dentro del margen de espera impide finalizar prematuramente. Si, una vez vencido ese margen, se comprueba que el plan ya no es compatible o falta autorización y la comprobación no emitió nuevas escrituras inciertas, el pedido termina como fallido y devuelve el token. Los pedidos siguientes pueden continuar; el bar no debe aprobar ni cerrar una revisión. Las respuestas todavía ambiguas y las caídas transitorias conservan su reserva y se vuelven a comprobar automáticamente.
 
 El saldo y las recargas simuladas ya están [integrados con la API](CUSTOMER_TOKENS.md). Se requiere saldo antes de admitir un pedido, se reserva 1 token y se confirma o devuelve con su resultado. La pantalla dirige al usuario sin saldo a recargar en su perfil y vuelve a la playlist después de agregar una canción.
 
