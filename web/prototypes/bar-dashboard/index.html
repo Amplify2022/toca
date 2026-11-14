@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#080e10">
+  <title>Dashboard del bar · Preview TOCÁ</title>
+  <link rel="icon" href="/assets/icon.svg">
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/toca.css?v=admin-width-1">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="toca-admin-frame">
+    <aside class="toca-admin-sidebar" aria-label="Portal del bar">
+      <a class="toca-brand" href="/#/explore"><img src="/assets/icon.svg" alt=""><strong>TOCÁ</strong></a>
+      <div class="toca-nav-caption">GESTIÓN DEL LOCAL</div>
+      <nav class="toca-admin-menu">
+        <a class="selected" href="./" aria-current="page"><span data-icon="dashboard"></span>Dashboard</a>
+        <a href="/#/admin/music"><span data-icon="music"></span>Música</a>
+        <a href="/#/admin/profile"><span data-icon="bar"></span>Mi Bar</a>
+        <a href="/#/explore"><span data-icon="pin"></span>Ver como cliente</a>
+      </nav>
+      <div class="toca-admin-session"><a class="toca-admin-bottom toca-account-trigger" href="/#/admin/account"><span class="toca-admin-avatar">N</span><div><strong>Nacho</strong><small>Cuenta del establecimiento</small></div></a></div>
+    </aside>
+    <div class="toca-admin-body">
+      <header class="toca-admin-top"><div class="toca-admin-breadcrumb">Portal del bar <span>/</span> Bluzz Bar</div><div class="ba-portal-label"><span data-icon="bar"></span>Portal del establecimiento</div></header>
+      <main class="toca-admin-content">
+        <div class="ba-page">
+          <div class="ba-heading">
+            <div><div class="ba-eyebrow">EL PULSO DE TU BAR</div><h1>Dashboard</h1><p>La música de tu bar, en números.</p></div>
+            <div class="ba-heading-tools"><span class="ba-preview"><span data-icon="eye"></span>Vista previa</span><div class="ba-period" role="group" aria-label="Período de actividad"><button type="button" data-period="week" aria-pressed="true">Esta semana</button><button type="button" data-period="month" aria-pressed="false">Este mes</button></div></div>
+          </div>
+          <div class="ba-context"><span><span data-icon="calendar"></span><span data-date-range></span></span><span>Datos de ejemplo</span></div>
+          <section class="ba-kpis" aria-label="Métricas principales" id="kpis"></section>
+          <div class="ba-main-grid">
+            <section class="ba-panel ba-activity" aria-labelledby="activity-title">
+              <header class="ba-panel-heading"><div><h2 id="activity-title">Actividad musical</h2><p data-chart-subtitle>Pedidos confirmados por día</p></div><div class="ba-metric-switch" role="group" aria-label="Métrica del gráfico"><button type="button" data-chart-metric="requests" aria-pressed="true">Pedidos</button><button type="button" data-chart-metric="income" aria-pressed="false">Ingresos</button></div></header>
+              <div class="ba-chart" id="activity-chart" aria-label="Evolución diaria"></div>
+              <div class="ba-chart-insight"><span data-icon="trend"></span><p data-chart-insight></p></div>
+            </section>
+            <section class="ba-panel ba-hours" aria-labelledby="hours-title"><header class="ba-panel-heading"><div><h2 id="hours-title">Horarios con más pedidos</h2><p>Así se reparte la actividad del bar.</p></div><span class="ba-panel-icon" data-icon="clock"></span></header><div id="hours"></div><div class="ba-hours-note"><span data-icon="spark"></span><span>Tu franja más activa<br><strong>22:00 a 00:00</strong></span></div></section>
+          </div>
+          <div class="ba-bottom-grid">
+            <section class="ba-panel" aria-labelledby="songs-title"><header class="ba-panel-heading"><div><h2 id="songs-title">Las canciones más pedidas</h2><p>La selección favorita de tus usuarios.</p></div><span class="ba-tag">Top 5</span></header><div class="ba-song-table"><div class="ba-song-table-head"><span>#</span><span>Canción</span><span>Pedidos</span></div><div id="top-songs"></div></div></section>
+            <section class="ba-panel ba-audience" aria-labelledby="audience-title"><header class="ba-panel-heading"><div><h2 id="audience-title">Usuarios recurrentes</h2><p>Los que vuelven a elegir la música.</p></div><span class="ba-panel-icon" data-icon="users"></span></header><div id="audience"></div></section>
+          </div>
+          <footer class="ba-note"><span data-icon="info"></span><p>Preview con datos ilustrativos. Los ingresos son simulados; el reparto del bar todavía está por definir.</p></footer>
+        </div>
+      </main>
+    </div>
+  </div>
+  <nav class="ba-mobile-nav" aria-label="Portal del bar"><a class="selected" href="./" aria-current="page"><span data-icon="dashboard"></span>Dashboard</a><a href="/#/admin/music"><span data-icon="music"></span>Música</a><a href="/#/admin/profile"><span data-icon="bar"></span>Mi Bar</a></nav>
+  <script src="app.js"></script>
+</body>
+</html>
