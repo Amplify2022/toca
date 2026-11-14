@@ -46,7 +46,7 @@
         return false;
       }
       const existing = await venueApi(venueId,'presence');
-      if (existing.mode === 'ANYWHERE') return true;
+      if (existing.mode === 'ANYWHERE' || existing.allowed === true) return true;
       const position = await currentPosition();
       const result = await venueApi(venueId,'presence','POST',position);
       if (result.allowed) {

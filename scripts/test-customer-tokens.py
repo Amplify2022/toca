@@ -18,6 +18,12 @@ def scenario(browser,width):
       sessionStorage.setItem('toca:customer:session','synthetic-customer-session-abcdefghijklmnopqrstuvwxyz');
       sessionStorage.setItem('toca:tokens-prototype:v1',JSON.stringify({balance:99999}));
       sessionStorage.setItem('toca:request:customer-test:77777777-7777-4777-8777-777777777777:AAAAAAAAAAAAAAAAAAAAAA',JSON.stringify({commandId:'legacy-free-command'}));
+      window.__gpsCalls=0;
+      navigator.geolocation.getCurrentPosition=(success,failure)=>{
+        window.__gpsCalls++;
+        if(window.__gpsDenied)return failure({code:1});
+        success({coords:{latitude:-34.9,longitude:-56.2,accuracy:10}});
+      };
     """)
     page=context.new_page();errors=[];dialogs=[];orders=[];topup_calls=[];credited={};movements=[]
     model=dict(balance=0,processing=False,order='success',topup='success',checks=0)
@@ -43,8 +49,12 @@ def scenario(browser,width):
                 if model['topup']=='lost':model['topup']='success';route.abort('failed');return
             data=dict(wallet(),topupId=idem,creditedTokens=amount,simulated=True)
         elif path.endswith('/google/config'):data=dict(enabled=False,clientId='')
-        elif path.endswith('/presence'):data=dict(allowed=True,mode='ANYWHERE',requiresQr=False)
-        elif path==f'/api/venues/{VENUE_ID}':data=VENUE
+        elif path.endswith('/presence'):
+            if request.method=='POST':
+                assert request.post_data_json==dict(latitude=-34.9,longitude=-56.2,accuracy=10)
+                model['locationAllowed']=True;model['checkins']=model.get('checkins',0)+1
+            data=dict(allowed=not model.get('nearby') or model.get('locationAllowed',False),mode='NEARBY' if model.get('nearby') else 'ANYWHERE',requiresQr=False)
+        elif path==f'/api/venues/{VENUE_ID}':data=dict(VENUE,requestAccessMode='NEARBY') if model.get('nearby') else VENUE
         elif path=='/api/venues':data=[VENUE]
         elif path.endswith('/tracks'):data=[TRACK]
         elif path.endswith('/music-status'):data=dict(active=True,isPlaying=False,now=None,playlist=[TRACK],samePlaylist=True)
@@ -74,7 +84,10 @@ def scenario(browser,width):
         route.fulfill(status=status,content_type='application/json',body=json.dumps(data),headers={'Access-Control-Allow-Origin':'*'})
     page.route('http://localhost:8080/**',api);page.route('https://**/*',lambda route:route.abort())
     def search():
-        page.goto(BASE+'/#/request/'+VENUE_ID);page.wait_for_load_state('networkidle');page.locator('#song-search').fill('');page.locator('#song-search').fill('Original')
+        page.wait_for_load_state('networkidle')
+        page.goto(BASE+'/#/request/'+VENUE_ID);page.wait_for_load_state('networkidle')
+        page.locator('.toca-request-page #song-search').fill('')
+        page.locator('.toca-request-page #song-search').fill('Original')
         button=page.locator(f'[data-action="request"][data-track="{TRACK_ID}"]');button.wait_for();return button
     button=search();button.click()
     sheet=page.locator('#toca-token-recharge');expect(sheet).to_be_visible()
@@ -138,9 +151,26 @@ def scenario(browser,width):
     page.evaluate("""([venue,track])=>sessionStorage.setItem(`toca:request:credits-v1:customer-test:${venue}:${track}`,JSON.stringify({commandId:'old-command',idempotencyKey:'legacy-update-key'}))""",[VENUE_ID,TRACK_ID])
     button=search();button.click();expect(page).to_have_url(re.compile('/#/venue/'+VENUE_ID+'$'))
     assert len(orders)==order_count+1 and model['balance']==0
+    # One current check-in authorizes consecutive nearby requests, even if a
+    # subsequent GPS attempt would fail. Expiry still requires a new reading.
+    model.update(balance=3,order='success',nearby=True,locationAllowed=False)
+    gps_before=page.evaluate('window.__gpsCalls')
+    order_count=len(orders)
+    button=search();button.click();expect(page).to_have_url(re.compile('/#/venue/'+VENUE_ID+'$'))
+    assert model['balance']==2 and model['checkins']==1
+    assert page.evaluate('window.__gpsCalls')==gps_before+1
+    page.evaluate('window.__gpsDenied=true')
+    button=search();button.click();expect(page).to_have_url(re.compile('/#/venue/'+VENUE_ID+'$'))
+    assert model['balance']==1 and len(orders)==order_count+2
+    assert model['checkins']==1 and page.evaluate('window.__gpsCalls')==gps_before+1
+    model['locationAllowed']=False
+    button=search();button.click()
+    expect(page.locator('#toast')).to_contain_text('permitir')
+    assert model['balance']==1 and len(orders)==order_count+2
+    assert page.evaluate('window.__gpsCalls')==gps_before+2
     assert not dialogs and not errors,(dialogs,errors)
     assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
-    context.close();print('PASS integrated credits: zero redirect, recharge, selected song, one charge, playlist return, reload, server race and lost-response retry:',width,flush=True)
+    context.close();print('PASS integrated credits: zero redirect, recharge, selected song, one charge, playlist return, reload, server race, lost-response retry, consecutive location reuse and expiry:',width,flush=True)
 
 with sync_playwright() as p:
     browser=p.chromium.launch(executable_path='/usr/bin/chromium',args=['--no-sandbox'])

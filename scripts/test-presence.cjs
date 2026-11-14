@@ -8,7 +8,7 @@ const source = fs.readFileSync(path.join(__dirname, '../web/toca-presence-v1827.
 
 function setup(options = {}) {
   const calls = [], messages = [];
-  let gpsCalls = 0, loginCalls = 0;
+  let gpsCalls = 0, loginCalls = 0, allowed = !!options.allowed;
   const sandbox = {
     API_URL: 'https://api.example.test',
     location: {hash: '#/request/bar-1?join=current-qr'},
@@ -35,9 +35,10 @@ function setup(options = {}) {
       calls.push({url, ...request});
       const post = request.method === 'POST';
       const status = post ? options.postStatus || 200 : 200;
+      if (post && status === 200) allowed = true;
       return {ok: status < 400, status, json: async () => post
         ? (status === 200 ? {allowed: true} : {message: 'Tenés que estar dentro de los 100 metros del bar'})
-        : {allowed: !!options.allowed, mode: options.mode || 'NEARBY', requiresQr: options.mode !== 'ANYWHERE'}};
+        : {allowed, mode: options.mode || 'NEARBY', requiresQr: options.mode !== 'ANYWHERE'}};
     }
   };
   sandbox.window = sandbox;
@@ -52,14 +53,22 @@ function setup(options = {}) {
   const post=test.calls[1];
   assert.equal(post.method,'POST');assert.equal(post.headers['X-TOCA-Join'],undefined);
   assert.deepEqual(JSON.parse(post.body),{latitude:-34.9,longitude:-56.2,accuracy:10});
+  assert.equal(await test.sandbox.tocaPresenceEnsure('bar-1'),true);
+  assert.equal(test.gps(),1,'The second request reuses the first server-confirmed location');
+  assert.equal(test.calls.length,3,'Two requests use GET, POST, GET without a second check-in');
 
   test=setup({mode:'ANYWHERE',allowed:true,gpsDenied:true});
   assert.equal(await test.sandbox.tocaPresenceEnsure('bar-1'),true);
   assert.equal(test.gps(),0,'ANYWHERE never asks location');assert.equal(test.calls.length,1);
 
-  test=setup({allowed:true});
+  test=setup({allowed:true,gpsDenied:true});
   assert.equal(await test.sandbox.tocaPresenceEnsure('bar-1'),true);
-  assert.equal(test.gps(),1,'A previous check-in must not skip the distance check on a new request');
+  assert.equal(test.gps(),0,'A current server-verified check-in must survive a later noisy or denied GPS reading');
+  assert.equal(test.calls.length,1,'Reusing a valid check-in must not post another location');
+
+  test=setup({allowed:false,gpsDenied:true});
+  assert.equal(await test.sandbox.tocaPresenceEnsure('bar-1'),false);
+  assert.equal(test.gps(),1,'An expired or invalidated check-in must require fresh location again');
 
   test=setup({postStatus:403});
   assert.equal(await test.sandbox.tocaPresenceEnsure('bar-1'),false);
@@ -79,5 +88,5 @@ function setup(options = {}) {
   assert.equal(await test.sandbox.tocaPresenceEnsure('bar-1'), false);
   assert.equal(test.calls.length, 1);
   assert.match(test.messages[0], /permitir/);
-  console.log('PASS: distance access without QR, ANYWHERE without GPS, fresh position, outside radius, login and GPS permission errors');
+  console.log('PASS: consecutive requests reuse valid check-in; expired check-in requires GPS; distance, ANYWHERE, login and GPS errors');
 })().catch(error => { console.error(error); process.exitCode = 1; });

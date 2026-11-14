@@ -182,11 +182,13 @@ class RequestCommands(private val db: Db, private val presence: VenuePresence,
             val token = gateway.token(venueId)
             val queue = db.transaction {
                 val refreshed = command + mapOf("title" to track["title"], "artist" to track["artist"])
-                currentForCommand(refreshed) // repeat fresh rules AFTER provider metadata
+                val currentVenue = currentForCommand(refreshed) // repeat fresh rules AFTER provider metadata
                 db.exec("UPDATE request_command SET title=?,artist=?,updated_at=now() WHERE id=? AND worker_id=? AND status='PREPARING'",
                     track["title"].orEmpty().take(300), track["artist"].orEmpty().take(300), id, owner)
                 val rows = db.list("""SELECT track_id FROM song_request WHERE venue_id=? AND status='DISPATCHED'
-                    AND queued_at>=COALESCE(?::timestamptz,'epoch'::timestamptz) ORDER BY queued_at,id""", venueId, command["session_started_at"])
+                    AND queued_at>=GREATEST(COALESCE(?::timestamptz,'epoch'::timestamptz),
+                        COALESCE(?::timestamptz,'epoch'::timestamptz)) ORDER BY queued_at,id""",
+                    venueId, command["session_started_at"], currentVenue["request_cycle_started_at"])
                     .map { it.getValue("track_id") as String }
                 (rows + command.getValue("track_id").toString()).distinct()
             }
@@ -309,15 +311,17 @@ class RequestCommands(private val db: Db, private val presence: VenuePresence,
     private fun finalize(id: UUID, owner: UUID, result: RequestPlaylistResult) {
         val venueId = db.one("SELECT venue_id FROM request_command WHERE id=?",id)?.get("venue_id") as? UUID ?: return
         db.transaction {
-            lockVenue(venueId)
+            val venue = lockVenue(venueId)
             val command = db.one("SELECT * FROM request_command WHERE id=? FOR UPDATE", id) ?: return@transaction
             if (command["status"] == "SUCCEEDED") return@transaction
             if (command["worker_id"] != owner || command["status"] !in setOf("APPLYING", "UNCERTAIN")) return@transaction
             val old = db.one("""SELECT id,queued_at FROM song_request WHERE venue_id=? AND track_id=?
                 AND status IN ('PENDING','APPROVED','DISPATCHED') FOR UPDATE""", venueId, command["track_id"])
             val requestId = old?.get("id") as? UUID ?: UUID.randomUUID()
-            val alreadyQueued = (old?.get("queued_at") as? Timestamp)?.toInstant()?.let {
-                val start = (command["session_started_at"] as? Timestamp)?.toInstant() ?: Instant.EPOCH
+            val restarted = result.action == "PLAYLIST_RESTARTED"
+            val alreadyQueued = !restarted && (old?.get("queued_at") as? Timestamp)?.toInstant()?.let {
+                val start = maxOf((command["session_started_at"] as? Timestamp)?.toInstant() ?: Instant.EPOCH,
+                    (venue["request_cycle_started_at"] as? Timestamp)?.toInstant() ?: Instant.EPOCH)
                 !it.isBefore(start)
             } == true
             if (old == null) db.exec("""INSERT INTO song_request(id,venue_id,track_id,title,artist,status,guest_id,playlist_position,queued_at,last_requested_at)
@@ -329,6 +333,7 @@ class RequestCommands(private val db: Db, private val presence: VenuePresence,
                 VALUES(?,?,?,?,?,?,?) ON CONFLICT DO NOTHING""", UUID.randomUUID(), venueId, requestId, command["guest_id"], command["track_id"], command["customer_id"], id)
             db.exec("""UPDATE request_command SET status='SUCCEEDED',request_id=?,action=?,playlist_position=?,warning=?,error=NULL,updated_at=now()
                 WHERE id=?""", requestId, result.action, result.position, result.warning, id)
+            if(restarted)db.exec("UPDATE venue SET request_cycle_started_at=now() WHERE id=?",venueId)
             wallet.capture(id)
         }
     }

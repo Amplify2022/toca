@@ -69,6 +69,10 @@ Coverage:
 
 - Nested Db connection reuse with eight concurrent lock waiters.
 - Distance-only access without QR, 99/101 meter boundary checks, expiry and explicit ANYWHERE access.
+- Separate playback cycles after automatic restarts: historical requests do not
+  occupy waiting positions, current location grants survive, retries preserve
+  the cycle, and explicit repeat requests get a current queue timestamp. V22
+  also backfills previously confirmed restarts without resetting the session.
 - Atomic auth limits, denial rollback, mailbox isolation across actual clients,
   ignored spoofed forwarding headers, registration and rotating-email limits.
 - Authenticated customer quotas despite changing guest IDs; cheap rejection.

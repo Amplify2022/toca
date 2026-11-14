@@ -294,7 +294,7 @@ class Spotify(
         else if(plan.outsideContext)
             "Playlist sincronizada. No está activa en el reproductor; retomála desde Spotify o el control del administrador."
         else "Playlist sincronizada; Spotify puede conservar una cola de reproducción precargada."
-        return PlaylistChange(if(changed)"FIFO_VERIFIED" else "ALREADY_QUEUED",plan.position,note,plan.outsideContext)
+        return PlaylistChange(if(plan.restartPlayback)"PLAYLIST_RESTARTED" else if(changed)"FIFO_VERIFIED" else "ALREADY_QUEUED",plan.position,note,plan.outsideContext)
     }
 
     fun authorize(venue:Map<String,Any?>,owner:Map<String,Any?>):String {

@@ -73,6 +73,71 @@ public class P1ServiceProbe {
         check(credits(wallet,pending.get("customer"))==5,"Retired commands cannot change the restored balance");
         System.out.println("PASS migration: 4 plus 1 pending restores 5; confirmed charges remain; no reservations in customer history");
     }
+    static Map<String,Object> legacyRestartFixture() {
+        UUID c=customer(),v=venue();
+        // A later normal request must not mask the latest successful restart.
+        String[] plans={"{\"restartPlayback\":true}","{\"restartPlayback\":true}","{\"restartPlayback\":false}","{\"restartPlayback\":true}"};
+        for(int i=0;i<plans.length;i++) db.exec("""
+            INSERT INTO request_command(id,venue_id,customer_id,idempotency_key,track_id,guest_id,playlist_id,status,plan_json,playback_attempted,updated_at)
+            VALUES(?,?,?,?,?,'legacy-restart','p1-playlist',?,?,true,now()-?*interval '1 second')
+            """,UUID.randomUUID(),v,c,key(),TRACK_A,i==3?"FAILED":"SUCCEEDED",plans[i],40-i*10);
+        var expected=db.one("SELECT updated_at FROM request_command WHERE venue_id=? AND status='SUCCEEDED' AND plan_json=? ORDER BY updated_at DESC LIMIT 1",v,plans[0]).get("updated_at");
+        return Map.of("venue",v,"started",expected,"session",db.one("SELECT queue_started_at FROM venue WHERE id=?",v).get("queue_started_at"));
+    }
+    static void verifyRestartUpgrade(Map<String,Object> legacy) {
+        var venue=db.one("SELECT queue_started_at,request_cycle_started_at FROM venue WHERE id=?",legacy.get("venue"));
+        check(legacy.get("started").equals(venue.get("request_cycle_started_at")),"V22 must recover the latest successful automatic restart, excluding newer failures/normal requests");
+        check(legacy.get("session").equals(venue.get("queue_started_at")),"Restart upgrade must not invalidate the location session");
+        System.out.println("PASS migration: existing automatic restarts establish their own cycle without resetting location authorization");
+    }
+
+    static class CycleSpotify extends FakeSpotify {
+        List<String> queued=List.of();
+        boolean restart=true;
+        @Override public String prepare(UUID venue,String track,String token,List<String> order,String playlist) {
+            queued=List.copyOf(order);return super.prepare(venue,track,token,order,playlist);
+        }
+        @Override public RequestPlaylistResult apply(UUID venue,String token,String plan) {
+            var result=super.apply(venue,token,plan);
+            if(restart){restart=false;return new RequestPlaylistResult("PLAYLIST_RESTARTED",0,null);}
+            return result;
+        }
+    }
+    static void requestPlaybackCycles() {
+        UUID v=venue(),c=customer();var presence=new VenuePresence(db);var wallet=new CustomerWallet(db,true);
+        db.exec("UPDATE venue SET request_access_mode='NEARBY' WHERE id=?",v);
+        var session=db.one("SELECT queue_started_at FROM venue WHERE id=?",v).get("queue_started_at");
+        presence.checkIn(v,c,Map.of("latitude",-34.90,"longitude",-56.17,"accuracy",1));
+        // Ten previously requested tracks still appear later in the playlist.
+        for(char letter='C';letter<='L';letter++) db.exec("""
+            INSERT INTO song_request(id,venue_id,track_id,title,artist,status,guest_id,queued_at)
+            VALUES(?,?,?,'Historical song','Fixture artist','DISPATCHED','old-cycle',now()-interval '20 seconds')
+            """,UUID.randomUUID(),v,String.valueOf(letter).repeat(22));
+        var fake=new CycleSpotify();var commands=new RequestCommands(db,presence,fake,wallet,true);
+        String firstKey=key();
+        check("DISPATCHED".equals(commands.submit(v,c,body(TRACK_A,"first-cycle-track"),firstKey).get("status")),"First request must restart successfully");
+        var cycle=db.one("SELECT request_cycle_started_at,queue_started_at FROM venue WHERE id=?",v);
+        check(cycle.get("request_cycle_started_at")!=null,"Confirmed playlist restart must establish a new request cycle");
+        check(session.equals(cycle.get("queue_started_at")),"Playlist restart must not invalidate the customer's location session");
+        check(Boolean.TRUE.equals(presence.status(v,c).get("allowed")),"The first location check-in must still authorize the second request");
+        commands.submit(v,c,body(TRACK_A,"first-cycle-track"),firstKey);
+        check(cycle.get("request_cycle_started_at").equals(db.one("SELECT request_cycle_started_at FROM venue WHERE id=?",v).get("request_cycle_started_at")),"An idempotent retry must not advance the playback cycle");
+        db.exec("UPDATE request_command SET created_at=now()-interval '20 seconds' WHERE venue_id=?",v);
+        check("DISPATCHED".equals(commands.submit(v,c,body(TRACK_B,"second-cycle-track"),key()).get("status")),"Second request must use the same current check-in");
+        check(fake.queued.equals(List.of(TRACK_A,TRACK_B)),"Historical requests must not push the second request to position eleven");
+        check(credits(wallet,c)==28,"Two confirmed songs must cost exactly two tokens");
+        // An explicit repeat of a track from an old cycle becomes a new request.
+        db.exec("UPDATE request_command SET created_at=now()-interval '20 seconds' WHERE venue_id=?",v);
+        commands.submit(v,c,body("C".repeat(22),"repeat-old-track"),key());
+        check(((Timestamp)db.one("SELECT queued_at FROM song_request WHERE venue_id=? AND track_id=?",v,"C".repeat(22)).get("queued_at")).compareTo((Timestamp)cycle.get("request_cycle_started_at"))>=0,"Requesting an old track must refresh its queue timestamp into the current cycle");
+        db.exec("UPDATE request_command SET created_at=now()-interval '20 seconds' WHERE venue_id=?",v);
+        commands.submit(v,c,body("D".repeat(22),"next-cycle-track"),key());
+        check(fake.queued.equals(List.of(TRACK_A,TRACK_B,"C".repeat(22),"D".repeat(22))),"Subsequent requests must preserve FIFO within the new cycle");
+        db.exec("UPDATE venue_customer_presence SET expires_at=now()-interval '1 second' WHERE venue_id=?",v);
+        forbidden(()->commands.submit(v,c,body("E".repeat(22),"expired-check-in"),key()),HttpStatus.FORBIDDEN,"Expired check-in must still prevent the next request");
+        check(credits(wallet,c)==26,"An expired location grant must not debit tokens");
+        System.out.println("PASS request cycles: one location check-in, restart excludes historical requests, FIFO, idempotent replay and expired authorization");
+    }
     static void walletAndRequests() throws Exception {
         var wallet=new CustomerWallet(db,true);
         UUID c=customer(false),other=customer(false),v=venue();var fake=new FakeSpotify();
@@ -574,9 +639,12 @@ public class P1ServiceProbe {
         db=new Db(datasource);
         try {
             var legacyPending=fresh?legacyCreditFixture(false):null;var legacyConfirmed=fresh?legacyCreditFixture(true):null;
+            if(fresh)Flyway.configure().dataSource(datasource).locations("classpath:db/migration").target("21").load().migrate();
+            var legacyRestart=fresh?legacyRestartFixture():null;
             flyway.migrate();
             if(fresh)verifyCreditUpgrade(legacyPending,legacyConfirmed);
-            transactionReuse();adminMusicEdits();presenceEvidence();authAtomicBudgets();requestIdentityAndReplay();authenticatedWindowCap();policyRevalidation();uncertainRemoteEffect();automaticRecovery();crashedWorkerRecovery();lostOwnershipFencesMutation();walletAndRequests();playbackBeforeCharge();
+            if(fresh)verifyRestartUpgrade(legacyRestart);
+            transactionReuse();adminMusicEdits();presenceEvidence();requestPlaybackCycles();authAtomicBudgets();requestIdentityAndReplay();authenticatedWindowCap();policyRevalidation();uncertainRemoteEffect();automaticRecovery();crashedWorkerRecovery();lostOwnershipFencesMutation();walletAndRequests();playbackBeforeCharge();
             System.out.println("PASS P1 regression assertions="+assertions);
         } finally {
             for(UUID owner:owners){db.exec("DELETE FROM venue WHERE owner_id=?",owner);db.exec("DELETE FROM admin_user WHERE id=?",owner);}

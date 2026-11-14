@@ -11,6 +11,9 @@ El saldo ahora está integrado con la API y PostgreSQL. Las cuentas nuevas y exi
 5. Con saldo, el servidor agrega el tema. **Sólo al confirmar el éxito descuenta 1 token**, avisa **«se agregó a la playlist · 1 token»** y vuelve a la playlist del bar. No hay una pantalla intermedia de éxito ni un pedido de aprobación del bar.
 6. Mientras se procesa, el saldo y los movimientos permanecen iguales. Si falla, no se descuenta ningún token. Los reintentos y pedidos simultáneos se coordinan internamente para impedir un doble gasto; no se muestran tokens en reserva.
 7. Si la playlist terminó y Spotify sigue con recomendaciones u otro contexto, coloca el tema pedido al principio y reinicia **toda la playlist** desde ese primer tema. Requiere la salida de audio y el control de reproducción que usa el bar. Si la playlist sigue sonando normalmente, el pedido mantiene el flujo habitual y no interrumpe la canción actual.
+8. Al reiniciar comienza una nueva vuelta de pedidos: los pedidos históricos no ocupan lugares pendientes. Si el primer tema está pausado y no hay otros pedidos pendientes de esa misma vuelta, el siguiente pedido va en la posición 2. Los pedidos de esa vuelta respetan el orden de llegada. La migración V22 reconoce los reinicios automáticos ya confirmados en versiones anteriores.
+
+Para bares con control por distancia, la ubicación validada por el servidor sigue vigente durante 20 minutos dentro de la misma sesión del bar. Los pedidos siguientes reutilizan esa validación; un reinicio de playlist no la invalida. Al vencer o comenzar otra sesión del bar, se vuelve a pedir ubicación. Los bares que permiten pedidos desde cualquier lugar no solicitan GPS.
 
 La falta de saldo tiene un manejo común en la consulta inicial, el envío y los reintentos: abre la recarga y conserva la canción, sin quedarse en un aviso de error. También se reconocen respuestas guardadas de versiones anteriores.
 
