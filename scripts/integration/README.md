@@ -80,4 +80,6 @@ Coverage:
 
 These are integration regressions, not live-provider OAuth/playback validation.
 
+La sonda también comprueba el saldo inicial cero, las recargas simuladas sin doble acreditación, el gasto concurrente del último token, las reservas, las devoluciones y la recuperación de pedidos sin un segundo descuento. La prueba HTTP valida que la identidad del bar no autorice una billetera de cliente. Con `TOCA_TEST_WEB_URL=http://localhost:5174`, también abre el perfil en Chromium y verifica una recarga persistida contra la API y PostgreSQL reales.
+
 La sonda también verifica las ediciones del administrador (V17): exclusión con pedidos, snapshots desactualizados, respuestas perdidas, recuperación de creación y reintentos sin escrituras duplicadas.

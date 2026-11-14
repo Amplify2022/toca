@@ -34,6 +34,8 @@ flyway:
       enabled: true
 
 amplify:
+  tokens:
+    simulated-topups-enabled: ${TOKEN_SIMULATED_TOPUPS_ENABLED:true}
   frontend-origin: ${FRONTEND_ORIGIN:`http://localhost:5173`}
   spotify:
     client-id: ${SPOTIFY_CLIENT_ID:}

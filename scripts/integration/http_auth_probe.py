@@ -83,12 +83,70 @@ def verify_test_database_binding():
     status, _, data = request("/api/customers/me", source=fresh_ip,
         headers={"Authorization": "Bearer " + token}, method="GET")
     assert status == 200 and data.get("id") == customer, f"Test DB identity check failed (HTTP {status}); no HTTP accounts created"
+    return token
+
+
+def wallet_http(customer_token, admin_token, other_token):
+    headers={"Authorization":"Bearer "+customer_token}
+    status,_,_=request('/api/customers/me/wallet',method='GET')
+    assert status==401,'Wallet requires customer authentication'
+    status,_,_=request('/api/customers/me/wallet',headers={"Authorization":"Bearer "+admin_token},method='GET')
+    assert status==401,'Bar administrator identity must not authorize a customer wallet'
+    status,_,data=request('/api/customers/me/wallet',headers=headers,method='GET')
+    assert status==200 and data['balance']==0 and data['requestCost']==1
+    idem=str(uuid.uuid4());topup_headers={**headers,'Idempotency-Key':idem}
+    status,_,data=request('/api/customers/me/wallet/topups',{'packId':'5','tokens':999999,'price':0,'customerId':'ignored'},headers=topup_headers)
+    assert status==200 and data['balance']==5 and data['creditedTokens']==5 and data['simulated'] is True,'Only server-defined pack amount may be credited'
+    movement=data['topupId']
+    status,_,data=request('/api/customers/me/wallet/topups',{'packId':'5'},headers=topup_headers)
+    assert status==200 and data['balance']==5 and data['topupId']==movement,'Retry must credit once'
+    status,_,_=request('/api/customers/me/wallet/topups',{'packId':'12'},headers=topup_headers)
+    assert status==409,'Cannot change the pack of an existing operation'
+    status,_,_=request('/api/customers/me/wallet/topups',{'packId':'999999'},headers={**headers,'Idempotency-Key':str(uuid.uuid4())})
+    assert status==400,'Arbitrary credit amounts are rejected'
+    status,_,_=request('/api/customers/me/wallet/topups',{'packId':'5'},headers=headers)
+    assert status==400,'Every recharge requires an idempotency key'
+    status,_,data=request('/api/customers/me/wallet',headers={"Authorization":"Bearer "+other_token},method='GET')
+    assert status==200 and data['balance']==0,'One account cannot credit another wallet'
+    print('PASS wallet HTTP: customer auth, admin isolation, zero initial balance, server-defined packs, idempotent recharge and account isolation')
+    if os.environ.get('TOCA_TEST_WEB_URL'):
+        from pathlib import Path
+        from urllib.parse import urlsplit
+        from playwright.sync_api import sync_playwright,expect
+        web=os.environ['TOCA_TEST_WEB_URL'];parsed=urlsplit(web)
+        assert parsed.scheme=='http' and parsed.hostname in ('localhost','127.0.0.1'),'Test web must be local'
+        with sync_playwright() as p:
+            browser=p.chromium.launch(executable_path='/usr/bin/chromium',args=['--no-sandbox'])
+            context=browser.new_context(viewport=dict(width=390,height=900),service_workers='block')
+            context.add_init_script("localStorage.setItem('amplify-mode','live');localStorage.setItem('amplify-api',"+json.dumps(f'http://{host}:{port}')+");sessionStorage.setItem('toca:customer:session',"+json.dumps(other_token)+");")
+            page=context.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
+            page.route('https://**/*',lambda route:route.abort())
+            page.goto(web+'/#/profile')
+            try:expect(page.locator('[data-wallet-balance]')).to_have_text('0 tokens')
+            except AssertionError:
+                diagnostic=page.evaluate("""async()=>{try{const r=await fetch(API_URL+'/api/customers/me/wallet',{headers:{Authorization:tocaCustomerBearer()}});const d=await r.json();return {status:r.status,keys:Object.keys(d),balance:d.balance,balanceType:typeof d.balance,packs:Array.isArray(d.packs),movements:Array.isArray(d.movements)}}catch(e){return {error:e.message}}}""")
+                page.screenshot(path='/tmp/toca-wallet-real-api-failure.png')
+                print('Wallet browser diagnostic:',diagnostic,flush=True)
+                raise
+            page.locator('.toca-wallet-widget a.tw-button').click()
+            panel=page.locator('#toca-token-recharge');expect(panel).to_be_visible()
+            panel.locator('.tw-packs label').filter(has=page.locator('input[value="5"]')).click()
+            panel.locator('[data-wallet-topup]').click();expect(panel).not_to_be_visible()
+            expect(page.locator('[data-wallet-balance]')).to_have_text('5 tokens')
+            page.reload();expect(page.locator('[data-wallet-balance]')).to_have_text('5 tokens')
+            page.screenshot(path='/tmp/toca-wallet-real-api.png')
+            assert not errors,errors
+            context.close();browser.close()
+        status,_,data=request('/api/customers/me/wallet',headers={"Authorization":"Bearer "+other_token},method='GET')
+        assert status==200 and data['balance']==5,'Browser recharge must persist in PostgreSQL'
+        print('PASS wallet browser + real API + PostgreSQL: profile zero, simulated recharge, panel closes and balance survives refresh')
 
 
 def tests():
     status, _, _ = request("/api/health", method="GET")
     assert status == 200, "Local API health failed"
-    verify_test_database_binding()
+    sentinel_token=verify_test_database_binding()
+    tokens={}
     for path, table in [("/api/auth", "admin_user"), ("/api/customers", "customer_account")]:
         email = f"{marker}-{table}@example.test"
         status, _, data = request(path + "/register", {"name": "P1 fixture", "email": email, "password": password})
@@ -108,7 +166,10 @@ def tests():
         # A different actual source must retain access despite attacks on its mailbox.
         status, _, data = request(path + "/login", {"email": email, "password": password}, fresh_ip)
         assert status == 200 and "token" in data, f"Victim globally locked out: {path} status={status}"
+        tokens[table]=data['token']
         print("PASS", path, "10 attempts/client, forwarding headers ignored, independent owner still logs in")
+
+    wallet_http(tokens['customer_account'],tokens['admin_user'],sentinel_token)
 
     # Invalid registrations count before expensive hashing/account creation.
     outcomes = []

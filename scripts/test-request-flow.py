@@ -3,8 +3,10 @@
 Run a static web server on port 5173, then python3 scripts/test-request-flow.py.
 Requires Playwright and /usr/bin/chromium.
 """
-import json
+import json,os
 from playwright.sync_api import sync_playwright
+
+BASE=os.environ.get('TOCA_WEB_URL','http://localhost:5173')
 
 VENUE_ID = '77777777-7777-4777-8777-777777777777'
 TRACK_ID = 'A' * 22
@@ -32,6 +34,8 @@ def scenario(browser, outcome):
         data = []
         if path == '/api/customers/me':
             data = dict(id='customer-test', name='Test Customer', email='test@example.test', roles=['CUSTOMER'])
+        elif path=='/api/customers/me/wallet':
+            data=dict(balance=3,reserved=0,requestCost=1,packs=[],movements=[],simulationEnabled=True)
         elif path.endswith('/google/config'):
             data = dict(enabled=False, clientId='')
         elif path.endswith('/presence'):
@@ -59,25 +63,25 @@ def scenario(browser, outcome):
 
     page.route('http://localhost:8080/**', route_api)
     page.route('https://**/*', lambda route: route.abort())
-    page.goto(f'http://localhost:5173/#/request/{VENUE_ID}')
+    page.goto(f'{BASE}/#/request/{VENUE_ID}')
     page.locator('#song-search').fill('Request')
     button = page.locator(f'[data-action="request"][data-track="{TRACK_ID}"]')
     button.wait_for()
     button.click()
     if outcome == 'uncertain':
-        page.wait_for_function("document.getElementById('toca-request-sync-feedback')?.textContent.includes('sin aprobación del bar')")
+        page.wait_for_function("document.getElementById('toca-request-sync-feedback')?.textContent.includes('Agregando tu canción')")
         assert page.evaluate('location.hash').startswith('#/request/')
         assert 'Playlist actualizada' not in page.locator('#toast').inner_text()
-        page.wait_for_function("location.hash.startsWith('#/success/')")
+        page.wait_for_function("location.hash.startsWith('#/venue/')")
         assert len(checks)>=3 and len(keys)==1, 'Uncertain commands must be polled automatically without a second click or POST'
     elif outcome == 'lost-response':
         page.wait_for_function("document.getElementById('toca-request-sync-feedback')?.textContent.includes('conservamos el mismo pedido')")
         assert button.is_enabled(), 'Network errors must allow querying the retained request'
         button.click()
-        page.wait_for_function("location.hash.startsWith('#/success/')")
+        page.wait_for_function("location.hash.startsWith('#/venue/')")
         assert keys[0] == keys[1], 'A lost response must not generate a new command key'
     else:
-        page.wait_for_function("location.hash.startsWith('#/success/')")
+        page.wait_for_function("location.hash.startsWith('#/venue/')")
     assert keys and all(keys)
     assert not errors, errors
     context.close()
@@ -121,7 +125,7 @@ def admin_review(browser):
 
     page.route('http://localhost:8080/**', route_api)
     page.route('https://**/*', lambda route: route.abort())
-    page.goto('http://localhost:5173/#/admin/general')
+    page.goto(BASE+'/#/admin/general')
     page.locator('[data-action="reconcile-request-command"]').wait_for()
     assert not posts, 'The customer recovery flow must not invoke administrator-only diagnostic endpoints'
     page.locator('[data-action="reconcile-request-command"]').click()

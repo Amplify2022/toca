@@ -6,6 +6,7 @@ const store = () => { const m = new Map(); return {
 const settings = storage => ({storage, customerId: ()=>'customer-1', bearer: ()=>'Bearer customer', makeId: ()=>'request-key-1'});
 (async()=>{
   const storage = store(); const calls = [];
+  storage.setItem('toca:request:customer-1:venue:track',JSON.stringify({commandId:'legacy-free-command'}));
   let attempts = 0;
   const api = async (url, options) => {
     calls.push({url,options});
@@ -13,6 +14,7 @@ const settings = storage => ({storage, customerId: ()=>'customer-1', bearer: ()=
     return {commandId:'command-1',status:'PENDING'};
   };
   let client = create({...settings(storage),api});
+  assert.equal(client.pending('venue','track'),false,'A pre-credit command must not authorize a new request without tokens');
   await assert.rejects(client.submit('venue','track',{trackId:'track'}));
   // A reloaded page must reuse the original key, not enqueue another command.
   client = create({...settings(storage),api});
@@ -26,15 +28,19 @@ const settings = storage => ({storage, customerId: ()=>'customer-1', bearer: ()=
   const statuses = ['UNCERTAIN','DISPATCHED'];
   client = create({...settings(storage),api:async()=>({commandId:'command-1',status:statuses.shift()})});
   await client.refresh('venue','track','command-1');
-  assert.notEqual(storage.getItem('toca:request:customer-1:venue:track'),null);
+  assert.notEqual(storage.getItem('toca:request:credits-v1:customer-1:venue:track'),null);
   await client.refresh('venue','track','command-1');
-  assert.equal(storage.getItem('toca:request:customer-1:venue:track'),null);
+  assert.equal(storage.getItem('toca:request:credits-v1:customer-1:venue:track'),null);
 
   client = create({...settings(storage),api:async()=>({commandId:'command-2',status:'FAILED'})});
   await client.submit('venue','track',{trackId:'track'});
-  assert.equal(storage.getItem('toca:request:customer-1:venue:track'),null);
+  assert.equal(storage.getItem('toca:request:credits-v1:customer-1:venue:track'),null);
 
-  storage.setItem('toca:request:customer-1:venue:track',JSON.stringify({commandId:'old-customer-command',idempotencyKey:'old'}));
+  client=create({...settings(storage),api:async()=>{const error=Error('no funds');error.status=402;throw error;}});
+  await assert.rejects(client.submit('venue','track',{trackId:'track'}));
+  assert.equal(client.pending('venue','track'),false,'A rejected no-funds admission must not leave a false pending order');
+
+  storage.setItem('toca:request:credits-v1:customer-1:venue:track',JSON.stringify({commandId:'old-customer-command',idempotencyKey:'old'}));
   let newRequest = false;
   client = create({...settings(storage),customerId:()=>'customer-2',api:async(url,opts)=>{
     newRequest=opts.method==='POST'; return {commandId:'new-customer-command',status:'PENDING'};

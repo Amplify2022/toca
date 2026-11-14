@@ -25,11 +25,13 @@ public class P1ServiceProbe {
         try { operation.run(); throw new AssertionError(message + " (accepted)"); }
         catch (HttpStatusException expected) { check(expected.getStatus() == status, message + " (wrong status)"); }
     }
-    static UUID customer() {
+    static UUID customer() { return customer(true); }
+    static UUID customer(boolean funded) {
         UUID id = UUID.randomUUID();customers.add(id);
         db.exec("INSERT INTO customer_account(id,name,email,password_hash) VALUES(?,?,?,?)",
             id, "P1 fixture", marker + "-" + id + "@example.test", "unused-test-hash");
         db.exec("INSERT INTO account_role(customer_id,role) VALUES(?,'CUSTOMER')", id);
+        if(funded)new CustomerWallet(db,true).topUp(id,"30",key());
         return id;
     }
     static UUID venue() {
@@ -50,6 +52,73 @@ public class P1ServiceProbe {
     }
     static String key() { return UUID.randomUUID().toString(); }
     static final String TRACK_A="AAAAAAAAAAAAAAAAAAAAAA", TRACK_B="BBBBBBBBBBBBBBBBBBBBBB";
+    static int credits(CustomerWallet wallet,UUID customer) { return ((Number)wallet.snapshot(customer).get("balance")).intValue(); }
+    static void walletAndRequests() throws Exception {
+        var wallet=new CustomerWallet(db,true);
+        UUID c=customer(false),other=customer(false),v=venue();var fake=new FakeSpotify();
+        var commands=new RequestCommands(db,new VenuePresence(db),fake,wallet,true);
+        check(credits(wallet,c)==0&&credits(wallet,other)==0,"New/existing wallets start at zero without browser demo credits");
+        forbidden(()->commands.submit(v,c,body(TRACK_A,"guest-no-funds"),key()),HttpStatus.PAYMENT_REQUIRED,"A zero-balance account must be sent to top up");
+        check(fake.metadataCalls.get()==0&&fake.applyCalls.get()==0,"Insufficient funds must stop all Spotify calls");
+        check(((Number)db.one("SELECT count(*) AS n FROM request_command WHERE customer_id=?",c).get("n")).intValue()==0,"No-funds admission must roll back its command");
+        String topupKey=key();var workers=Executors.newFixedThreadPool(2);
+        try {
+            var first=workers.submit(()->wallet.topUp(c,"5",topupKey));var second=workers.submit(()->wallet.topUp(c,"5",topupKey));
+            check(first.get(15,TimeUnit.SECONDS).get("topupId").equals(second.get(15,TimeUnit.SECONDS).get("topupId")),"Concurrent recharge retries must return the same movement");
+        }finally{workers.shutdownNow();}
+        check(credits(wallet,c)==5&&credits(wallet,other)==0,"Top up credits only the authenticated owner's balance, once");
+        forbidden(()->wallet.topUp(c,"12",topupKey),HttpStatus.CONFLICT,"A recharge key cannot be changed to another pack");
+        forbidden(()->wallet.topUp(c,"100000",key()),HttpStatus.BAD_REQUEST,"Client cannot pick an arbitrary credit amount");
+        forbidden(()->new CustomerWallet(db,false).topUp(c,"5",key()),HttpStatus.SERVICE_UNAVAILABLE,"Disabling simulated topups prevents credits");
+        check(credits(wallet,c)==5,"Rejected recharges must preserve the balance");
+        // Spend four of five tokens, then race two venues for the last one.
+        for(int i=0;i<4;i++){
+            commands.submit(v,c,body(TRACK_A,"guest-credit-spend"),key());
+            db.exec("UPDATE request_command SET created_at=now()-interval '20 seconds' WHERE customer_id=?",c);
+        }
+        check(credits(wallet,c)==1,"Successful requests cost one token each");
+        UUID firstVenue=venue(),secondVenue=venue();var accepted=new AtomicInteger();var denied=new AtomicInteger();
+        workers=Executors.newFixedThreadPool(2);
+        try {
+            var futures=new ArrayList<Future<?>>();
+            for(UUID bar:List.of(firstVenue,secondVenue))futures.add(workers.submit(()->{
+                try {check("DISPATCHED".equals(commands.submit(bar,c,body(TRACK_B,"guest-last-credit"),key()).get("status")),"Funded request must complete");accepted.incrementAndGet();}
+                catch(HttpStatusException error){if(error.getStatus()!=HttpStatus.PAYMENT_REQUIRED)throw error;denied.incrementAndGet();}
+            }));
+            for(var future:futures)future.get(15,TimeUnit.SECONDS);
+        }finally{workers.shutdownNow();}
+        check(accepted.get()==1&&denied.get()==1&&credits(wallet,c)==0,"Only one concurrent request may spend the last token");
+        check(fake.applyCalls.get()==5,"A denied race must never contact Spotify");
+        check(((Number)db.one("SELECT sum(amount) AS n FROM customer_token_entry WHERE customer_id=?",c).get("n")).intValue()==0,"Wallet must match its ledger after concurrent spending");
+
+        UUID failing=customer(false),failVenue=venue();wallet.topUp(failing,"5",key());var rejected=new FakeSpotify();rejected.rejected=true;
+        var failures=new RequestCommands(db,new VenuePresence(db),rejected,wallet,true);String failKey=key();
+        var failed=failures.submit(failVenue,failing,body(TRACK_A,"guest-refunded"),failKey);
+        check("FAILED".equals(failed.get("status"))&&credits(wallet,failing)==5,"A definite failure returns the reserved token atomically");
+        failures.submit(failVenue,failing,body(TRACK_A,"guest-failed-retry"),failKey);
+        check(credits(wallet,failing)==5&&rejected.applyCalls.get()==1,"Retrying a failed command cannot debit or refund twice");
+
+        UUID uncertain=customer(false),uncertainVenue=venue();wallet.topUp(uncertain,"5",key());var delayed=new FakeSpotify();delayed.failAfterEffect=true;delayed.verifyUnavailable=true;
+        var recovery=new RequestCommands(db,new VenuePresence(db),delayed,wallet,true);
+        var waiting=recovery.submit(uncertainVenue,uncertain,body(TRACK_A,"guest-held-token"),key());
+        check("UNCERTAIN".equals(waiting.get("status"))&&credits(wallet,uncertain)==4,"An uncertain outcome retains the original reservation");
+        check(((Number)wallet.snapshot(uncertain).get("reserved")).intValue()==1,"Pending reservation is visible to its owner");
+        db.exec("UPDATE request_command SET lease_until=now()-interval '3 minutes' WHERE customer_id=?",uncertain);delayed.verifyUnavailable=false;
+        recovery.recoverPending();recovery.recoverPending();
+        check(credits(wallet,uncertain)==4&&((Number)wallet.snapshot(uncertain).get("reserved")).intValue()==0,"Recovered success captures the same token without charging again");
+        check(delayed.effects==1&&delayed.applyCalls.get()==1,"Lost-response recovery must not duplicate Spotify writes");
+
+        UUID interrupted=customer(false),interruptedVenue=venue();wallet.topUp(interrupted,"5",key());var crash=new FakeSpotify();
+        crash.duringMetadata=()->{throw new AssertionError("crash before provider write");};var expired=new RequestCommands(db,new VenuePresence(db),crash,wallet,true);
+        try{expired.submit(interruptedVenue,interrupted,body(TRACK_A,"guest-expired-hold"),key());throw new AssertionError("Fixture must interrupt preparation");}catch(AssertionError expected){check(expected.getMessage().contains("crash before"),"Unexpected fixture failure");}
+        check(credits(wallet,interrupted)==4,"Preparing request keeps its token reserved");
+        db.exec("UPDATE request_command SET status='PENDING' WHERE customer_id=?",interrupted);
+        forbidden(()->expired.requireMutable(interruptedVenue),HttpStatus.CONFLICT,"A pending reserved order must prevent deleting or changing its bar");
+        db.exec("UPDATE request_command SET status='PREPARING' WHERE customer_id=?",interrupted);
+        db.exec("UPDATE request_command SET lease_until=now()-interval '1 second' WHERE customer_id=?",interrupted);expired.recoverPending();expired.recoverPending();
+        check(credits(wallet,interrupted)==5&&crash.applyCalls.get()==0,"An expired pre-write request releases its token exactly once");
+        System.out.println("PASS tokens: zero balance, no provider work without funds, account isolation, idempotent topups, last-token race, one debit, refunds and recovery");
+    }
 
     static void transactionReuse() throws Exception {
         db.transaction(connection -> {
@@ -152,7 +221,7 @@ public class P1ServiceProbe {
 
     static void requestIdentityAndReplay() {
         UUID v=venue(), c=customer(), other=customer();var fake=new FakeSpotify();
-        var commands=new RequestCommands(db,new VenuePresence(db),fake,false);
+        var commands=new RequestCommands(db,new VenuePresence(db),fake,new CustomerWallet(db,true),false);
         String idem=key();
         var first=commands.submit(v,c,body(TRACK_A,"guest-original"),idem);
         var replay=commands.submit(v,c,body(TRACK_A,"guest-rotated"),idem);
@@ -172,7 +241,7 @@ public class P1ServiceProbe {
 
     static void authenticatedWindowCap() {
         UUID v=venue(), c=customer();var fake=new FakeSpotify();
-        var commands=new RequestCommands(db,new VenuePresence(db),fake,false);
+        var commands=new RequestCommands(db,new VenuePresence(db),fake,new CustomerWallet(db,true),false);
         for(int i=0;i<6;i++) {
             commands.submit(v,c,body(TRACK_A,"guest-window-"+i),key());
             db.exec("UPDATE request_command SET created_at=now()-interval '20 seconds' WHERE venue_id=?",v);
@@ -187,7 +256,7 @@ public class P1ServiceProbe {
         for(String change:List.of("active=false","curated_only=true")) {
             UUID v=venue(),c=customer();var fake=new FakeSpotify();
             fake.duringMetadata=()->db.exec("UPDATE venue SET "+change+" WHERE id=?",v);
-            var commands=new RequestCommands(db,new VenuePresence(db),fake,false);
+            var commands=new RequestCommands(db,new VenuePresence(db),fake,new CustomerWallet(db,true),false);
             commands.submit(v,c,body(TRACK_A,"guest-policy-race"),key());
             commands.processVenue(v);
             check(fake.applyCalls.get()==0,"Closed session/new whitelist must reject before remote effect: "+change);
@@ -199,7 +268,7 @@ public class P1ServiceProbe {
 
     static void uncertainRemoteEffect() {
         UUID v=venue(),c=customer();var fake=new FakeSpotify();fake.failAfterEffect=true;fake.verifyUnavailable=true;
-        var commands=new RequestCommands(db,new VenuePresence(db),fake,false);
+        var commands=new RequestCommands(db,new VenuePresence(db),fake,new CustomerWallet(db,true),false);
         String idem=key();commands.submit(v,c,body(TRACK_A,"guest-uncertain"),idem);
         commands.processVenue(v);
         var command=db.one("SELECT status,plan_json FROM request_command WHERE venue_id=?",v);
@@ -214,7 +283,7 @@ public class P1ServiceProbe {
         db.exec("UPDATE request_command SET lease_until=now()-interval '3 minutes' WHERE id=?",id);
         // A fresh service models a restarted worker; recovery reads saved state.
         fake.verifyUnavailable=false;
-        var restarted=new RequestCommands(db,new VenuePresence(db),fake,true);
+        var restarted=new RequestCommands(db,new VenuePresence(db),fake,new CustomerWallet(db,true),true);
         restarted.recoverPending();
         check("SUCCEEDED".equals(db.one("SELECT status FROM request_command WHERE id=?",id).get("status")),"Automatic provider verification must finalize known success without bar approval");
         check(fake.effects==effects,"Reconciliation must not call mutation again");
@@ -225,19 +294,19 @@ public class P1ServiceProbe {
 
     static void automaticRecovery() throws Exception {
         UUID completedVenue=venue(), completedCustomer=customer();var completed=new FakeSpotify();completed.failAfterEffect=true;
-        var immediate=new RequestCommands(db,new VenuePresence(db),completed,false);
+        var immediate=new RequestCommands(db,new VenuePresence(db),completed,new CustomerWallet(db,true),false);
         var result=immediate.submit(completedVenue,completedCustomer,body(TRACK_A,"guest-auto-confirm"),key());
         check("DISPATCHED".equals(result.get("status")),"Lost response must be confirmed automatically in the original request");
         check(completed.effects==1&&completed.applyCalls.get()==1,"Immediate verification must not resend the song");
 
         UUID rejectedVenue=venue(),rejectedCustomer=customer();var rejected=new FakeSpotify();rejected.rejected=true;
-        var rejectedCommands=new RequestCommands(db,new VenuePresence(db),rejected,true);
+        var rejectedCommands=new RequestCommands(db,new VenuePresence(db),rejected,new CustomerWallet(db,true),true);
         var denied=rejectedCommands.submit(rejectedVenue,rejectedCustomer,body(TRACK_A,"guest-provider-reject"),key());
         check("FAILED".equals(denied.get("status"))&&denied.get("message").toString().contains("permisos"),"A definite rejection must show its error, not wait for bar approval");
         check(rejected.effects==0,"Rejected playlist write must have no effect");
 
         UUID v=venue(),c=customer();var fake=new ResumableSpotify();fake.failBeforeEffect=true;
-        var commands=new RequestCommands(db,new VenuePresence(db),fake,true);
+        var commands=new RequestCommands(db,new VenuePresence(db),fake,new CustomerWallet(db,true),true);
         String idem=key();var pending=commands.submit(v,c,body(TRACK_A,"guest-auto-resume"),idem);
         check("UNCERTAIN".equals(pending.get("status")),"Unconfirmed operation must not claim success");
         check(!pending.get("message").toString().contains("revisión del administrador"),"Customer must not be asked for bar approval");
@@ -248,7 +317,7 @@ public class P1ServiceProbe {
         var workers=Executors.newFixedThreadPool(2);
         try {
             var first=workers.submit(()->commands.recoverPending());
-            var second=workers.submit(()->new RequestCommands(db,new VenuePresence(db),fake,true).recoverPending());
+            var second=workers.submit(()->new RequestCommands(db,new VenuePresence(db),fake,new CustomerWallet(db,true),true).recoverPending());
             first.get(15,TimeUnit.SECONDS);second.get(15,TimeUnit.SECONDS);
         } finally {workers.shutdownNow();}
         check("DISPATCHED".equals(commands.status(id,c).get("status")),"A known saved state must resume without admin action");
@@ -258,7 +327,7 @@ public class P1ServiceProbe {
         check(((Number)db.one("SELECT count(*) AS n FROM song_request_event WHERE command_id=?",id).get("n")).intValue()==1,"Automatic recovery creates a single event");
 
         UUID closed=venue(),closedCustomer=customer();var blocked=new ResumableSpotify();blocked.failBeforeEffect=true;
-        var closedCommands=new RequestCommands(db,new VenuePresence(db),blocked,true);
+        var closedCommands=new RequestCommands(db,new VenuePresence(db),blocked,new CustomerWallet(db,true),true);
         closedCommands.submit(closed,closedCustomer,body(TRACK_A,"guest-auto-closed"),key());
         db.exec("UPDATE request_command SET lease_until=now()-interval '3 minutes' WHERE venue_id=?",closed);
         db.exec("UPDATE venue SET active=false WHERE id=?",closed);
@@ -269,7 +338,7 @@ public class P1ServiceProbe {
 
     static void crashedWorkerRecovery() {
         UUID v=venue(),c=customer();var fake=new FakeSpotify();fake.crashAfterEffect=true;
-        var commands=new RequestCommands(db,new VenuePresence(db),fake,false);
+        var commands=new RequestCommands(db,new VenuePresence(db),fake,new CustomerWallet(db,true),false);
         try {
             commands.submit(v,c,body(TRACK_A,"guest-crash-simulation"),key());
             throw new AssertionError("Worker crash simulation did not execute");
@@ -279,7 +348,7 @@ public class P1ServiceProbe {
         var row=db.one("SELECT id,status,plan_json FROM request_command WHERE venue_id=?",v);
         check("APPLYING".equals(row.get("status")) && row.get("plan_json")!=null,"Crash must leave durable in-flight plan");
         db.exec("UPDATE request_command SET lease_until=now()-interval '1 second' WHERE id=?",row.get("id"));
-        var restarted=new RequestCommands(db,new VenuePresence(db),fake,true);
+        var restarted=new RequestCommands(db,new VenuePresence(db),fake,new CustomerWallet(db,true),true);
         restarted.recoverPending();
         check("UNCERTAIN".equals(db.one("SELECT status FROM request_command WHERE id=?",row.get("id")).get("status")),"Expired applying lease must become uncertain");
         check(fake.applyCalls.get()==1 && fake.effects==1,"Restart must not replay unknown remote effect");
@@ -341,12 +410,12 @@ public class P1ServiceProbe {
 
     static void lostOwnershipFencesMutation() {
         UUID v=venue(),c=customer();var fake=new OwnedFakeSpotify();fake.expireOwnership=true;
-        var commands=new RequestCommands(db,new VenuePresence(db),fake,false);
+        var commands=new RequestCommands(db,new VenuePresence(db),fake,new CustomerWallet(db,true),false);
         commands.submit(v,c,body(TRACK_A,"guest-expired-owner"),key());
         check(fake.effects==0,"Expired command owner must not issue provider mutations");
         check("UNCERTAIN".equals(db.one("SELECT status FROM request_command WHERE venue_id=?",v).get("status")),"Expired applying ownership must retain uncertain result");
         UUID secondVenue=venue(), secondCustomer=customer();var partial=new OwnedFakeSpotify();partial.expireAfterFirstEffect=true;
-        new RequestCommands(db,new VenuePresence(db),partial,false)
+        new RequestCommands(db,new VenuePresence(db),partial,new CustomerWallet(db,true),false)
             .submit(secondVenue,secondCustomer,body(TRACK_A,"guest-partial-owner-loss"),key());
         check(partial.effects==1,"Fixture should preserve the already issued effect");
         check(!partial.secondMutationReached,"Lost ownership must fence the next step in a multi-mutation command");
@@ -379,7 +448,7 @@ public class P1ServiceProbe {
         check(fake.effects==1,"Admin effect must happen once");
         edits.execute(v,id,input);check(fake.effects==1,"Same edit ID must not repeat an uncertain effect");
         forbidden(()->edits.execute(v,id,Map.of("action","create","name","other")),HttpStatus.CONFLICT,"Edit ID cannot change its input");
-        var commands=new RequestCommands(db,new VenuePresence(db),new FakeSpotify(),false);
+        var commands=new RequestCommands(db,new VenuePresence(db),new FakeSpotify(),new CustomerWallet(db,true),false);
         forbidden(()->commands.submit(v,c,body(TRACK_A,"guest-admin-edits"),key()),HttpStatus.CONFLICT,"Uncertain admin edit must block customer mutation");
         check("COMPLETED".equals(edits.reconcile(v,id,Map.of()).get("status")),"Read-only recovery must recognize applied admin change");
         check(fake.effects==1,"Admin recovery must not write to provider");
@@ -419,7 +488,7 @@ public class P1ServiceProbe {
         Flyway.configure().dataSource(datasource).locations("classpath:db/migration").load().migrate();
         db=new Db(datasource);
         try {
-            transactionReuse();adminMusicEdits();presenceEvidence();authAtomicBudgets();requestIdentityAndReplay();authenticatedWindowCap();policyRevalidation();uncertainRemoteEffect();automaticRecovery();crashedWorkerRecovery();lostOwnershipFencesMutation();
+            transactionReuse();adminMusicEdits();presenceEvidence();authAtomicBudgets();requestIdentityAndReplay();authenticatedWindowCap();policyRevalidation();uncertainRemoteEffect();automaticRecovery();crashedWorkerRecovery();lostOwnershipFencesMutation();walletAndRequests();
             System.out.println("PASS P1 regression assertions="+assertions);
         } finally {
             for(UUID owner:owners){db.exec("DELETE FROM venue WHERE owner_id=?",owner);db.exec("DELETE FROM admin_user WHERE id=?",owner);}

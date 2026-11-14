@@ -58,6 +58,7 @@ class SpotifyRequestGateway(private val spotify: Spotify) : RecoverableRequestSp
 @Singleton
 class RequestCommands(private val db: Db, private val presence: VenuePresence,
                       private val gateway: RequestSpotifyGateway,
+                      private val wallet: CustomerWallet,
                       @Value("\${amplify.requests.worker-enabled:true}") private val workerEnabled: Boolean = true) {
     private val running = ConcurrentHashMap<UUID, UUID>()
     private val activeStates = "'PREPARING','APPLYING','UNCERTAIN'"
@@ -69,7 +70,7 @@ class RequestCommands(private val db: Db, private val presence: VenuePresence,
     fun requireMutable(venueId: UUID) {
         if (db.one("SELECT id FROM venue_music_operation WHERE venue_id=? AND status IN ('PREPARING','APPLYING','UNCERTAIN') LIMIT 1",venueId)!=null)
             fail(HttpStatus.CONFLICT,"Hay una edición de playlist pendiente de revisión.")
-        if (db.one("SELECT id FROM request_command WHERE venue_id=? AND status IN ($activeStates) LIMIT 1", venueId) != null)
+        if (db.one("SELECT id FROM request_command WHERE venue_id=? AND status IN ('PENDING',$activeStates) LIMIT 1", venueId) != null)
             fail(HttpStatus.CONFLICT, "Hay un pedido sincronizándose o pendiente de revisión. Resolvelo antes de cambiar la sesión o sus reglas.")
     }
 
@@ -126,6 +127,7 @@ class RequestCommands(private val db: Db, private val presence: VenuePresence,
                 val id = UUID.randomUUID()
                 db.exec("""INSERT INTO request_command(id,venue_id,customer_id,idempotency_key,track_id,guest_id,playlist_id,session_started_at,status)
                     VALUES(?,?,?,?,?,?,?,?,'PENDING')""", id, venueId, customerId, key, trackId, guestId, venue["playlist_id"], venue["queue_started_at"])
+                wallet.reserve(customerId, id)
                 id
             }
         }
@@ -199,10 +201,14 @@ class RequestCommands(private val db: Db, private val presence: VenuePresence,
                 else (error as? HttpStatusException)?.message?.take(500) ?: "No se pudo preparar el pedido. No se modificó Spotify."
             // If DB is unavailable, APPLYING remains durable and recovery marks
             // it uncertain. Never turn an unknown remote result into success.
-            runCatching { db.exec("""UPDATE request_command SET status=?,error=?,updated_at=now(),
+            runCatching { db.transaction {
+                lockVenue(venueId)
+                val changed = db.exec("""UPDATE request_command SET status=?,error=?,updated_at=now(),
                 lease_until=CASE WHEN ? THEN now() ELSE lease_until END
                 WHERE id=? AND worker_id=? AND status IN ('PREPARING','APPLYING')""",
-                if (uncertain) "UNCERTAIN" else "FAILED", message, uncertain, id, owner) }
+                if (uncertain) "UNCERTAIN" else "FAILED", message, uncertain, id, owner)
+                if (changed == 1 && !uncertain) wallet.release(id)
+            } }
         } finally { running.remove(id, owner) }
         // A lost response or failed local commit often leaves the final playlist
         // already correct. Confirm it now using reads only, without resending.
@@ -285,6 +291,7 @@ class RequestCommands(private val db: Db, private val presence: VenuePresence,
                 VALUES(?,?,?,?,?,?,?) ON CONFLICT DO NOTHING""", UUID.randomUUID(), venueId, requestId, command["guest_id"], command["track_id"], command["customer_id"], id)
             db.exec("""UPDATE request_command SET status='SUCCEEDED',request_id=?,action=?,playlist_position=?,warning=?,error=NULL,updated_at=now()
                 WHERE id=?""", requestId, result.action, result.position, result.warning, id)
+            wallet.capture(id)
         }
     }
 
@@ -294,8 +301,7 @@ class RequestCommands(private val db: Db, private val presence: VenuePresence,
         val message = when (status) {
             "DISPATCHED" -> "La playlist confirmó tu pedido."
             "FAILED" -> command["error"] ?: "El pedido no pudo sincronizarse."
-            "UNCERTAIN" -> "Estamos confirmando tu pedido automáticamente con Spotify. No necesitás aprobación del bar."
-            else -> "Pedido recibido; esperando confirmación de Spotify."
+            else -> "Estamos agregando tu canción."
         }
         return mapOf("commandId" to command["id"].toString(), "id" to (command["request_id"] ?: command["id"]).toString(),
             "status" to status, "trackId" to command["track_id"], "title" to command["title"], "action" to command["action"],
@@ -333,6 +339,7 @@ class RequestCommands(private val db: Db, private val presence: VenuePresence,
             if (running.containsKey(commandId) || (command["lease_until"] as? Timestamp)?.toInstant()?.plusSeconds(120)?.isAfter(Instant.now()) == true)
                 fail(HttpStatus.CONFLICT, "Esperá a que termine el proceso original antes de cerrar la revisión")
             db.exec("UPDATE request_command SET status='FAILED',error='Revisión cerrada por el administrador; los cambios de Spotify no fueron revertidos',updated_at=now() WHERE id=?", commandId)
+            wallet.release(commandId)
         }
         return response(db.one("SELECT * FROM request_command WHERE id=?", commandId)!!)
     }
@@ -342,10 +349,17 @@ class RequestCommands(private val db: Db, private val presence: VenuePresence,
         if (!workerEnabled) return
         // Preserve the saved plan across a crash; recovery checks remote state
         // and resumes only an exact known state after the original lease settles.
-        db.exec("""UPDATE request_command SET status=CASE WHEN status='PREPARING' THEN 'FAILED' ELSE 'UNCERTAIN' END,
+        db.list("SELECT id,venue_id FROM request_command WHERE status IN ('PREPARING','APPLYING') AND lease_until<now()")
+            .forEach { row -> db.transaction {
+                lockVenue(row.getValue("venue_id") as UUID)
+                val id = row.getValue("id") as UUID
+                val old = db.one("SELECT status FROM request_command WHERE id=? FOR UPDATE", id)!!
+                val changed = db.exec("""UPDATE request_command SET status=CASE WHEN status='PREPARING' THEN 'FAILED' ELSE 'UNCERTAIN' END,
             error=CASE WHEN status='PREPARING' THEN 'El proceso terminó antes de modificar Spotify'
               ELSE 'Se interrumpió la sincronización; la app comprobará el resultado automáticamente' END,updated_at=now()
-            WHERE status IN ('PREPARING','APPLYING') AND lease_until<now()""")
+            WHERE id=? AND status IN ('PREPARING','APPLYING') AND lease_until<now()""", id)
+                if (changed == 1 && old["status"] == "PREPARING") wallet.release(id)
+            } }
         db.list("""SELECT id FROM request_command WHERE status='UNCERTAIN'
             AND lease_until<now()-interval '120 seconds' ORDER BY lease_until,sequence LIMIT 5""")
             .forEach { runCatching { recoverUncertain(it.getValue("id") as UUID) } }

@@ -6,7 +6,8 @@
 })(typeof globalThis === 'object' ? globalThis : this, function () {
   'use strict';
   return function createTocaRequestSync({api, storage, customerId, bearer, makeId}) {
-    const keyFor = (venueId, trackId) => `toca:request:${customerId()}:${venueId}:${trackId}`;
+    // Legacy pre-credit commands must not bypass a zero-balance check.
+    const keyFor = (venueId, trackId) => `toca:request:credits-v1:${customerId()}:${venueId}:${trackId}`;
     const terminal = status => status === 'DISPATCHED' || status === 'FAILED';
     function read(key) {
       try { return JSON.parse(storage.getItem(key) || 'null'); } catch (_) { return null; }
@@ -17,16 +18,19 @@
       return result;
     }
     return {
+      pending(venueId, trackId) { return !!read(keyFor(venueId,trackId)); },
       async submit(venueId, trackId, body) {
         const key = keyFor(venueId, trackId);
         const value = read(key) || {idempotencyKey: makeId()};
         storage.setItem(key, JSON.stringify(value));
-        const result = value.commandId
+        let result;
+        try { result = value.commandId
           ? await api(`/api/customers/me/request-commands/${encodeURIComponent(value.commandId)}`,
               {headers: {Authorization: bearer()}})
           : await api(`/api/venues/${encodeURIComponent(venueId)}/requests`, {
               method: 'POST', headers: {'Idempotency-Key': value.idempotencyKey}, body
-            });
+            }); }
+        catch (error) { if(error.status===402)storage.removeItem(key);throw error; }
         return remember(key, value, result);
       },
       async refresh(venueId, trackId, commandId) {

@@ -61,7 +61,7 @@ Las herramientas del dashboard son opcionales para diagnóstico de una integraci
 
 Un proceso original todavía activo o dentro del margen de espera impide cerrar prematuramente. Si el proveedor cambió externamente, el sistema conserva el pedido incierto en lugar de reconstruir un nuevo pedido a ciegas.
 
-El saldo y las recargas de tokens siguen limitados al [prototipo navegable](token-wallet-prototype.md); este cambio de sincronización no los conecta todavía con la API real.
+El saldo y las recargas simuladas ya están [integrados con la API](CUSTOMER_TOKENS.md). Se requiere saldo antes de admitir un pedido, se reserva 1 token y se confirma o devuelve con su resultado. La pantalla dirige al usuario sin saldo a recargar en su perfil y vuelve a la playlist después de agregar una canción.
 
 ## Protección del acceso
 

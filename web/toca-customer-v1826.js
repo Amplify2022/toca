@@ -129,7 +129,7 @@
           <button class="toca-btn full" type="submit">${register?'Crear cuenta':'Entrar'} ${iconSvg('arrow',17)}</button>
         </form>
         <div class="toca-customer-switch">${register?'¿Ya tenés cuenta? <a href="#/customer/login">Iniciar sesión</a>':'¿Todavía no tenés cuenta? <a href="#/customer/register">Registrarte</a>'}</div>
-        <p class="toca-customer-note">Algunos bares requieren que estés a 100 metros. Los tokens pagos todavía no están habilitados.</p>
+        <p class="toca-customer-note">Algunos bares requieren que estés a 100 metros. Podés recargar tokens de prueba desde tu perfil, sin cobros.</p>
       </div>
     </section>`;
     mount(body, 'auth');

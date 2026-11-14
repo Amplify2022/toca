@@ -34,7 +34,7 @@
   const app = document.getElementById('app');
   if (app) new MutationObserver(paintHeaderAvatar).observe(app, { childList: true, subtree: false });
 
-  function profileMarkup(user, favorites, venues, history, avatar, historyUnavailable = false) {
+  function profileMarkup(user, favorites, venues, history, avatar, historyUnavailable = false, wallet = null) {
     const loggedIn = !!user;
     const name = loggedIn ? user.name : 'Tu perfil';
     const cardList = venues.filter(v => favorites.includes(v.id));
@@ -60,6 +60,7 @@
         </div>
         <div class="toca-profile-feedback" role="status" aria-live="polite" hidden></div>
       </div>
+      ${loggedIn ? window.tocaWalletCard(wallet,!wallet) : ''}
       <div class="toca-profile-stat-grid">
         <a class="toca-profile-stat" href="#/my-requests"><span>Mis canciones</span><strong>${loggedIn ? (historyUnavailable ? '—' : history.length) : '—'}</strong><small>Pedidos registrados</small></a>
         <a class="toca-profile-stat" href="#/explore"><span>Bares guardados</span><strong>${loggedIn ? favorites.length : '—'}</strong><small>Tus favoritos</small></a>
@@ -87,16 +88,18 @@
     } catch (error) { console.warn('Perfil: no se pudo verificar la sesión', error); }
     const favorites = user ? guestFavorites() : [];
     const venues = state.demo ? db().venues : (state.venues || []);
-    let history = [], avatar = null, historyUnavailable = false;
+    let history = [], avatar = null, historyUnavailable = false, wallet = null;
     if (user) {
-      const responses = await Promise.allSettled([customerFetch('/me/requests'), customerFetch('/me/avatar')]);
+      const responses = await Promise.allSettled([customerFetch('/me/requests'), customerFetch('/me/avatar'),window.tocaWalletRead()]);
       if (responses[0].status === 'fulfilled' && Array.isArray(responses[0].value)) history = responses[0].value;
       else historyUnavailable = true;
       if (responses[1].status === 'fulfilled') avatar = responses[1].value?.avatar || null;
+      if (responses[2].status === 'fulfilled') wallet = responses[2].value;
     }
     if (call !== currentProfileCall || route().path !== '/profile') return;
+    if (user && window.tocaCustomerUser?.()?.id !== user.id) return;
     avatarCache = avatar;
-    mount(profileMarkup(user, favorites, venues, history, avatar, historyUnavailable), 'profile');
+    mount(profileMarkup(user, favorites, venues, history, avatar, historyUnavailable,wallet), 'profile');
     paintHeaderAvatar();
   };
 

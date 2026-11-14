@@ -58,6 +58,8 @@ Los seis bares, las imágenes ambientales y las canciones del demo son **datos i
 
 **Prototipo de tokens J + H:** abrí http://localhost:5173/prototypes/tokens/ para probar el perfil, las recargas simuladas y los pedidos con saldo. Es independiente de las cuentas y los pedidos reales. [Recorrido, controles de prueba y alcance](docs/token-wallet-prototype.md).
 
+**Tokens integrados en la app:** el perfil de cliente ahora muestra su saldo real en la base de datos. Las cuentas empiezan en cero; al pedir sin tokens, la app abre la recarga simulada del usuario y conserva la canción. Cada canción agregada consume 1 token y vuelve a la playlist. [Recorrido, actualización y pruebas](docs/CUSTOMER_TOKENS.md).
+
 ### Abrir en un celular conectado a la misma red
 
 Obtené la IP LAN de tu computadora (por ejemplo `192.168.1.25`). Desde el celular, visitá `http://192.168.1.25:5173/#/explore`. Asegurate de que el firewall permita acceso a la computadora; el servidor Python escucha por defecto en todas las interfaces. Un QR impreso no debe usar `localhost` cuando lo va a abrir otro dispositivo: `localhost` en el celular apunta al propio celular. Para instalar la PWA como aplicación y usar funciones avanzadas, conviene HTTPS; los navegadores exigen un contexto seguro para muchas de ellas.

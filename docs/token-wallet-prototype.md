@@ -1,5 +1,7 @@
 # Prototipo de tokens: estructura J, paleta H
 
+La app principal ya tiene [tokens integrados con el servidor](CUSTOMER_TOKENS.md). Este documento conserva el prototipo visual independiente para comparar pantallas; sus créditos no se transfieren a la cuenta real.
+
 Abrir **http://localhost:5173/prototypes/tokens/** después de actualizar el repositorio. El servicio `web` de Docker Compose ya sirve esa carpeta; no hace falta reconstruir la API. También se puede servir `web` con cualquier servidor estático.
 
 Es un prototipo navegable independiente, sin inicio de sesión, cobros, reproducción ni llamadas al API. No cambia el perfil, el saldo ni los pedidos de la app real. El nombre y el saldo de prueba se guardan en una clave propia de `sessionStorage`, por pestaña.
@@ -30,4 +32,4 @@ La prueba usa Playwright y Chromium, sirve archivos estáticos en un puerto loca
 
 ## Alcance de la siguiente etapa
 
-Este prototipo sirve para revisar el diseño y las reglas; editar su almacenamiento local puede modificar el saldo de prueba. La integración posterior deberá mantener el saldo y las reservas en el servidor, descontar con la aceptación verificada del pedido y conservar claves de idempotencia. Los controles actuales de ubicación y acceso del bar seguirán siendo necesarios. No se implementó todavía esa integración ni una pasarela de pago.
+Este prototipo sirve para revisar el diseño y las reglas; editar su almacenamiento local puede modificar el saldo de esta demostración. La app principal mantiene saldo, reservas y reintentos en el servidor. Los controles de ubicación y acceso del bar siguen vigentes. No hay una pasarela de pago: las recargas integradas siguen siendo simuladas.

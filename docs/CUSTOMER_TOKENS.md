@@ -1,0 +1,42 @@
+# Tokens de usuario y pedidos
+
+El saldo ahora está integrado con la API y PostgreSQL. Las cuentas nuevas y existentes empiezan con **0 tokens**; no se importan los 3 tokens ni los datos del prototipo independiente.
+
+## Recorrido
+
+1. Al tocar **Pedir**, la app consulta el saldo de la cuenta de cliente.
+2. Sin saldo, abre **Mi perfil → Tus tokens** con el panel de recarga. No envía el pedido ni consulta Spotify para agregarlo. Conserva el tema y el bar elegidos.
+3. La recarga simulada permite elegir 5, 12 o 30 tokens. Se acredita en el servidor, cierra el panel y muestra una confirmación durante 5 segundos. No se cobra dinero.
+4. La canción elegida sigue visible con **Pedir · 1 token**. También se puede volver a la playlist y elegir otro tema.
+5. Con saldo, el servidor reserva 1 token y agrega el tema. Al confirmar el resultado, consume esa misma reserva, avisa **«se agregó a la playlist · 1 token»** y vuelve a la playlist del bar. No hay una pantalla intermedia de éxito ni un pedido de aprobación del bar.
+6. Si el pedido falla definitivamente, libera el token. Si la respuesta está pendiente, conserva la reserva y el mismo pedido hasta comprobar el resultado; refrescar no produce otro descuento.
+
+El perfil habitual mantiene foto, favoritos y accesos de cuenta. Ahora incluye saldo y un enlace a los movimientos. La pantalla de tokens se abre en **http://localhost:5173/#/profile/tokens** con sesión de cliente.
+
+## Datos y API
+
+La migración `V20__customer_tokens.sql` crea el saldo, las reservas por pedido y los movimientos. Las reservas forman parte de la misma transacción que admite el pedido; no puede gastarse dos veces el último token, incluso desde distintos bares o pestañas. El descuento se realiza antes de cualquier llamada de sincronización del pedido a Spotify. Los pedidos anteriores a esta migración no reciben cargos retroactivos.
+
+- `GET /api/customers/me/wallet`: saldo disponible, reservado, costo de pedido, paquetes y últimos 50 movimientos.
+- `POST /api/customers/me/wallet/topups`: recarga simulada con `packId` y `Idempotency-Key` obligatoria. El servidor define los créditos; no acepta un importe o un usuario elegido por el cliente.
+- Ambas rutas requieren la sesión de cliente en `Authorization: Bearer …`, separada de la sesión del bar, y responden con `Cache-Control: no-store`.
+- Una admisión sin saldo devuelve HTTP 402 y no crea un comando ni modifica Spotify. La web también trata una pérdida de saldo entre la consulta y el pedido como una vuelta a recarga.
+
+Las recargas y los pedidos conservan sus claves de reintento por cuenta. Repetir una operación por pérdida de respuesta no acredita ni descuenta dos veces. El historial muestra reservas, consumos confirmados y devoluciones.
+
+## Configuración y actualización local
+
+`TOKEN_SIMULATED_TOPUPS_ENABLED=true` es el valor predeterminado de esta etapa. `false` deshabilita las recargas simuladas; no modifica los saldos existentes. Los paquetes y precios (5 / UYU 99, 12 / UYU 199, 30 / UYU 399) son ejemplos. El costo actual es 1 token por canción agregada.
+
+```bash
+git pull origin main
+docker compose up --build -d api web
+```
+
+Compose ejecuta la migración antes de iniciar la API. No es necesario borrar volúmenes ni crear una cuenta nueva. Después, refrescar el navegador y abrir el perfil de cliente.
+
+## Verificación
+
+`python scripts/test-customer-tokens.py` comprueba el recorrido completo en móvil y escritorio con API simulada, incluyendo falta de saldo, recarga, retorno a la playlist, respuesta perdida, carrera de saldo y recarga de página con el último token reservado. Usa `TOCA_WEB_URL` para elegir el servidor estático, por defecto `http://localhost:5174`.
+
+La [sonda de servicios](../scripts/integration/README.md) usa PostgreSQL real y Spotify simulado para comprobar concurrencia, devolución y recuperación. La sonda HTTP verifica autorización, saldo inicial, paquetes e idempotencia. Con `TOCA_TEST_WEB_URL` también prueba la pantalla contra esa API y PostgreSQL reales. Las pruebas no usan una cuenta real de Spotify.
