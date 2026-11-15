@@ -60,7 +60,11 @@ body.toca-place-map-open{overflow:hidden}
 .toca-place-panel .place-song-copy strong{display:block;margin:5px 0 3px;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .toca-place-panel .place-song-copy small{display:block;font-size:9px;color:#a3b695}
 .toca-place-panel .place-equalizer{display:flex;align-items:center;gap:2px;height:22px;margin-left:auto;padding-left:5px}
-.toca-place-panel .place-equalizer i{display:block;width:2px;height:11px;border-radius:2px;background:#b4d98e}.toca-place-panel .place-equalizer i:nth-child(2){height:20px}.toca-place-panel .place-equalizer i:nth-child(3){height:16px}.toca-place-panel .place-equalizer i:nth-child(4){height:8px}
+.toca-place-panel .place-equalizer i{display:block;width:2px;height:11px;border-radius:2px;background:#b4d98e;transform-origin:center;animation:toca-place-equalize 1s ease-in-out infinite}
+.toca-place-panel .place-equalizer i:nth-child(2){height:20px;animation-duration:1.15s;animation-delay:-.35s}
+.toca-place-panel .place-equalizer i:nth-child(3){height:16px;animation-duration:.85s;animation-delay:-.6s}
+.toca-place-panel .place-equalizer i:nth-child(4){height:8px;animation-duration:.95s;animation-delay:-.2s}
+@keyframes toca-place-equalize{0%,100%{transform:scaleY(.35)}25%{transform:scaleY(.85)}55%{transform:scaleY(.5)}75%{transform:scaleY(1)}}
 .toca-place-panel .place-about{padding-top:21px}.toca-place-panel .place-about h3{font:500 15px 'Outfit','DM Sans',sans-serif;margin:0 0 8px;color:#edf3e7}.toca-place-panel .place-about p{font-size:11px;line-height:1.85;color:#a0b198;margin:0;white-space:pre-line;overflow-wrap:anywhere}
 .toca-place-panel .place-demo{font-size:9px;color:#8b9f81;margin:20px 0 0}
 .toca-place-panel .place-photo-dialog{width:min(850px,94vw);max-height:90dvh;padding:0;border:1px solid #3b4b3b;background:#101a16;border-radius:16px;overflow:hidden}
@@ -84,4 +88,4 @@ body.toca-place-map-open{overflow:hidden}
  .toca-place-map .leaflet-control-zoom{display:none}.toca-place-map.place-expanded .leaflet-bottom.leaflet-right{display:none}
 }
 @media(max-width:360px){.toca-map-art.toca-place-map{--place-sheet-height:55dvh}.toca-place-panel .place-scroll{padding-left:17px;padding-right:17px}.toca-place-panel .place-heading h2{font-size:25px}}
-@media(prefers-reduced-motion:reduce){.toca-place-panel{transition:none}}
+@media(prefers-reduced-motion:reduce){.toca-place-panel{transition:none}.toca-place-panel .place-equalizer i{animation:none}}
