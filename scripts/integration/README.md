@@ -67,6 +67,12 @@ identity. An API accidentally pointing at a different database fails this guard.
 
 Coverage:
 
+- Owner dashboard analytics: successful commands only, distinct/recurrent users,
+  repeated songs, comparable periods, local calendar boundaries, venue isolation,
+  explicit zero/empty JSON and income left unconfigured. The HTTP probe checks
+  owner authorization and private caching. With `TOCA_TEST_WEB_URL`, Chromium
+  opens the actual dashboard against PostgreSQL and verifies zero activity,
+  period switching and the absence of legacy player/request panels.
 - Nested Db connection reuse with eight concurrent lock waiters.
 - Distance-only access without QR, 99/101 meter boundary checks, expiry and explicit ANYWHERE access.
 - Presence HTTP responses are private and uncached, grants remain scoped to the

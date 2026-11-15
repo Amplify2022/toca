@@ -624,6 +624,43 @@ public class P1ServiceProbe {
         System.out.println("PASS admin music: durable edits, no duplicate create, recovery, snapshot conflicts and request exclusion");
     }
 
+    static void analyticsCommand(UUID venue,UUID customer,String track,String status,String confirmed) {
+        var timestamp=Timestamp.from(java.time.Instant.parse(confirmed));
+        db.exec("""
+            INSERT INTO request_command(id,venue_id,customer_id,idempotency_key,track_id,guest_id,playlist_id,status,title,artist,created_at,updated_at)
+            VALUES(?,?,?,?,?,'analytics-fixture','p1-playlist',? ,?,'Fixture artist',?::timestamptz-interval '1 day',?)""",
+            UUID.randomUUID(),venue,customer,key(),track,status,track.equals(TRACK_A)?"Track A":"Track B",timestamp,timestamp);
+    }
+    static void analyticsSnapshot() {
+        UUID v=venue(),other=venue(),empty=venue(),a=customer(),b=customer();
+        analyticsCommand(v,a,TRACK_A,"SUCCEEDED","2026-10-10T13:00:00Z");
+        analyticsCommand(v,a,TRACK_A,"SUCCEEDED","2026-11-07T12:00:00Z");
+        analyticsCommand(v,a,TRACK_A,"SUCCEEDED","2026-11-14T02:30:00Z");
+        analyticsCommand(v,a,TRACK_A,"SUCCEEDED","2026-11-14T03:30:00Z");
+        analyticsCommand(v,b,TRACK_B,"SUCCEEDED","2026-11-15T00:00:00Z");
+        analyticsCommand(v,b,TRACK_A,"FAILED","2026-10-01T12:00:00Z");
+        for(String state:List.of("FAILED","PENDING","UNCERTAIN"))analyticsCommand(v,b,TRACK_A,state,"2026-11-15T00:10:00Z");
+        analyticsCommand(v,a,TRACK_A,"SUCCEEDED","2026-11-15T04:00:00Z");
+        analyticsCommand(other,b,TRACK_B,"SUCCEEDED","2026-10-01T12:00:00Z");
+        analyticsCommand(other,b,TRACK_B,"SUCCEEDED","2026-11-15T00:00:00Z");
+        var service=new VenueAnalyticsService(db);var at=java.time.Instant.parse("2026-11-15T01:00:00Z");
+        var week=service.snapshot(v,"week",at);
+        check(week.getUsers()==2&&week.getRequests()==3,"Analytics must count confirmed commands and unique users, excluding other venues, failures, pending and future results");
+        check(week.getReturningUsers()==1,"Only a prior success in this same venue makes a user recurrent");
+        check(week.getPreviousUsers()==1&&week.getPreviousRequests()==1,"Comparison uses the matching elapsed part of the previous period");
+        check(week.getDays().size()==6&&week.getDays().stream().filter(d->d.getDate().equals("2026-11-13")).findFirst().orElseThrow().getRequests()==1,"UTC midnight must not move the Uruguay daily bucket");
+        check(week.getDays().stream().filter(d->d.getDate().equals("2026-11-14")).findFirst().orElseThrow().getRequests()==2,"Requests use confirmation time, not admission time");
+        check(week.getTopSongs().getFirst().getTrackId().equals(TRACK_A)&&week.getTopSongs().getFirst().getRequests()==2,"Two requests for one track must remain two orders in the ranking");
+        var month=service.snapshot(v,"month",at);
+        check(month.getRequests()==4&&month.getUsers()==2&&month.getPreviousRequests()==1,"Month analytics must include the current month and compare with prior month independently");
+        check(service.snapshot(other,"week",at).getRequests()==1,"Venue analytics must remain isolated");
+        var zero=service.snapshot(empty,"week",at);
+        check(zero.getUsers()==0&&zero.getRequests()==0&&zero.getTopSongs().isEmpty()&&zero.getDays().stream().allMatch(d->d.getRequests()==0),"An empty venue must have explicit zero metrics and an empty ranking");
+        check(zero.getIncome().getStatus().equals("NOT_CONFIGURED"),"Simulated topups must never become venue revenue");
+        forbidden(()->service.snapshot(v,"invalid",at),HttpStatus.BAD_REQUEST,"Reject unsupported analytics periods");
+        System.out.println("PASS analytics: confirmed orders, distinct/recurrent users, repeats, period comparison, Uruguay dates, venue isolation, empty state and no invented income");
+    }
+
     public static void main(String[] args) throws Exception {
         String jdbc=System.getenv("TOCA_TEST_JDBC_URL");
         String user=System.getenv("TOCA_TEST_DB_USER"), password=System.getenv("TOCA_TEST_DB_PASSWORD");
@@ -644,7 +681,7 @@ public class P1ServiceProbe {
             flyway.migrate();
             if(fresh)verifyCreditUpgrade(legacyPending,legacyConfirmed);
             if(fresh)verifyRestartUpgrade(legacyRestart);
-            transactionReuse();adminMusicEdits();presenceEvidence();requestPlaybackCycles();authAtomicBudgets();requestIdentityAndReplay();authenticatedWindowCap();policyRevalidation();uncertainRemoteEffect();automaticRecovery();crashedWorkerRecovery();lostOwnershipFencesMutation();walletAndRequests();playbackBeforeCharge();
+            transactionReuse();adminMusicEdits();presenceEvidence();requestPlaybackCycles();authAtomicBudgets();requestIdentityAndReplay();authenticatedWindowCap();policyRevalidation();uncertainRemoteEffect();automaticRecovery();crashedWorkerRecovery();lostOwnershipFencesMutation();walletAndRequests();playbackBeforeCharge();analyticsSnapshot();
             System.out.println("PASS P1 regression assertions="+assertions);
         } finally {
             for(UUID owner:owners){db.exec("DELETE FROM venue WHERE owner_id=?",owner);db.exec("DELETE FROM admin_user WHERE id=?",owner);}

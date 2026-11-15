@@ -63,7 +63,9 @@ def cleanup():
     if not created:
         return
     statements = []
-    for table, identity in created:
+    # Venue ownership intentionally has no cascading delete; remove bars before
+    # their owner accounts, regardless of the order fixtures were registered.
+    for table, identity in sorted(created, key=lambda row: row[0] != 'venue'):
         identity = str(uuid.UUID(identity))
         statements.append(f"DELETE FROM {table} WHERE id='{identity}'::uuid")
     sql(";".join(statements))
@@ -85,6 +87,48 @@ def verify_test_database_binding():
         headers={"Authorization": "Bearer " + token}, method="GET")
     assert status == 200 and data.get("id") == customer, f"Test DB identity check failed (HTTP {status}); no HTTP accounts created"
     return token
+
+
+def analytics_http(admin_token,customer_token):
+    headers={'Authorization':'Bearer '+admin_token}
+    status,_,owner=request('/api/auth/me',headers=headers,method='GET');assert status==200
+    venue=str(uuid.uuid4());foreign=str(uuid.uuid4());foreign_owner=str(uuid.uuid4())
+    created.extend([('venue',venue),('venue',foreign),('admin_user',foreign_owner)])
+    sql(f"INSERT INTO admin_user(id,name,email,password_hash) VALUES('{foreign_owner}','Other owner','{foreign_owner}@example.test','unused');"
+        f"INSERT INTO venue(id,owner_id,name,slug,address,city,latitude,longitude,join_token,active,published) VALUES('{venue}','{owner['id']}','Analytics fixture','{venue}','Test','Test',-34.9,-56.17,'{venue}',false,true),('{foreign}','{foreign_owner}','Other fixture','{foreign}','Test','Test',-34.9,-56.17,'{foreign}',false,true);")
+    path=f'/api/admin/venues/{venue}/analytics'
+    status,_,_=request(path,method='GET');assert status==401
+    status,_,_=request(path,headers={'Authorization':'Bearer '+customer_token},method='GET');assert status==401
+    status,_,_=request(f'/api/admin/venues/{foreign}/analytics',headers=headers,method='GET');assert status==403
+    for period in ('week','month'):
+        status,cache,data=request(path+'?period='+period,headers=headers,method='GET')
+        assert status==200 and data['users']==0 and data['requests']==0 and data['topSongs']==[]
+        assert data['period']==period and data['days'] and all(day['requests']==0 for day in data['days'])
+        assert data['income']['status']=='NOT_CONFIGURED' and 'week' not in data['income']
+        assert 'no-store' in cache.get('Cache-Control','')
+    status,_,_=request(path+'?period=all',headers=headers,method='GET');assert status==400
+    if os.environ.get('TOCA_TEST_WEB_URL'):
+        from playwright.sync_api import sync_playwright,expect
+        web=os.environ['TOCA_TEST_WEB_URL']
+        with sync_playwright() as p:
+            browser=p.chromium.launch(executable_path='/usr/bin/chromium',args=['--no-sandbox'])
+            context=browser.new_context(viewport=dict(width=1440,height=1050),service_workers='block')
+            context.add_init_script("localStorage.setItem('amplify-mode','live');localStorage.setItem('amplify-api',"+json.dumps(f'http://{host}:{port}')+");sessionStorage.setItem('amplify-token',"+json.dumps(admin_token)+");sessionStorage.setItem('amplify-user',"+json.dumps(json.dumps(owner))+");")
+            page=context.new_page();errors=[];provider_calls=[]
+            page.on('pageerror',lambda e:errors.append(str(e)))
+            page.on('request',lambda r:provider_calls.append(r.url) if any(s in r.url for s in ('/spotify','/music-status','/request-commands')) else None)
+            page.route('https://**/*',lambda route:route.abort())
+            page.goto(web+'/#/admin/general')
+            root=page.locator('[data-venue-analytics]');expect(root.locator('.ba-value').first).to_have_text('0')
+            expect(root.locator('.ba-value').nth(1)).to_have_text('0')
+            assert root.locator('.ba-kpi').count()==4
+            assert not page.locator('.toca-ad-dashboard,#toca-live-music,#toca-request-commands').count()
+            assert root.get_by_text('Por definir',exact=True).count()==2
+            root.locator('[data-period="month"]').click();expect(root.locator('[data-updated]')).to_contain_text('Actualizado')
+            assert not errors and not provider_calls,(errors,provider_calls)
+            page.screenshot(path='/tmp/toca-dashboard-real-api.png',full_page=True)
+            context.close();browser.close()
+    print('PASS live dashboard HTTP: owner authentication, venue isolation, explicit zero/empty states, unavailable income and main route with real API/PostgreSQL')
 
 
 def presence_http(token,other_token):
@@ -278,6 +322,7 @@ def tests():
         tokens[table]=data['token']
         print("PASS", path, "10 attempts/client, forwarding headers ignored, independent owner still logs in")
 
+    analytics_http(tokens['admin_user'],tokens['customer_account'])
     presence_http(tokens['customer_account'],sentinel_token)
     if os.environ.get('TOCA_TEST_REQUEST_FLOW')=='true':unfunded_request_http(tokens['customer_account'])
     wallet_http(tokens['customer_account'],tokens['admin_user'],sentinel_token)
