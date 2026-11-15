@@ -25,7 +25,6 @@
  function decorate(){
   const main=document.querySelector('main')||document.getElementById('app');
   if(route().path==='/profile'&&!main?.querySelector('[data-manage-account]')){const link=document.createElement('a');link.dataset.manageAccount='true';link.href='#/account?kind=customer';link.textContent='Administrar cuenta, acceso y privacidad';main?.append(link)}
-  if(['/login','/customer/login'].includes(route().path)&&!main?.querySelector('[data-manage-account]')){const link=document.createElement('a');link.dataset.manageAccount='true';link.href='#/account?kind='+ (route().path==='/login'?'admin':'customer');link.textContent='¿Olvidaste tu contraseña?';main?.append(link)}
   const h=main?.querySelector('h1,h2');document.title=(h?.textContent||'TOCÁ')+' · TOCÁ';
   document.querySelectorAll('input,textarea,select').forEach((input,i)=>{
    if(input.labels?.length||input.hasAttribute('aria-label')||input.type==='hidden')return;

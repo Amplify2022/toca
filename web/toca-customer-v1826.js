@@ -77,6 +77,7 @@
     return user;
   };
 
+  window.tocaCustomerForgetSession = clear;
   window.tocaCustomerVerified = verified;
   window.tocaCustomerEnsure = ensure;
   window.tocaCustomerBearer = customerHeader;
@@ -130,6 +131,7 @@
         </form>
         <div class="toca-customer-switch">${register?'¿Ya tenés cuenta? <a href="#/customer/login">Iniciar sesión</a>':'¿Todavía no tenés cuenta? <a href="#/customer/register">Registrarte</a>'}</div>
         <p class="toca-customer-note">Algunos bares requieren que estés a 100 metros. Podés recargar tokens de prueba desde tu perfil, sin cobros.</p>
+        ${register?'':'<div class="toca-auth-recovery"><a href="#/account?kind=customer" data-manage-account>¿Olvidaste tu contraseña?</a></div>'}
       </div>
     </section>`;
     mount(body, 'auth');
@@ -203,8 +205,13 @@
     window.tocaCustomerLogout();
   });
 
+  // During deferred scripts readyState is already "interactive", but route
+  // modules later in index.html have not run yet. Wait for the complete router.
+  let routesReady = document.readyState === 'complete';
+  document.addEventListener('DOMContentLoaded', () => { routesReady = true; }, {once:true});
   // After the restored session is verified, refresh the public header/navigation.
   ensure().then(() => {
+    if (!routesReady) return; // DOMContentLoaded renders the complete router.
     const r = route().path;
     if (!r.startsWith('/admin') && !['/login', '/register'].includes(r)) render();
   }).catch(console.error);
