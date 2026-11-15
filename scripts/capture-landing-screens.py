@@ -51,7 +51,11 @@ with sync_playwright() as p:
  page.route('**/*',api)
  page.set_viewport_size(dict(width=850,height=520));page.goto(BASE+'/assets/toca-home-map.svg');page.locator('svg').screenshot(path=str(OUT/'map-demo.png'));page.set_viewport_size(dict(width=390,height=780))
  page.goto(BASE+'/#/explore')
- try:page.get_by_role('button',name='Ver detalles de Bar Central',exact=True).click(timeout=10000)
+ try:
+  marker=page.get_by_role('button',name='Ver detalles de Bar Central',exact=True);marker.wait_for(timeout=10000)
+  # Use a wider map view in the homepage screenshot before the venue sheet centers it.
+  page.evaluate('state.map.setZoom(13,{animate:false})')
+  marker.click()
  except Exception:
   page.screenshot(path='/tmp/toca-landing-capture-failed.png');print('Capture diagnostics:',errors,logs,page.evaluate('({maps:typeof L,loader:typeof tocaLoadMaps,map:!!state.map})'),page.locator('#app').inner_text()[:300],flush=True);raise
  expect(page.locator('.place-primary')).to_be_visible();page.wait_for_timeout(500)
