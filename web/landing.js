@@ -1,4 +1,4 @@
-/* Public TOCÁ site. Hero phone remains unchanged until its separate preview is approved. */
+/* Public TOCÁ site with screenshots of the current app. */
 (() => {
  'use strict';
  const sections=['inicio','la-app','como-funciona','para-bares','preguntas','descargar','contacto'];
@@ -24,6 +24,8 @@
  tocaLanding=function(){
   previousLanding();const root=document.querySelector('.toca-landing');if(!root)return;
   root.id='inicio';root.classList.add('landing-expanded');
+  const phone=root.querySelector('.toca-hero-phone');phone.classList.add('toca-hero-phone-app');
+  phone.innerHTML='<img src="/assets/landing/explore.png" width="390" height="780" alt="Pantalla de TOCÁ: mapa de bares con la ficha del local y la canción que está sonando" loading="eager" decoding="async" fetchpriority="high">';
   root.querySelector('.toca-landing-header').innerHTML=`${brand()}<nav aria-label="Secciones de inicio">${anchor('la-app','La app')}${anchor('como-funciona','Cómo funciona')}${anchor('para-bares','Para tu bar')}${anchor('contacto','Contacto')}</nav>${downloadButton()}`;
   const logo=root.querySelector('.toca-landing-header .toca-brand');logo.href='#/?section=inicio';logo.dataset.homeAnchor='inicio';logo.setAttribute('aria-label','TOCÁ · Inicio');
   root.querySelector('.toca-landing-hero').setAttribute('aria-label','Descubrí TOCÁ');

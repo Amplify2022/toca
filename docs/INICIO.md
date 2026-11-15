@@ -8,9 +8,9 @@ Los enlaces de la cabecera y el pie llevan a secciones de la misma página media
 
 - [Inicio en escritorio](previews/inicio-1440.png)
 - [Inicio en celular](previews/inicio-390.png)
-- [Propuesta del teléfono de la portada](previews/inicio-celular-propuesta.png)
+- [Teléfono de la portada](previews/inicio-celular-propuesta.png)
 
-La ilustración del teléfono de inicio **permanece sin reemplazar**. La propuesta se puede recorrer por separado en `http://localhost:5173/prototypes/home-phone/`: carga la página en un iframe y cambia únicamente su teléfono por una captura del mapa y la ficha del bar. La captura usa un mapa ilustrativo, una portada del proyecto y datos de ejemplo.
+El teléfono de inicio muestra una captura de la interfaz actual: mapa, ficha del bar, canción que está sonando, botón para pedir temas y navegación inferior. La captura usa un mapa ilustrativo, una portada del proyecto y datos de ejemplo. La ruta `http://localhost:5173/prototypes/home-phone/` conserva una vista del mismo inicio en un iframe, sin modificaciones adicionales.
 
 ## Descarga y redes
 

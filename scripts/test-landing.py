@@ -25,7 +25,9 @@ try:
     route.fulfill(content_type='application/json',body=json.dumps(result),headers={'Access-Control-Allow-Origin':'*'})
    page.route('http://localhost:8080/**',api);page.route('https://**/*',lambda r:r.abort())
    page.goto(BASE+'/#/');root=page.locator('.landing-expanded');expect(root).to_be_visible()
-   assert root.locator('main').count()==1 and root.locator('.toca-hero-phone .toca-mini-map').count()==1,'The unapproved hero phone must remain unchanged'
+   assert root.locator('main').count()==1 and root.locator('.toca-hero-phone .toca-mini-map').count()==0
+   phone=root.locator('.toca-hero-phone-app img');expect(phone).to_have_attribute('src','/assets/landing/explore.png')
+   page.wait_for_function("document.querySelector('.toca-hero-phone-app img').naturalWidth===390")
    assert page.evaluate('document.documentElement.scrollHeight>3500')
    root.evaluate('(node)=>node.__kept=true')
    page.locator('.toca-landing-header [data-home-anchor="como-funciona"]').click();expect(page).to_have_url(BASE+'/#/?section=como-funciona')
@@ -60,7 +62,7 @@ try:
    assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),width
    page.screenshot(path=str(OUT/f'inicio-{width}.png'),full_page=True)
    if width==1440:
-    page.goto(BASE+'/prototypes/home-phone/');frame=page.frame_locator('iframe');expect(frame.locator('[data-preview-phone] img')).to_be_visible();page.wait_for_timeout(200)
+    page.goto(BASE+'/prototypes/home-phone/');frame=page.frame_locator('iframe');expect(frame.locator('.toca-hero-phone-app img')).to_be_visible();page.wait_for_timeout(200)
     frame.locator('.toca-landing-hero').screenshot(path=str(OUT/'inicio-celular-propuesta.png'))
    assert not errors,errors
    context.close();print('PASS landing anchors, history, actual walkthrough images, keyboard, contact retry, local QR and responsive layout:',width,flush=True)
