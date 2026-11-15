@@ -78,6 +78,10 @@ try:
    for id in ['la-app','para-bares','descargar','contacto']:
     page.locator('#'+id).scroll_into_view_if_needed();page.wait_for_timeout(100)
    page.wait_for_function("Array.from(document.querySelectorAll('.landing-expanded img')).filter(i=>!i.closest('[hidden]')).every(i=>i.complete&&i.naturalWidth>0)")
+   owner_image=page.locator('#para-bares figure img')
+   assert owner_image.evaluate('image=>image.naturalWidth>=2200'),'Venue preview needs high-resolution cover thumbnails'
+   ratio=owner_image.evaluate('image=>image.naturalWidth/image.naturalHeight');box=owner_image.bounding_box()
+   assert abs(box['width']/box['height']-ratio)<.01,'Venue preview must retain its natural proportions'
    form.locator('.landing-form-status').evaluate('(node)=>node.hidden=true')
    tabs.first.click();page.mouse.move(0,0)
    page.evaluate('scrollTo(0,0)');page.wait_for_timeout(150)

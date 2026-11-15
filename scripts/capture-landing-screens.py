@@ -23,6 +23,7 @@ south=math.degrees(2*math.atan(math.exp(center_y-half_y))-math.pi/2)
 west,east=venue['longitude']-span/2,venue['longitude']+span/2
 map_corners=[[west,north],[east,north],[east,south],[west,south]]
 tracks=[dict(id=letter*22,title=title,artist=artist,durationMs=duration,imageUrl=BASE+'/assets/landing/track-cover.svg') for letter,title,artist,duration in [('A','Original Prankster','The Offspring, Redman',221000),('B','Get Lucky','Daft Punk, Pharrell Williams',369000),('C','Midnight City','M83',243000),('D','Like a Prayer','Madonna',345000)]]
+admin_tracks=[dict(id=letter*22,title=title,artist='Bensound',durationMs=duration,imageUrl=BASE+f'/assets/landing/covers/{cover}.jpg') for letter,title,duration,cover in [('E','Hey',172000,'hey'),('F','Summer',217000,'summer'),('G','Ukulele',146000,'ukulele')]]
 model={'balance':0}
 with sync_playwright() as p:
  browser=p.chromium.launch(executable_path='/usr/bin/chromium',args=['--no-sandbox','--use-angle=swiftshader','--enable-unsafe-swiftshader'])
@@ -54,8 +55,8 @@ with sync_playwright() as p:
   if path=='/api/auth/me':return reply(route,dict(id='marketing-owner',name='Nacho',email='owner@example.test'))
   if path=='/api/admin/venues':return reply(route,[venue])
   if path.endswith('/spotify/status'):return reply(route,dict(connected=True,profile='Bar Central',controlEnabled=True,playlistWriteEnabled=True,playlistId='P'*22))
-  if path.endswith('/music/playlist'):return reply(route,dict(playlist=dict(id='P'*22,name='La noche en Bar Central',snapshot='s1',tracks=tracks),operation=None))
-  if path.endswith('/music/player'):return reply(route,dict(now=tracks[2],isPlaying=True,contextUri='spotify:playlist:'+'P'*22,progressMs=76000,shuffle=False,repeat='off',device=dict(id='browser',name='TOCÁ · Bar Central',volume=65)))
+  if path.endswith('/music/playlist'):return reply(route,dict(playlist=dict(id='P'*22,name='La noche en Bar Central',snapshot='s1',tracks=admin_tracks),operation=None))
+  if path.endswith('/music/player'):return reply(route,dict(now=admin_tracks[1],isPlaying=True,contextUri='spotify:playlist:'+'P'*22,progressMs=76000,shuffle=False,repeat='off',device=dict(id='browser',name='TOCÁ · Bar Central',volume=65)))
   return reply(route,[])
  page.route('**/*',api)
  page.set_viewport_size(dict(width=850,height=520));page.goto(BASE+'/assets/landing/map-background.svg');page.locator('svg').screenshot(path=str(OUT/'map-demo.png'));page.set_viewport_size(dict(width=390,height=780))
@@ -77,8 +78,17 @@ with sync_playwright() as p:
  page.screenshot(path=str(OUT/'search.png'));page.locator('[data-action=request]').first.click();panel=page.locator('#toca-token-recharge');expect(panel).to_be_visible();page.wait_for_timeout(200)
  page.screenshot(path=str(OUT/'tokens.png'));panel.locator('label').filter(has=page.locator('input[value="5"]')).click();panel.locator('[data-wallet-topup]').click();expect(page.locator('#toca-song-added')).to_be_visible();page.wait_for_timeout(300)
  page.screenshot(path=str(OUT/'success.png'));expect(page).to_have_url(BASE+'/#/venue/'+ID)
- page.evaluate("state.token='synthetic-marketing-owner-session';state.user={id:'marketing-owner',name:'Nacho'};sessionStorage.setItem('amplify-token',state.token);sessionStorage.setItem('amplify-user',JSON.stringify(state.user))")
- page.set_viewport_size(dict(width=1100,height=720));page.goto(BASE+'/#/admin/music');page.reload();page.locator('[data-track-index="3"]').wait_for();page.wait_for_timeout(250);page.evaluate('document.activeElement?.blur()');page.screenshot(path=str(OUT/'admin-music.png'))
+ context.close()
+ context=browser.new_context(viewport=dict(width=1100,height=840),device_scale_factor=2,service_workers='block')
+ context.add_init_script("localStorage.setItem('amplify-mode','live');sessionStorage.setItem('amplify-token','synthetic-marketing-owner-session');sessionStorage.setItem('amplify-user',JSON.stringify({id:'marketing-owner',name:'Nacho'}))")
+ page=context.new_page();page.on('pageerror',lambda error:errors.append(str(error)));page.route('**/*',api)
+ page.goto(BASE+'/#/admin/music');page.locator('[data-track-index="2"]').wait_for()
+ page.wait_for_function("Array.from(document.querySelectorAll('.cabina-art img')).length===4&&Array.from(document.querySelectorAll('.cabina-art img')).every(image=>image.complete&&image.naturalWidth>0)")
+ covers=page.locator('[data-track-index] .cabina-art img').evaluate_all('nodes=>nodes.map(node=>node.currentSrc)')
+ assert len(covers)==3 and len(set(covers))==3,'Preview playlist needs a distinct loaded cover for each song'
+ assert page.locator('[data-player-art] .cabina-art img').get_attribute('src')==admin_tracks[1]['imageUrl'],'Player cover must match the current song'
+ assert page.locator('.cabina-art img').evaluate_all('nodes=>nodes.every(node=>{const box=node.getBoundingClientRect();return Math.abs(box.width-box.height)<1})'),'Cover thumbnails must remain square'
+ page.wait_for_timeout(250);page.evaluate('document.activeElement?.blur()');page.screenshot(path=str(OUT/'admin-music.png'))
  assert not errors,errors
  browser.close()
 server.shutdown();print('Captured actual app walkthrough screens with synthetic fixtures',flush=True)

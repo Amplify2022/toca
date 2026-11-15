@@ -14,6 +14,8 @@ El recorrido de cuatro pasos avanza automáticamente cada cinco segundos y vuelv
 
 El teléfono de inicio muestra una captura de la interfaz actual: mapa, ficha del bar, canción que está sonando, botón para pedir temas y navegación inferior. La captura usa un mapa ilustrativo, una portada del proyecto y datos de ejemplo. El fondo del mapa conserva su proporción al proyectarse; los tres marcadores de música se renderizan con los componentes de la app. La ruta `http://localhost:5173/prototypes/home-phone/` conserva una vista del mismo inicio en un iframe, sin modificaciones adicionales.
 
+La captura de “Para tu bar” usa una playlist de ejemplo con tres portadas diferentes, almacenadas en `web/assets/landing/covers/`. El generador espera a que todas carguen, comprueba que sean distintas, mantiene las miniaturas cuadradas y verifica que la portada del reproductor corresponda a la canción en curso. La procedencia está documentada en [covers/SOURCES.md](../web/assets/landing/covers/SOURCES.md).
+
 ## Descarga y redes
 
 Los enlaces públicos se configuran en `web/config.js`, dentro de `TOCA_CONFIG.marketing`:
