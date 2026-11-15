@@ -6,11 +6,13 @@ En `/#/explore`, seleccionar un pin abre la ficha del establecimiento en lugar d
 - En web: panel lateral izquierdo, con el mapa visible a la derecha.
 - El punto seleccionado queda destacado y centrado en la parte visible del mapa.
 - La X y la tecla Escape cierran la ficha y recuperan el mapa original. Los pines funcionan con Enter y espacio.
-- «Ver bar» abre el perfil existente. Las fotos se recorren horizontalmente y se pueden ampliar. Instagram sólo aparece si el bar tiene un usuario válido.
+- La canción actual y el botón compacto «Pedir una canción» están juntos al comienzo de la ficha, con el texto «Elegí tu tema y sumalo a la playlist del bar».
+- El botón abre directamente la búsqueda de canciones de ese bar. El flujo existente valida la sesión de cliente y pide iniciar sesión si hace falta; abrir el buscador no consume tokens.
+- Las fotos se recorren horizontalmente y se pueden ampliar. Instagram aparece debajo de la dirección, como ícono y `@usuario`, sólo si el bar tiene un usuario válido.
 
 La ficha usa los datos públicos y las fotos del bar. La canción actual se consulta en `music-status` para el bar seleccionado y se actualiza cada 15 segundos mientras la ficha está visible. La reproducción pausada se identifica como tal. Las consultas se cancelan al cerrar o cambiar de bar; una respuesta anterior no reemplaza la selección actual. Un fallo al consultar Spotify no bloquea la información del bar. Esta pantalla no inicia reproducción, pide canciones ni consume tokens.
 
-El prototipo visual se conserva en `/prototypes/map-place-panel/`, con datos ilustrativos y un mapa de referencia; no alimenta la ficha real.
+El prototipo visual inicial se conserva en `/prototypes/map-place-panel/`, con datos ilustrativos y un mapa de referencia; no alimenta la ficha real.
 
 Verificación:
 

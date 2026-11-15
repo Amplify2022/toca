@@ -24,10 +24,12 @@ try:
   for width in [390,1440]:
    context=browser.new_context(viewport=dict(width=width,height=950),service_workers='block')
    context.add_init_script("localStorage.setItem('amplify-mode','live')")
+   authenticated=width==1440
+   if authenticated:context.add_init_script("sessionStorage.setItem('toca:customer:session','synthetic-map-customer-session-abcdefghijklmnopqrstuvwxyz')")
    page=context.new_page();held=[];errors=[];calls=[]
    page.on('pageerror',lambda e:errors.append(str(e)))
    model={'hold':True,'fail':False}
-   def reply(route,data,status=200):route.fulfill(status=status,body=json.dumps(data),content_type='application/json',headers={'Access-Control-Allow-Origin':'*'})
+   def reply(route,data,status=200):route.fulfill(status=status,body=json.dumps(data),content_type='application/json',headers={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'Authorization,Content-Type,X-TOCA-Customer,X-TOCA-Join,Idempotency-Key','Access-Control-Allow-Methods':'GET,OPTIONS'})
    def intercept(route):
     url=route.request.url;path=urlsplit(url).path
     if url.startswith(base):return route.continue_()
@@ -36,6 +38,9 @@ try:
      return reply(route,dict(version=8,sources={},layers=[dict(id='bg',type='background',paint={'background-color':'#10191b'})]))
     if not url.startswith('http://localhost:8080'):return route.abort()
     calls.append((route.request.method,path))
+    if route.request.method=='OPTIONS':return reply(route,{})
+    if path=='/api/customers/me':return reply(route,dict(id='test-customer',name='Test Customer',email='customer@example.test',roles=['CUSTOMER']) if authenticated else dict(message='Sesión requerida'),200 if authenticated else 401)
+    if path=='/api/customers/me/wallet':return reply(route,dict(balance=0,reserved=0,requestCost=1,packs=[],movements=[],simulationEnabled=True))
     if '/photos/' in path:return route.fulfill(body=(ROOT/'web/assets/venues/bar-1.webp').read_bytes(),content_type='image/webp')
     if path=='/api/venues':return reply(route,venues)
     if path.endswith('/music-status'):
@@ -43,6 +48,7 @@ try:
      if ONE in path and model['hold']:model['hold']=False;held.append(route);return
      return reply(route,dict(active=True,isPlaying=False,now=dict(title='Canción del segundo bar',artist='Artista del segundo bar')))
     if path in ['/api/venues/'+ONE,'/api/venues/'+TWO]:return reply(route,next(v for v in venues if v['id']==path.split('/')[-1]))
+    if path.endswith('/tracks'):return reply(route,[dict(id='A'*22,title='Canción de prueba para pedir',artist='Artista de prueba',durationMs=180000)])
     return reply(route,[])
    page.route('**/*',intercept);page.goto(base+'/#/explore')
    page.wait_for_function("document.getElementById('leaflet-map')?.style.visibility==='' && !!state.map")
@@ -63,15 +69,24 @@ try:
    model['fail']=True
    page.evaluate("()=>Object.values(state.map._layers).find(l=>l instanceof L.Marker&&l.options.title==='Bar Uno').fire('click')")
    expect(panel.locator('.place-music')).to_contain_text('No pudimos consultar')
-   assert panel.locator('.place-primary').get_attribute('href')=='#/venue/'+ONE
+   assert panel.locator('.place-primary').get_attribute('href')=='#/request/'+ONE
    expect(panel.locator('.place-photos img')).to_be_visible()
    # Route departure cancels the selected bar's lifecycle and restores scrolling.
-   panel.locator('.place-primary').click();page.wait_for_url('**/#/venue/'+ONE)
+   panel.get_by_role('link',name='Pedir una canción',exact=True).click()
+   if authenticated:
+    page.wait_for_url('**/#/request/'+ONE)
+    expect(page.locator('#song-search')).to_be_visible()
+    page.locator('#song-search').fill('Canción')
+    expect(page.get_by_text('Canción de prueba para pedir',exact=True)).to_be_visible()
+   else:
+    page.wait_for_url('**/#/customer/login')
+    expect(page.locator('#toca-customer-auth-form')).to_be_visible()
+    assert page.evaluate("sessionStorage.getItem('toca:customer:after-login')")=='#/request/'+ONE
    expect(panel).to_have_count(0)
    page.wait_for_function("!document.body.classList.contains('toca-place-map-open')")
    assert not errors,errors
-   assert all(method=='GET' for method,path in calls),calls
+   assert all(method in ['GET','OPTIONS'] for method,path in calls),calls
    assert not any('/requests' in path for method,path in calls if method!='GET')
-   context.close();print('PASS live map panel:',width,'API venue/photos, stale playback isolation, paused status, provider failure, profile navigation and read-only requests',flush=True)
+   context.close();print('PASS live map panel:',width,'API venue/photos, stale playback isolation, paused status, provider failure, request-search/login destination and read-only requests',flush=True)
   browser.close()
 finally:server.shutdown()

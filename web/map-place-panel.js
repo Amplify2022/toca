@@ -30,14 +30,17 @@
   }
   function markup(v){
     const username=String(v.instagramHandle||'').trim().replace(/^@/,'');
-    const instagram=/^[A-Za-z0-9._]{1,30}$/.test(username)?`<a class="place-instagram" href="https://www.instagram.com/${encodeURIComponent(username)}/" target="_blank" rel="noopener noreferrer" aria-label="Instagram de ${esc(v.name)} (se abre en otra pestaña)">${icon('instagram')}Instagram</a>`:'';
+    const instagram=/^[A-Za-z0-9._]{1,30}$/.test(username)?`<div class="place-social"><a class="place-social-handle" href="https://www.instagram.com/${encodeURIComponent(username)}/" target="_blank" rel="noopener noreferrer" aria-label="Instagram de ${esc(v.name)} (se abre en otra pestaña)">${icon('instagram')}<span>@${esc(username)}</span></a></div>`:'';
     const genres=String(v.genre||'').split(/[,•·]/).map(s=>s.trim()).filter(Boolean).join(' · ');
     return `<button type="button" class="place-handle" data-place-expand aria-expanded="false" aria-label="Ampliar ficha del bar"><span></span></button><div class="place-scroll">
       <header class="place-heading"><div><span class="place-status ${v.active?'':'inactive'}"><i></i>${v.active?'Música activa':'Música inactiva'}${state.demo?' · Demo':''}</span><h2 id="toca-place-name">${esc(v.name||'Bar')}</h2>${genres?`<p>${esc(genres)}</p>`:''}</div><button type="button" class="place-close" data-place-close aria-label="Cerrar ficha del bar">${icon('close')}</button></header>
-      <div class="place-actions"><a class="place-primary" href="#/venue/${encodeURIComponent(v.id)}">Ver bar${icon('music')}</a>${instagram}</div>
+      <section class="place-request-block" aria-label="Qué suena y cómo pedir tu canción">
+        <div class="place-music" aria-live="polite"><p>Consultando canción actual…</p></div>
+        <p class="place-request-help" id="toca-place-request-help">Elegí tu tema y sumalo a la playlist del bar.</p>
+        <div class="place-actions"><a class="place-primary" href="#/request/${encodeURIComponent(v.id)}" aria-describedby="toca-place-request-help">${icon('music')}Pedir una canción</a></div>
+      </section>
       <div class="place-photos" aria-label="Fotos del bar"></div>
-      ${v.address||v.city?`<div class="place-address">${icon('pin')}<div>${v.address?`<strong>${esc(v.address)}</strong>`:''}${v.city?`<span>${esc(v.city)}</span>`:''}</div></div>`:''}
-      <div class="place-music" aria-live="polite"><p>Consultando canción actual…</p></div>
+      ${v.address||v.city||instagram?`<div class="place-details ${instagram?'has-instagram':''}">${v.address||v.city?`<div class="place-address">${icon('pin')}<div>${v.address?`<strong>${esc(v.address)}</strong>`:''}${v.city?`<span>${esc(v.city)}</span>`:''}</div></div>`:''}${instagram}</div>`:''}
       ${String(v.description||'').trim()?`<section class="place-about"><h3>Un poco del bar</h3><p>${esc(v.description)}</p></section>`:''}
       ${state.demo?'<p class="place-demo">Demostración: bares y canciones ilustrativos.</p>':''}
       </div><dialog class="place-photo-dialog" aria-label="Foto del bar"><button type="button" data-place-photo-close aria-label="Cerrar foto">${icon('close')}</button><img alt=""></dialog>`;

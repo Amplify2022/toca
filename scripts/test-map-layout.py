@@ -54,10 +54,18 @@ try:
    expect(panel.locator('#toca-place-name')).to_have_text('Bluzz Bar')
    assert panel.locator('.place-heading p').inner_text()=='Rock · Cumbia'
    assert panel.locator('.place-status').inner_text()=='Música activa · Demo'
-   assert panel.locator('.place-primary').get_attribute('href')=='#/venue/demo-2'
+   assert panel.locator('.place-primary').get_attribute('href')=='#/request/demo-2'
+   expect(panel.locator('.place-primary')).to_have_text('Pedir una canción')
+   expect(panel.locator('.place-request-help')).to_have_text('Elegí tu tema y sumalo a la playlist del bar.')
+   assert panel.locator('.place-actions>a').count()==1
+   assert panel.locator('.place-primary').bounding_box()['height']==34
+   assert panel.locator('.place-primary').bounding_box()['width']<180
+   assert panel.locator('.place-music').bounding_box()['y']<panel.locator('.place-primary').bounding_box()['y']<panel.locator('.place-photos').bounding_box()['y']
    ig=panel.get_by_role('link',name='Instagram de Bluzz Bar (se abre en otra pestaña)',exact=True)
    assert ig.get_attribute('href')=='https://www.instagram.com/bluzzbar/'
    assert ig.get_attribute('target')=='_blank' and 'noopener' in ig.get_attribute('rel')
+   assert ig.inner_text()=='@bluzzbar'
+   assert ig.bounding_box()['y']>=panel.locator('.place-address').bounding_box()['y']+panel.locator('.place-address').bounding_box()['height']-1
    assert panel.locator('.place-photos>button').count()==2
    assert all(src.startswith('http://localhost:8080/api/venues/') for src in panel.locator('.place-photos img').evaluate_all('(imgs)=>imgs.map(i=>i.src)'))
    assert page.locator('.leaflet-popup').count()==0
@@ -74,7 +82,7 @@ try:
     page.wait_for_function("height=>Math.abs(document.querySelector('.toca-place-panel').getBoundingClientRect().height-height)<1",arg=box['height'])
    else:
     assert box['x']<30 and box['width']==366 and selected['x']>box['x']+box['width'],(box,selected)
-   assert panel.locator('.place-close svg,.place-primary svg,.place-instagram svg').evaluate_all("icons=>icons.every(icon=>{const i=icon.getBoundingClientRect(),b=icon.parentElement.getBoundingClientRect();return i.x>=b.x&&i.y>=b.y&&i.right<=b.right&&i.bottom<=b.bottom})")
+   assert panel.locator('.place-close svg,.place-primary svg,.place-social-handle svg').evaluate_all("icons=>icons.every(icon=>{const i=icon.getBoundingClientRect(),b=icon.parentElement.getBoundingClientRect();return i.x>=b.x&&i.y>=b.y&&i.right<=b.right&&i.bottom<=b.bottom})")
    page.locator('.toca-map-art').screenshot(path=f'/tmp/toca-map-panel-{width}.png')
    panel.get_by_role('button',name='Abrir foto 1 de Bluzz Bar',exact=True).click()
    expect(panel.locator('dialog')).to_be_visible()
@@ -88,13 +96,14 @@ try:
    page.evaluate("""()=>{const marker=Object.values(state.map._layers).find(x=>x instanceof L.Marker);tocaOpenMapVenue({...state.venues.find(v=>v.genre.includes('Rock')),name:'Bar <b>con nombre muy largo para probar</b>',active:false,instagramHandle:'javascript:bad',coverPhotoUrl:'/api/venues/demo-2/photos/broken',photos:[]},marker,state.map)}""")
    expect(panel).to_be_visible()
    assert panel.locator('.place-heading b').count()==0 and '<b>' in panel.locator('#toca-place-name').inner_text()
-   assert panel.locator('.place-instagram').count()==0
+   assert panel.locator('.place-social-handle').count()==0
    expect(panel.locator('.place-no-photo')).to_be_visible()
    assert panel.locator('.place-photos img').count()==0
    expect(panel.locator('.place-music')).to_contain_text('inactiva')
-   panel.locator('.place-primary').click();page.wait_for_url('**/#/venue/demo-2')
+   panel.locator('.place-primary').click();page.wait_for_url('**/#/request/demo-2')
+   expect(page.locator('#song-search')).to_be_visible()
    page.wait_for_function("!document.body.classList.contains('toca-place-map-open')")
    assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
-   context.close();print('PASS real SDK map and place panel: mobile/desktop layout, photos, close, keyboard, drag, inactive/missing data, photo fallback and profile navigation:',width,flush=True)
+   context.close();print('PASS real SDK map and place panel: compact request action, song first, Instagram handle, mobile/desktop layout, photos, close, keyboard, drag, missing data and song-search navigation:',width,flush=True)
   browser.close()
 finally:server.shutdown()
