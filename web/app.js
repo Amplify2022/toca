@@ -162,12 +162,12 @@ function initMap(){
    const lat=Number(v.latitude),lon=Number(v.longitude);if(!Number.isFinite(lat)||!Number.isFinite(lon)||Math.abs(lat)>90||Math.abs(lon)>180)return;
    const pt=[lat,lon];bounds.push(pt);
    const pin=L.divIcon({html:`<div class="toca-map-venue-pin-v1845" style="width:32px;height:32px;background:${v.active?'#b9fc89':'#b6b7c3'};border:3px solid #fff;border-radius:50%;display:grid;place-items:center;font-size:17px;color:#13271b;box-shadow:0 3px 9px #0006">♫</div>`,className:'',iconSize:[34,34]});
-   const marker=L.marker(pt,{icon:pin,title:String(v.name||'Establecimiento')}).addTo(map).bindPopup(tocaVenuePopup(v),{
-    className:'toca-venue-popup',minWidth:240,maxWidth:304,offset:[0,-38],autoPanPadding:[16,16]
-   });
-   marker.getPopup().on('contentupdate',event=>tocaPrepareVenuePopup(event.target));
+   const marker=L.marker(pt,{icon:pin,title:String(v.name||'Establecimiento')}).addTo(map);
+   marker.getElement()?.setAttribute('aria-label',`Ver detalles de ${v.name||'este bar'}`);
+   marker.getElement()?.setAttribute('aria-expanded','false');
+   marker.getElement()?.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();event.stopPropagation();window.tocaOpenMapVenue(v,marker,map);}});
+   marker.on('click',()=>window.tocaOpenMapVenue(v,marker,map));
   });
-  map.on('popupopen',event=>tocaPrepareVenuePopup(event.popup));
   if(bounds.length)map.fitBounds(bounds,{padding:[40,40],maxZoom:14});
   map.invalidateSize({pan:false});return {map,layer};
  }catch(error){if(state.map){state.map.remove();state.map=null;}console.warn('Map unavailable',error);return null;}

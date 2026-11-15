@@ -5,7 +5,7 @@ are simulated; this does not validate the remote tile provider's availability.
 import os,threading,urllib.request,json,functools
 from pathlib import Path
 from http.server import ThreadingHTTPServer,SimpleHTTPRequestHandler
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright,expect
 ROOT=Path(__file__).resolve().parents[1]
 CDN='https://cdn.jsdelivr.net/npm/'
 FILES={'leaflet@1.9.4/dist/leaflet.js':'leaflet.js','leaflet@1.9.4/dist/leaflet.css':'leaflet.css','maplibre-gl@5.24.0/dist/maplibre-gl.js':'maplibre.js','maplibre-gl@5.24.0/dist/maplibre-gl.css':'maplibre.css','@maplibre/maplibre-gl-leaflet@0.1.4/leaflet-maplibre-gl.js':'bridge.js'}
@@ -46,50 +46,55 @@ try:
    assert page.locator('#leaflet-map .leaflet-marker-icon').count()==6
    page.locator('#leaflet-map').screenshot(path=f'/tmp/toca-fixed-map-{width}.png')
    # Rebuild one real Leaflet marker using the same photo URL format as the API.
-   page.evaluate("""()=>{const v=state.venues.find(v=>v.genre.includes('Rock'));Object.assign(v,{name:'Bluzz Bar',genre:'Rock, Cumbia',instagramHandle:'bluzzbar',coverPhotoUrl:'/api/venues/demo-2/photos/cover'});const d=db();d.venues=d.venues.map(x=>x.id===v.id?{...x,...v}:x);saveDemo(d);} """)
+   page.evaluate("""()=>{const v=state.venues.find(v=>v.genre.includes('Rock'));Object.assign(v,{name:'Bluzz Bar',genre:'Rock, Cumbia',instagramHandle:'bluzzbar',coverPhotoUrl:'/api/venues/demo-2/photos/cover',photos:[{url:'/api/venues/demo-2/photos/cover'},{url:'/api/venues/demo-2/photos/second'}]});const d=db();d.venues=d.venues.map(x=>x.id===v.id?{...x,...v}:x);saveDemo(d);} """)
    page.locator('.chip[data-value="Rock"]').click()
    page.wait_for_function("document.getElementById('leaflet-map')?.style.visibility === '' && document.querySelectorAll('#leaflet-map .leaflet-marker-icon').length===1")
    pin=page.locator('#leaflet-map .leaflet-marker-icon');pin.click()
-   card=page.locator('.toca-venue-popup .toca-popup-card');card.wait_for()
-   page.wait_for_function("document.querySelector('.toca-popup-cover')?.naturalWidth>0")
-   assert card.locator('.toca-popup-name').inner_text()=='Bluzz Bar'
-   assert card.locator('.toca-popup-meta').inner_text()=='Rock · Cumbia'
-   assert card.locator('.toca-popup-status').inner_text()=='Música activa'
-   assert card.locator('.toca-popup-open').inner_text()=='Ver bar'
-   assert card.locator('.toca-popup-open').get_attribute('href')=='#/venue/demo-2'
-   ig=card.get_by_role('link',name='Instagram de Bluzz Bar (se abre en otra pestaña)',exact=True)
+   panel=page.locator('.toca-place-panel');expect(panel).to_be_visible()
+   expect(panel.locator('#toca-place-name')).to_have_text('Bluzz Bar')
+   assert panel.locator('.place-heading p').inner_text()=='Rock · Cumbia'
+   assert panel.locator('.place-status').inner_text()=='Música activa · Demo'
+   assert panel.locator('.place-primary').get_attribute('href')=='#/venue/demo-2'
+   ig=panel.get_by_role('link',name='Instagram de Bluzz Bar (se abre en otra pestaña)',exact=True)
    assert ig.get_attribute('href')=='https://www.instagram.com/bluzzbar/'
    assert ig.get_attribute('target')=='_blank' and 'noopener' in ig.get_attribute('rel')
-   assert 'Pocitos' not in card.inner_text() and 'Montevideo' not in card.inner_text()
-   assert '→' not in card.inner_text() and '↗' not in card.inner_text()
-   page.wait_for_function("""()=>{const c=document.querySelector('.toca-popup-card').getBoundingClientRect(),m=document.getElementById('leaflet-map').getBoundingClientRect();return c.left>=m.left+14&&c.right<=m.right-14&&c.top>=m.top+14&&c.bottom<=m.bottom-14;}""")
-   layout=page.evaluate("""()=>{const box=s=>document.querySelector(s).getBoundingClientRect(),c=box('.toca-popup-card'),p=box('.leaflet-marker-icon'),t=box('.leaflet-popup-tip'),w=getComputedStyle(document.querySelector('.leaflet-popup-content-wrapper'));return {alignment:Math.abs(c.x+c.width/2-p.x-p.width/2),gap:p.top-t.bottom,background:w.backgroundColor,border:w.borderTopWidth,fit:getComputedStyle(document.querySelector('.toca-popup-cover')).objectFit,bar:box('.toca-popup-links').height,ig:box('.toca-popup-instagram').width,tip:getComputedStyle(document.querySelector('.leaflet-popup-tip')).clipPath}}""")
-   assert layout['alignment']<=2 and 5<=layout['gap']<=11,layout
-   assert layout['background']=='rgba(0, 0, 0, 0)' and layout['border']=='0px',layout
-   assert layout['fit']=='cover' and layout['bar']>=44 and layout['ig']>=44,layout
-   assert layout['tip'].startswith('polygon('),layout
-   alignment=ig.evaluate("""el=>{const a=el.getBoundingClientRect(),s=el.querySelector('svg').getBoundingClientRect();return Math.abs(a.y+a.height/2-s.y-s.height/2)}""")
-   assert alignment<=1,alignment
-   close=page.get_by_role('button',name='Cerrar ficha del bar').bounding_box();zoom=page.locator('.leaflet-control-zoom').bounding_box()
-   assert close['y']+close['height']<zoom['y'] or close['x']+close['width']<zoom['x']
-   page.locator('#leaflet-map').screenshot(path=f'/tmp/toca-ios-map-card-{width}.png')
-   # Keyboard navigation and the native close control retain their behavior.
-   card.locator('.toca-popup-open').focus();page.keyboard.press('Tab');assert ig.evaluate('el=>el===document.activeElement')
-   page.keyboard.press('Tab')
-   assert page.get_by_role('button',name='Cerrar ficha del bar').evaluate('el=>el===document.activeElement')
-   page.keyboard.press('Enter')
-   page.locator('.toca-venue-popup').wait_for(state='detached')
-   # Missing/invalid data stays readable, escaped and free of empty controls.
-   page.evaluate("""()=>{const marker=Object.values(state.map._layers).find(x=>x.getPopup?.());marker.setPopupContent(tocaVenuePopup({id:'demo-2',name:'Bar <b>con nombre muy largo para probar que no desborde</b>',genre:'Jazz, Soul, Rock, Música electrónica y todos los géneros',active:false,instagramHandle:'javascript:bad'}));marker.openPopup();}""")
-   card.wait_for();assert card.locator('.toca-popup-status').inner_text()=='Música inactiva'
-   assert card.locator('.toca-popup-name b').count()==0 and '<b>' in card.locator('.toca-popup-name').inner_text()
-   assert card.locator('.toca-popup-instagram').count()==0
-   # Simulate a real failed upload URL; fallback must avoid a broken-image icon.
-   page.evaluate("""()=>{const marker=Object.values(state.map._layers).find(x=>x.getPopup?.());marker.setPopupContent(tocaVenuePopup({id:'demo-2',name:'Bar sin foto',active:false,coverPhotoUrl:'/api/venues/demo-2/photos/broken'}));marker.openPopup();}""")
-   page.wait_for_function("!document.querySelector('.toca-popup-cover')&&document.querySelector('.toca-popup-media.no-photo')")
-   assert card.locator('.toca-popup-placeholder').is_visible()
-   card.locator('.toca-popup-open').click();page.wait_for_url('**/#/venue/demo-2')
+   assert panel.locator('.place-photos>button').count()==2
+   assert all(src.startswith('http://localhost:8080/api/venues/') for src in panel.locator('.place-photos img').evaluate_all('(imgs)=>imgs.map(i=>i.src)'))
+   assert page.locator('.leaflet-popup').count()==0
+   page.wait_for_function("!!document.querySelector('.toca-place-selected') && state.map.getSize().y===document.getElementById('leaflet-map').clientHeight")
+   box=panel.bounding_box();selected=page.locator('.toca-place-selected').bounding_box()
+   if width<=760:
+    assert box['width']==width and 900*.45<box['height']<900*.58,box
+    assert selected['y']+selected['height']<box['y'],(selected,box)
+    handle=panel.locator('[data-place-expand]')
+    drag=handle.bounding_box();page.mouse.move(drag['x']+drag['width']/2,drag['y']+drag['height']/2);page.mouse.down();page.mouse.move(drag['x']+drag['width']/2,drag['y']-85,steps=7);page.mouse.up()
+    expect(handle).to_have_attribute('aria-expanded','true')
+    panel.get_by_role('button',name='Reducir ficha del bar',exact=True).click()
+    expect(handle).to_have_attribute('aria-expanded','false')
+    page.wait_for_function("height=>Math.abs(document.querySelector('.toca-place-panel').getBoundingClientRect().height-height)<1",arg=box['height'])
+   else:
+    assert box['x']<30 and box['width']==366 and selected['x']>box['x']+box['width'],(box,selected)
+   assert panel.locator('.place-close svg,.place-primary svg,.place-instagram svg').evaluate_all("icons=>icons.every(icon=>{const i=icon.getBoundingClientRect(),b=icon.parentElement.getBoundingClientRect();return i.x>=b.x&&i.y>=b.y&&i.right<=b.right&&i.bottom<=b.bottom})")
+   page.locator('.toca-map-art').screenshot(path=f'/tmp/toca-map-panel-{width}.png')
+   panel.get_by_role('button',name='Abrir foto 1 de Bluzz Bar',exact=True).click()
+   expect(panel.locator('dialog')).to_be_visible()
+   panel.get_by_role('button',name='Cerrar foto',exact=True).click()
+   panel.get_by_role('button',name='Cerrar ficha del bar',exact=True).click()
+   expect(panel).to_have_count(0)
+   assert not page.evaluate("document.body.classList.contains('toca-place-map-open')")
+   page.wait_for_function("state.map.getSize().y===document.getElementById('leaflet-map').clientHeight")
+   pin.focus();page.keyboard.press('Enter');expect(panel).to_be_visible();page.keyboard.press('Escape');expect(panel).to_have_count(0)
+   # Escaped text, invalid Instagram and failed uploads keep a usable real panel.
+   page.evaluate("""()=>{const marker=Object.values(state.map._layers).find(x=>x instanceof L.Marker);tocaOpenMapVenue({...state.venues.find(v=>v.genre.includes('Rock')),name:'Bar <b>con nombre muy largo para probar</b>',active:false,instagramHandle:'javascript:bad',coverPhotoUrl:'/api/venues/demo-2/photos/broken',photos:[]},marker,state.map)}""")
+   expect(panel).to_be_visible()
+   assert panel.locator('.place-heading b').count()==0 and '<b>' in panel.locator('#toca-place-name').inner_text()
+   assert panel.locator('.place-instagram').count()==0
+   expect(panel.locator('.place-no-photo')).to_be_visible()
+   assert panel.locator('.place-photos img').count()==0
+   expect(panel.locator('.place-music')).to_contain_text('inactiva')
+   panel.locator('.place-primary').click();page.wait_for_url('**/#/venue/demo-2')
+   page.wait_for_function("!document.body.classList.contains('toca-place-map-open')")
    assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
-   context.close();print('PASS real SDK map, responsive photo popup, pin alignment, actions, keyboard close, inactive/missing data and photo fallback:',width,flush=True)
+   context.close();print('PASS real SDK map and place panel: mobile/desktop layout, photos, close, keyboard, drag, inactive/missing data, photo fallback and profile navigation:',width,flush=True)
   browser.close()
 finally:server.shutdown()

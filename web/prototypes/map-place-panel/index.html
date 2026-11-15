@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0c1516">
+  <title>Mapa y ficha del bar · Preview TOCÁ</title>
+  <link rel="icon" href="/assets/icon.svg">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="app-header">
+    <a class="brand" href="/#/"><img src="/assets/icon.svg" alt=""><strong>TOCÁ</strong></a>
+    <nav class="desktop-nav" aria-label="Navegación principal"><a class="active" href="./">Descubrir</a><a href="/#/my-requests">Mis pedidos</a></nav>
+    <span class="preview-badge">Vista previa</span>
+    <a class="profile" href="/#/profile" aria-label="Mi perfil"><span data-icon="user"></span><span>Mi perfil</span></a>
+  </header>
+  <main class="explore">
+    <div id="map" aria-label="Mapa de bares en Montevideo"></div>
+    <section class="search-area" aria-label="Buscar un bar">
+      <label class="search"><span data-icon="search"></span><input id="search" type="search" placeholder="Buscá un bar o una zona" aria-label="Buscar bar"><span class="search-shortcut" aria-hidden="true">⌘ K</span></label>
+      <div class="filters" aria-label="Filtrar por música"><button type="button" class="active" data-filter="all" aria-pressed="true"><span data-icon="music"></span>Todos</button><button type="button" data-filter="Rock" aria-pressed="false">Rock</button><button type="button" data-filter="Cumbia" aria-pressed="false">Cumbia</button><button type="button" data-filter="Jazz" aria-pressed="false">Jazz</button></div>
+    </section>
+    <div class="map-caption"><span></span>Montevideo <small>Elegí dónde suena tu noche.</small></div>
+    <section class="place-panel" id="place-panel" aria-labelledby="place-name">
+      <button class="sheet-handle" type="button" aria-label="Ampliar ficha del bar" aria-expanded="false"><span></span></button>
+      <div class="panel-scroll">
+        <header class="place-heading"><div><span class="place-status"><i></i>Música activa</span><h1 id="place-name">Bluzz Bar</h1><p id="place-genres">Rock · Cumbia</p></div><button class="close-panel icon-button" type="button" aria-label="Cerrar ficha del bar"><span data-icon="close"></span></button></header>
+        <div class="place-actions"><button class="primary" type="button" id="open-bar">Ver bar<span data-icon="music"></span></button><a class="instagram" id="instagram" href="https://www.instagram.com/bluzzbar/" target="_blank" rel="noopener noreferrer"><span data-icon="instagram"></span>Instagram</a></div>
+        <div class="photo-gallery" id="photos" aria-label="Fotos del bar"></div>
+        <div class="place-address"><span data-icon="pin"></span><div><strong id="address">Canelones 760</strong><span>Montevideo, Uruguay</span></div></div>
+        <section class="now-playing" aria-label="Canción actual de ejemplo"><div class="song-cover"><span data-icon="music"></span></div><div class="song-copy"><span class="now-label"><i></i>SUENA AHORA</span><strong id="song-title">Original Prankster</strong><p id="song-artist">The Offspring, Redman</p></div><div class="equalizer" aria-hidden="true"><i></i><i></i><i></i><i></i></div></section>
+        <section class="about"><h2>Un poco del bar</h2><p id="description">Un clásico de Montevideo para encontrarte con amigos, escuchar buena música y elegir lo que sigue.</p></section>
+        <div class="panel-footnote"><span data-icon="music"></span>La próxima canción la elegís vos.</div>
+      </div>
+    </section>
+    <div class="empty-selection" id="empty-selection" hidden><span data-icon="pin"></span><div><strong>Encontrá tu próximo bar</strong><span>Seleccioná un punto del mapa para ver sus detalles.</span></div></div>
+    <div class="map-controls"><button type="button" id="locate" aria-label="Volver al bar seleccionado"><span data-icon="locate"></span></button><div><button type="button" id="zoom-in" aria-label="Acercar mapa"><span data-icon="plus"></span></button><button type="button" id="zoom-out" aria-label="Alejar mapa"><span data-icon="minus"></span></button></div></div>
+  </main>
+  <nav class="mobile-nav" aria-label="Navegación principal"><a href="./" class="active" aria-current="page"><span data-icon="map"></span>Descubrir</a><a href="/#/my-requests"><span data-icon="list"></span>Mis pedidos</a><a href="/#/profile"><span data-icon="user"></span>Perfil</a></nav>
+  <dialog id="photo-dialog" aria-label="Foto del bar"><button type="button" id="close-photo" class="icon-button" aria-label="Cerrar foto"><span data-icon="close"></span></button><img alt=""></dialog>
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
