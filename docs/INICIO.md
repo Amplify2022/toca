@@ -4,7 +4,7 @@ La página reúne la presentación, “La app” (beneficios y recorrido con cap
 
 Los enlaces de la cabecera y el pie llevan a secciones de la misma página mediante el router existente: `/#/?section=la-app`, `/#/?section=para-bares` y `/#/?section=contacto`. Los enlaces anteriores a `section=como-funciona` siguen llevando a “La app”. Funcionan al abrir un enlace directo y al usar atrás/adelante, y conservan el formulario mientras se navega entre secciones. La cabecera permanece visible; sus enlaces se agrupan a la derecha junto a “Descargá la app”. En celular se reúnen en un menú junto al mismo botón.
 
-El recorrido de cuatro pasos avanza automáticamente cada cinco segundos y vuelve al primero al terminar. Muestra el número de paso y un control para pausar/reanudar, sin barras de progreso. El mouse y el foco no detienen el avance; elegir un paso manualmente reinicia los cinco segundos y continúa el recorrido. Se detiene al pulsar “Pausar”, al salir de la sección o al ocultar la pestaña. Al volver comienza un intervalo completo. Con movimiento reducido comienza pausado. El temporizador y el observador se eliminan al salir de inicio.
+El recorrido de cuatro pasos avanza automáticamente cada cinco segundos y vuelve al primero al terminar. Muestra el número de paso, sin barras de progreso ni botón de pausa. El borde y el fondo del paso saliente y entrante cambian suavemente durante 650 ms. El mouse y el foco no detienen el avance; elegir un paso manualmente reinicia los cinco segundos y continúa el recorrido. Se detiene al salir de la sección o al ocultar la pestaña. Al volver comienza un intervalo completo. Con movimiento reducido no hay fundido ni avance automático y los cuatro pasos siguen disponibles manualmente. El temporizador y el observador se eliminan al salir de inicio.
 
 ## Vista previa
 
@@ -73,7 +73,7 @@ Compose ejecuta las migraciones antes del API. Actualizar el navegador con `Cmd+
 Comprobaciones incluidas:
 
 - `scripts/test-landing.py`: escritorio y celulares de 390/320 px, anclas, historial, recorrido y teclado, imágenes cargadas, QR local, destinos iOS/Android y reintentos del formulario.
-- `scripts/test-landing-autoplay.py --mode desktop` y `--mode mobile`: duración real de cinco segundos, ciclo completo, avance con el mouse/foco sobre la sección, selección manual, pausas explícitas o por visibilidad, touch, movimiento reducido y limpieza al navegar.
+- `scripts/test-landing-autoplay.py --mode desktop` y `--mode mobile`: duración real de cinco segundos, ciclo completo, avance con el mouse/foco sobre la sección, selección manual, pausas por visibilidad, touch, movimiento reducido, fundido de bordes y limpieza al navegar.
 - `ContactInputTest.kt`: normalización, validación y campo trampa.
 - `scripts/integration/P1ServiceProbe.java`: persistencia, concurrencia, reintentos y notificaciones con transporte simulado, junto con las regresiones existentes.
 - `scripts/integration/http_contact_probe.py`: formulario real → API real → PostgreSQL de prueba, validación HTTP, idempotencia, límites y rechazo de cabeceras de proxy no confiables. Requiere las variables y protecciones de base de prueba de `http_auth_probe.py`; `TOCA_TEST_WEB_URL` habilita el envío desde Chromium.

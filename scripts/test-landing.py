@@ -55,8 +55,11 @@ try:
     tabs.nth(i).click();expect(tabs.nth(i)).to_have_attribute('aria-selected','true');expect(page.locator(f'#landing-screen-{i}')).to_be_visible()
     image=page.locator(f'#landing-screen-{i} img');page.wait_for_function('(src)=>Array.from(document.images).some(i=>i.src.endsWith(src)&&i.naturalWidth>0)',arg=image.get_attribute('src'))
    tabs.last.press('Home');expect(tabs.first).to_have_attribute('aria-selected','true')
-   expect(page.locator('[data-stage-playback]')).to_have_text('Pausar')
+   assert not page.locator('[data-stage-playback]').count()
    assert not root.locator('.landing-stage-progress,[role=progressbar]').count()
+   actions=page.locator('.landing-owner-actions')
+   primary=actions.locator('.toca-btn span').bounding_box();secondary=actions.locator('.landing-text-link span').bounding_box()
+   assert abs(primary['x']-secondary['x'])<1,'Venue action labels must share the same left edge'
    header_anchor('contacto');page.wait_for_timeout(450)
    form=page.locator('#landing-contact-form');form.locator('[name=name]').fill('Landing fixture');form.locator('[name=email]').fill('landing@example.test');form.locator('[name=message]').fill('Tengo una sugerencia para mejorar la aplicación.')
    header_anchor('la-app');page.go_back();expect(form.locator('[name=name]')).to_have_value('Landing fixture')

@@ -26,7 +26,7 @@ try:
    page.route('https://**/*',lambda route:route.abort())
    page.route('http://localhost:8080/**',lambda route:route.fulfill(content_type='application/json',body='[]',headers={'Access-Control-Allow-Origin':'*'}))
    page.goto(BASE+'/#/');expect(page.locator('[data-stage-count]')).to_have_text('Paso 1 de 4')
-   assert not page.locator('.landing-stage-progress,[role=progressbar]').count()
+   assert not page.locator('.landing-stage-progress,[role=progressbar],[data-stage-playback]').count()
    return context,page,errors
   def active(page,index):return page.locator(f'[data-landing-stage="{index}"]')
   def expect_step(page,index):
@@ -36,7 +36,7 @@ try:
   if mode=='desktop':
    context,page,errors=setup(viewport=dict(width=1440,height=900))
    page.wait_for_timeout(5300);expect_step(page,0)
-   active(page,0).click();expect(page.locator('[data-stage-playback]')).to_have_text('Pausar')
+   active(page,0).click()
    # Keep both the pointer and keyboard focus on a step throughout the full cycle.
    page.evaluate("""()=>{
     const grid=document.querySelector('.landing-how-grid');
@@ -53,12 +53,13 @@ try:
    assert all(4800<=interval<=6200 for interval in intervals),intervals
    assert page.locator('[data-landing-stage="0"]').evaluate("node=>node.matches(':hover')&&document.activeElement===node")
    print('PASS no progress bars; hovered and focused steps advance every five seconds through the full cycle:',[round(interval) for interval in intervals],flush=True)
-   toggle=page.locator('[data-stage-playback]');toggle.click();expect(toggle).to_have_text('Reanudar')
-   page.wait_for_timeout(5300);expect_step(page,0)
-   toggle.click();expect_step(page,1)
-   active(page,3).click();expect(toggle).to_have_text('Pausar')
-   page.wait_for_timeout(4400);expect_step(page,3);expect_step(page,0)
-   print('PASS explicit pause/resume; manual selection gets a fresh five seconds and continues while focused',flush=True)
+   page.wait_for_timeout(800);active(page,3).click();page.wait_for_timeout(150)
+   alphas=page.evaluate(r"""()=>[0,3].map(index=>{const color=getComputedStyle(document.querySelector(`[data-landing-stage="${index}"]`)).borderTopColor;const parts=color.match(/rgba?\(([^)]+)\)/)[1].split(',');return parts.length===4?Number(parts[3]):1})""")
+   assert all(0<alpha<1 for alpha in alphas),('Both outgoing and incoming borders must fade',alphas)
+   page.wait_for_timeout(700)
+   assert active(page,0).evaluate("node=>getComputedStyle(node).borderTopColor")=='rgba(0, 0, 0, 0)'
+   page.wait_for_timeout(3500);expect_step(page,3);expect_step(page,0)
+   print('PASS outgoing/incoming border fade and manual selection followed by automatic advance; no pause control',flush=True)
    page.evaluate("Object.defineProperty(document,'hidden',{configurable:true,get:()=>true});document.dispatchEvent(new Event('visibilitychange'))")
    page.wait_for_timeout(5300);expect_step(page,0)
    page.evaluate("Object.defineProperty(document,'hidden',{configurable:true,get:()=>false});document.dispatchEvent(new Event('visibilitychange'))")
@@ -72,19 +73,19 @@ try:
   else:
    context,page,errors=setup(viewport=dict(width=390,height=900),is_mobile=True,has_touch=True)
    page.locator('.landing-screen-area').scroll_into_view_if_needed();expect_step(page,1)
-   active(page,3).tap();expect(page.locator('[data-stage-playback]')).to_have_text('Pausar')
+   active(page,3).tap()
    page.wait_for_timeout(4400);expect_step(page,3);expect_step(page,0)
-   page.locator('[data-stage-playback]').tap();expect(page.locator('[data-stage-playback]')).to_have_text('Reanudar')
-   page.wait_for_timeout(5300);expect_step(page,0)
-   page.locator('[data-stage-playback]').tap();expect_step(page,1)
+   active(page,2).tap();expect_step(page,3)
    assert not errors,errors;context.close()
-   print('PASS mobile auto advance, touch selection without implicit pause and explicit controls',flush=True)
+   print('PASS mobile auto advance and manual touch selection without a pause control',flush=True)
    context,page,errors=setup(viewport=dict(width=1440,height=900),reduced_motion='reduce')
    page.locator('.landing-screen-area').scroll_into_view_if_needed()
-   expect(page.locator('[data-stage-playback]')).to_have_text('Reanudar')
    page.wait_for_timeout(5300);expect_step(page,0)
-   page.locator('[data-stage-playback]').click();expect_step(page,1)
+   active(page,2).click();expect_step(page,2)
+   assert active(page,2).evaluate("node=>getComputedStyle(node).transitionDuration")=='0s'
+   page.wait_for_timeout(5300);expect_step(page,2)
+   page.emulate_media(reduced_motion='no-preference');expect_step(page,3)
    assert not errors,errors;context.close()
-   print('PASS reduced motion starts paused and advances after explicit play, even with the pointer over the control',flush=True)
+   print('PASS reduced motion disables fade/autoplay, keeps manual steps and resumes when the preference changes',flush=True)
   browser.close()
 finally:server.shutdown()

@@ -21,7 +21,7 @@
   ['Recargá tus tokens si lo necesitás','Cada canción agregada usa 1 token. Las recargas de esta etapa son de prueba, sin cobros.','tokens.png'],
   ['Listo. Tu tema está en la playlist','Tu pedido se agrega automáticamente. Si el bar lo requiere, validamos que estés a 100 metros.','success.png']
  ];
- function walkthrough(){return `<div class="landing-walkthrough"><div class="landing-section-heading landing-walkthrough-heading"><div><h3>Tu próxima canción, en cuatro pasos.</h3><p>De encontrar el bar a sumar tu tema. Así se ve TOCÁ por dentro.</p></div><div class="landing-walkthrough-controls"><span data-stage-count>Paso 1 de 4</span><button type="button" data-stage-playback title="Avance automático: 5 segundos por paso" aria-label="Pausar el avance automático de los pasos">${svg('<path d="M9 5v14M15 5v14"/>',16)}Pausar</button></div></div><div class="landing-how-grid"><div class="landing-stages" role="tablist" aria-label="Cómo funciona TOCÁ" aria-orientation="vertical">${stages.map(([title,copy],i)=>`<button type="button" role="tab" id="landing-stage-${i}" aria-controls="landing-screen-${i}" aria-selected="${i===0}" tabindex="${i===0?'0':'-1'}" data-landing-stage="${i}"><span class="landing-stage-number">0${i+1}</span><span><strong>${title}</strong><small>${copy}</small></span>${iconSvg('arrow',18)}</button>`).join('')}</div><div class="landing-screen-area">${stages.map(([title,,file],i)=>`<figure id="landing-screen-${i}" role="tabpanel" aria-labelledby="landing-stage-${i}" ${i?'hidden':''}><div class="landing-screen-phone"><img src="/assets/landing/${file}" width="390" height="780" loading="lazy" alt="Pantalla de TOCÁ: ${esc(title)}"></div><figcaption>Interfaz de TOCÁ · Datos de ejemplo</figcaption></figure>`).join('')}</div></div></div>`;}
+ function walkthrough(){return `<div class="landing-walkthrough"><div class="landing-section-heading landing-walkthrough-heading"><div><h3>Tu próxima canción, en cuatro pasos.</h3><p>De encontrar el bar a sumar tu tema. Así se ve TOCÁ por dentro.</p></div><div class="landing-walkthrough-controls"><span data-stage-count>Paso 1 de 4</span></div></div><div class="landing-how-grid"><div class="landing-stages" role="tablist" aria-label="Cómo funciona TOCÁ" aria-orientation="vertical">${stages.map(([title,copy],i)=>`<button type="button" role="tab" id="landing-stage-${i}" aria-controls="landing-screen-${i}" aria-selected="${i===0}" tabindex="${i===0?'0':'-1'}" data-landing-stage="${i}"><span class="landing-stage-number">0${i+1}</span><span><strong>${title}</strong><small>${copy}</small></span>${iconSvg('arrow',18)}</button>`).join('')}</div><div class="landing-screen-area">${stages.map(([title,,file],i)=>`<figure id="landing-screen-${i}" role="tabpanel" aria-labelledby="landing-stage-${i}" ${i?'hidden':''}><div class="landing-screen-phone"><img src="/assets/landing/${file}" width="390" height="780" loading="lazy" alt="Pantalla de TOCÁ: ${esc(title)}"></div><figcaption>Interfaz de TOCÁ · Datos de ejemplo</figcaption></figure>`).join('')}</div></div></div>`;}
  const previousLanding=tocaLanding;
  tocaLanding=function(){
   previousLanding();const root=document.querySelector('.toca-landing');if(!root)return;
@@ -34,7 +34,7 @@
   root.querySelector('.toca-landing-features').outerHTML=`<section id="la-app" class="landing-section landing-intro"><div class="landing-section-heading"><span class="eyebrow">MÁS QUE ELEGIR UN LUGAR</span><h2>Elegí cómo querés<br>que suene tu noche.</h2><p>Descubrí bares, elegí tu canción y sumala a la playlist. Te mostramos cómo.</p></div><div class="landing-benefits">${[['pin','Descubrí tu próximo bar','Encontrá lugares por su música, conocé su ambiente y guardá tus favoritos.'],['music','Dejá tu canción en la noche','Elegí un tema y sumalo a la playlist del lugar, desde tu celular.'],['heart','Volvé a lo que te gusta','Tu perfil reúne tus tokens, tus bares guardados y las canciones que pediste.']].map(([ic,title,copy])=>`<article><span>${iconSvg(ic,25)}</span><h3>${title}</h3><p>${copy}</p></article>`).join('')}</div>${walkthrough()}</section>`;
   root.querySelector('.toca-footer').remove();
   root.insertAdjacentHTML('beforeend',`
-   <section id="para-bares" class="landing-section landing-owners"><div><span class="eyebrow">QUE SUENE TU BAR</span><h2>Tu lugar tiene identidad.<br>Que también se escuche.</h2><p>Gestioná la experiencia musical desde un solo lugar y dejá que tus clientes participen.</p><ul><li>${iconSvg('check',18)} Administrá tu playlist y los controles de reproducción.</li><li>${iconSvg('check',18)} Elegí quién puede pedir y qué canciones permitís.</li><li>${iconSvg('check',18)} Conocé la actividad y los pedidos de tu bar.</li></ul><a href="${tocaPortalDestination()}" class="toca-btn">${state.token&&!state.demo?'Ir a mi portal':'Entrar al portal de bares'} ${iconSvg('arrow',18)}</a><a class="landing-text-link" href="#/register">Registrar mi bar</a></div><figure><img src="/assets/landing/admin-music.png" width="1100" height="720" loading="lazy" alt="Panel de música de TOCÁ para administrar la playlist del bar"><figcaption>Tu música y tus reglas, en la misma cabina.</figcaption></figure></section>
+   <section id="para-bares" class="landing-section landing-owners"><div><span class="eyebrow">QUE SUENE TU BAR</span><h2>Tu lugar tiene identidad.<br>Que también se escuche.</h2><p>Gestioná la experiencia musical desde un solo lugar y dejá que tus clientes participen.</p><ul><li>${iconSvg('check',18)} Administrá tu playlist y los controles de reproducción.</li><li>${iconSvg('check',18)} Elegí quién puede pedir y qué canciones permitís.</li><li>${iconSvg('check',18)} Conocé la actividad y los pedidos de tu bar.</li></ul><div class="landing-owner-actions"><a href="${tocaPortalDestination()}" class="toca-btn"><span>${state.token&&!state.demo?'Ir a mi portal':'Entrar al portal de bares'}</span>${iconSvg('arrow',18)}</a><a class="landing-text-link" href="#/register"><span>Registrar mi bar</span></a></div></div><figure><img src="/assets/landing/admin-music.png" width="1100" height="720" loading="lazy" alt="Panel de música de TOCÁ para administrar la playlist del bar"><figcaption>Tu música y tus reglas, en la misma cabina.</figcaption></figure></section>
    <section id="preguntas" class="landing-section landing-faq"><div class="landing-section-heading"><span class="eyebrow">ANTES DEL PRIMER TEMA</span><h2>Lo que querés saber.</h2><p>Si te queda alguna duda, escribinos al final de esta página.</p></div><div>${[
     ['¿Necesito una cuenta?','Podés explorar bares sin registrarte. Para pedir canciones y guardar tu actividad, iniciá sesión como cliente.'],
     ['¿Qué son los tokens?','Cada canción que se agrega correctamente a la playlist usa 1 token. Si no tenés saldo, podés recargar y continuar con el tema que elegiste. Por ahora las recargas son simuladas y no se cobra dinero.'],
@@ -54,34 +54,27 @@
  function scrollSection(id,smooth=true){if(id==='como-funciona')id='la-app';if(!sections.includes(id))return;const target=document.getElementById(id);if(!target)return;target.scrollIntoView({behavior:smooth&&!matchMedia('(prefers-reduced-motion:reduce)').matches?'smooth':'instant',block:'start'});}
  function activateStage(root,index){root.querySelectorAll('[data-landing-stage]').forEach(button=>{const selected=Number(button.dataset.landingStage)===index;button.setAttribute('aria-selected',String(selected));button.tabIndex=selected?0:-1;});root.querySelectorAll('[role="tabpanel"]').forEach((panel,i)=>panel.hidden=i!==index);stagePlayers.get(root)?.select(index);}
  function startWalkthrough(root){
-  const grid=root.querySelector('.landing-how-grid'),toggle=root.querySelector('[data-stage-playback]'),counter=root.querySelector('[data-stage-count]');
+  const grid=root.querySelector('.landing-how-grid'),counter=root.querySelector('[data-stage-count]');
   const motion=matchMedia('(prefers-reduced-motion:reduce)'),duration=5000;
-  let index=0,timer=null,visible=false,paused=motion.matches,disposed=false;
-  const running=()=>!disposed&&root.isConnected&&visible&&!document.hidden&&!paused;
+  let index=0,timer=null,visible=false,disposed=false;
+  const running=()=>!disposed&&root.isConnected&&visible&&!document.hidden&&!motion.matches;
   function cancel(){if(timer!==null)clearTimeout(timer);timer=null;}
   function schedule(reset=false){
    if(reset||!running())cancel();
    if(running()&&timer===null)timer=setTimeout(()=>{timer=null;if(running())activateStage(grid,(index+1)%stages.length);},duration);
   }
-  function controls(){
-   const label=paused?'Reanudar':'Pausar';
-   if(toggle.textContent!==label){
-    toggle.innerHTML=svg(paused?'<path d="m9 5 11 7-11 7V5Z"/>':'<path d="M9 5v14M15 5v14"/>',16)+label;
-    toggle.setAttribute('aria-label',paused?'Reanudar el avance automático de los pasos':'Pausar el avance automático de los pasos');
-   }
-   counter.textContent=`Paso ${index+1} de ${stages.length}`;
-  }
-  stagePlayers.set(grid,{select(next){index=next;controls();schedule(true);}});
+  function updateCount(){counter.textContent=`Paso ${index+1} de ${stages.length}`;}
+  stagePlayers.set(grid,{select(next){index=next;updateCount();schedule(true);}});
   const observer=new IntersectionObserver(entries=>{
    visible=entries.some(entry=>entry.isIntersecting);
    if(visible)root.querySelectorAll('img[loading="lazy"]').forEach(image=>image.loading='eager');
    schedule();
   },{threshold:0,rootMargin:'-90px 0px 0px 0px'});
   observer.observe(root);
-  const play=()=>{paused=!paused;controls();schedule(true);},visibility=()=>schedule(true),preference=event=>{if(event.matches)paused=true;controls();schedule(true);};
-  toggle.addEventListener('click',play);document.addEventListener('visibilitychange',visibility);motion.addEventListener('change',preference);controls();
+  const visibility=()=>schedule(true),preference=()=>schedule(true);
+  document.addEventListener('visibilitychange',visibility);motion.addEventListener('change',preference);updateCount();
   return ()=>{disposed=true;cancel();observer.disconnect();stagePlayers.delete(grid);
-   toggle.removeEventListener('click',play);document.removeEventListener('visibilitychange',visibility);motion.removeEventListener('change',preference);
+   document.removeEventListener('visibilitychange',visibility);motion.removeEventListener('change',preference);
   };
  }
  function closeMenu(){const header=document.querySelector('.toca-landing-header');header?.classList.remove('is-menu-open');const toggle=header?.querySelector('.landing-menu-toggle');if(toggle){toggle.setAttribute('aria-expanded','false');toggle.setAttribute('aria-label','Abrir menú');}}
