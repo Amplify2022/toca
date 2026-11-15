@@ -12,7 +12,7 @@ server=ThreadingHTTPServer(('127.0.0.1',0),functools.partial(Quiet,directory=str
 CDN='https://cdn.jsdelivr.net/npm/'
 sdk={CDN+p:MAP/n for p,n in [('leaflet@1.9.4/dist/leaflet.js','leaflet.js'),('leaflet@1.9.4/dist/leaflet.css','leaflet.css'),('maplibre-gl@5.24.0/dist/maplibre-gl.js','maplibre.js'),('maplibre-gl@5.24.0/dist/maplibre-gl.css','maplibre.css'),('@maplibre/maplibre-gl-leaflet@0.1.4/leaflet-maplibre-gl.js','bridge.js')]}
 PHOTO=f'/api/venues/{ID}/photos/marketing-fixture'
-venue=dict(id=ID,name='Bluzz Bar',city='Montevideo',address='Canelones 760',latitude=-34.9078,longitude=-56.2012,genre='Rock, Cumbia',description='Un lugar para encontrarse, compartir música y hacer de cada noche una buena historia.',instagramHandle='bluzzbar',active=True,published=True,spotifyConnected=True,requestAccessMode='ANYWHERE',coverPhotoUrl=PHOTO,photos=[dict(id='cover',url=PHOTO)])
+venue=dict(id=ID,name='Bar Central',city='Montevideo',address='Avenida Principal 123',latitude=-34.9078,longitude=-56.2012,genre='Rock, Cumbia',description='Un lugar para encontrarse, compartir música y hacer de cada noche una buena historia.',instagramHandle='',active=True,published=True,spotifyConnected=True,requestAccessMode='ANYWHERE',coverPhotoUrl=PHOTO,photos=[dict(id='cover',url=PHOTO)])
 tracks=[dict(id=letter*22,title=title,artist=artist,durationMs=duration,imageUrl=BASE+'/assets/landing/track-cover.svg') for letter,title,artist,duration in [('A','Original Prankster','The Offspring, Redman',221000),('B','Get Lucky','Daft Punk, Pharrell Williams',369000),('C','Midnight City','M83',243000),('D','Like a Prayer','Madonna',345000)]]
 model={'balance':0}
 with sync_playwright() as p:
@@ -44,14 +44,14 @@ with sync_playwright() as p:
   if path.endswith('/music-status'):return reply(route,dict(active=True,isPlaying=True,now=tracks[2],playlist=tracks,samePlaylist=True))
   if path=='/api/auth/me':return reply(route,dict(id='marketing-owner',name='Nacho',email='owner@example.test'))
   if path=='/api/admin/venues':return reply(route,[venue])
-  if path.endswith('/spotify/status'):return reply(route,dict(connected=True,profile='Bluzz Bar',controlEnabled=True,playlistWriteEnabled=True,playlistId='P'*22))
-  if path.endswith('/music/playlist'):return reply(route,dict(playlist=dict(id='P'*22,name='La noche en Bluzz',snapshot='s1',tracks=tracks),operation=None))
-  if path.endswith('/music/player'):return reply(route,dict(now=tracks[2],isPlaying=True,contextUri='spotify:playlist:'+'P'*22,progressMs=76000,shuffle=False,repeat='off',device=dict(id='browser',name='TOCÁ · Bluzz Bar',volume=65)))
+  if path.endswith('/spotify/status'):return reply(route,dict(connected=True,profile='Bar Central',controlEnabled=True,playlistWriteEnabled=True,playlistId='P'*22))
+  if path.endswith('/music/playlist'):return reply(route,dict(playlist=dict(id='P'*22,name='La noche en Bar Central',snapshot='s1',tracks=tracks),operation=None))
+  if path.endswith('/music/player'):return reply(route,dict(now=tracks[2],isPlaying=True,contextUri='spotify:playlist:'+'P'*22,progressMs=76000,shuffle=False,repeat='off',device=dict(id='browser',name='TOCÁ · Bar Central',volume=65)))
   return reply(route,[])
  page.route('**/*',api)
  page.set_viewport_size(dict(width=850,height=520));page.goto(BASE+'/assets/toca-home-map.svg');page.locator('svg').screenshot(path=str(OUT/'map-demo.png'));page.set_viewport_size(dict(width=390,height=780))
  page.goto(BASE+'/#/explore')
- try:page.get_by_role('button',name='Ver detalles de Bluzz Bar',exact=True).click(timeout=10000)
+ try:page.get_by_role('button',name='Ver detalles de Bar Central',exact=True).click(timeout=10000)
  except Exception:
   page.screenshot(path='/tmp/toca-landing-capture-failed.png');print('Capture diagnostics:',errors,logs,page.evaluate('({maps:typeof L,loader:typeof tocaLoadMaps,map:!!state.map})'),page.locator('#app').inner_text()[:300],flush=True);raise
  expect(page.locator('.place-primary')).to_be_visible();page.wait_for_timeout(500)

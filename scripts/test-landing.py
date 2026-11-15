@@ -25,23 +25,39 @@ try:
     route.fulfill(content_type='application/json',body=json.dumps(result),headers={'Access-Control-Allow-Origin':'*'})
    page.route('http://localhost:8080/**',api);page.route('https://**/*',lambda r:r.abort())
    page.goto(BASE+'/#/');root=page.locator('.landing-expanded');expect(root).to_be_visible()
+   def header_anchor(identity):
+    toggle=page.locator('.landing-menu-toggle')
+    if toggle.is_visible() and toggle.get_attribute('aria-expanded')!='true':toggle.click()
+    page.locator(f'.toca-landing-header [data-home-anchor="{identity}"]').click()
+   header=page.locator('.toca-landing-header')
+   assert header.locator('nav a').count()==3
+   assert root.locator('#la-app .landing-benefits article').count()==3 and root.locator('#la-app [data-landing-stage]').count()==4
+   assert root.locator('#como-funciona').count()==0
+   if width==1440:
+    nav_box=header.locator('nav').bounding_box();download_box=header.locator('[data-download-open]').bounding_box()
+    assert 0<download_box['x']-(nav_box['x']+nav_box['width'])<=32,'Header links must sit beside download'
+   else:
+    toggle=page.locator('.landing-menu-toggle');toggle.click();expect(toggle).to_have_attribute('aria-expanded','true')
+    page.keyboard.press('Escape');expect(toggle).to_have_attribute('aria-expanded','false')
    assert root.locator('main').count()==1 and root.locator('.toca-hero-phone .toca-mini-map').count()==0
    phone=root.locator('.toca-hero-phone-app img');expect(phone).to_have_attribute('src','/assets/landing/explore.png')
    page.wait_for_function("document.querySelector('.toca-hero-phone-app img').naturalWidth===390")
    assert page.evaluate('document.documentElement.scrollHeight>3500')
    root.evaluate('(node)=>node.__kept=true')
-   page.locator('.toca-landing-header [data-home-anchor="como-funciona"]').click();expect(page).to_have_url(BASE+'/#/?section=como-funciona')
+   header_anchor('la-app');expect(page).to_have_url(BASE+'/#/?section=la-app')
    page.wait_for_timeout(600)
-   assert page.locator('#como-funciona').bounding_box()['y']>=page.locator('.toca-landing-header').bounding_box()['height']-2
+   assert page.locator('#la-app').bounding_box()['y']>=page.locator('.toca-landing-header').bounding_box()['height']-2
    assert root.evaluate('(node)=>node.__kept===true')
+   page.evaluate("location.hash='/?section=como-funciona'");page.wait_for_timeout(200)
+   assert page.locator('#la-app').bounding_box()['y']>=header.bounding_box()['height']-2,'Existing how-it-works links must reach the combined section'
    tabs=page.locator('[data-landing-stage]')
    for i in range(4):
     tabs.nth(i).click();expect(tabs.nth(i)).to_have_attribute('aria-selected','true');expect(page.locator(f'#landing-screen-{i}')).to_be_visible()
     image=page.locator(f'#landing-screen-{i} img');page.wait_for_function('(src)=>Array.from(document.images).some(i=>i.src.endsWith(src)&&i.naturalWidth>0)',arg=image.get_attribute('src'))
    tabs.last.press('Home');expect(tabs.first).to_have_attribute('aria-selected','true')
-   page.locator('.toca-landing-header [data-home-anchor="contacto"]').click();page.wait_for_timeout(450)
+   header_anchor('contacto');page.wait_for_timeout(450)
    form=page.locator('#landing-contact-form');form.locator('[name=name]').fill('Landing fixture');form.locator('[name=email]').fill('landing@example.test');form.locator('[name=message]').fill('Tengo una sugerencia para mejorar la aplicación.')
-   page.locator('.toca-landing-header [data-home-anchor="la-app"]').click();page.go_back();expect(form.locator('[name=name]')).to_have_value('Landing fixture')
+   header_anchor('la-app');page.go_back();expect(form.locator('[name=name]')).to_have_value('Landing fixture')
    form.locator('button[type=submit]').click();expect(form.locator('.landing-form-status')).to_contain_text('No pudimos confirmar')
    form.locator('button[type=submit]').click();expect(form.locator('.landing-form-status')).to_contain_text('Recibimos tu mensaje')
    assert len(posted)==2 and posted[0]['id']==posted[1]['id'] and len(receipts)==1
@@ -54,7 +70,7 @@ try:
    dialog.locator('[data-download-close]').click();expect(dialog).not_to_be_visible()
    assert page.locator('.landing-socials a[href*="instagram.com/tocamusicapp"]').count()==1
    assert page.locator('.landing-socials a[href*="facebook.com"]').count()==1
-   for id in ['como-funciona','para-bares','descargar','contacto']:
+   for id in ['la-app','para-bares','descargar','contacto']:
     page.locator('#'+id).scroll_into_view_if_needed();page.wait_for_timeout(100)
    page.wait_for_function("Array.from(document.querySelectorAll('.landing-expanded img')).filter(i=>!i.closest('[hidden]')).every(i=>i.complete&&i.naturalWidth>0)")
    form.locator('.landing-form-status').evaluate('(node)=>node.hidden=true')
