@@ -12,7 +12,7 @@ El recorrido de cuatro pasos avanza automáticamente cada cinco segundos y vuelv
 - [Inicio en celular](previews/inicio-390.png)
 - [Teléfono de la portada](previews/inicio-celular-propuesta.png)
 
-El teléfono de inicio muestra una captura de la interfaz actual: mapa, ficha del bar, canción que está sonando, botón para pedir temas y navegación inferior. La captura usa un mapa ilustrativo, una portada del proyecto y datos de ejemplo. La ruta `http://localhost:5173/prototypes/home-phone/` conserva una vista del mismo inicio en un iframe, sin modificaciones adicionales.
+El teléfono de inicio muestra una captura de la interfaz actual: mapa, ficha del bar, canción que está sonando, botón para pedir temas y navegación inferior. La captura usa un mapa ilustrativo, una portada del proyecto y datos de ejemplo. El fondo del mapa conserva su proporción al proyectarse; los tres marcadores de música se renderizan con los componentes de la app. La ruta `http://localhost:5173/prototypes/home-phone/` conserva una vista del mismo inicio en un iframe, sin modificaciones adicionales.
 
 ## Descarga y redes
 
