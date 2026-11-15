@@ -610,7 +610,8 @@ class Spotify(
         requirePlaylistWrites()
         val playlist=plan["playlistId"] as String
         // Recheck immediately before the single write; snapshot-aware edits are fenced remotely too.
-        if(adminPlaylist(venue,playlist).snapshot!=plan["snapshot"])fail(HttpStatus.CONFLICT,"La playlist cambió antes de editar")
+        val current=try{adminPlaylist(venue,playlist)}catch(error:io.micronaut.http.exceptions.HttpStatusException){if(error.status==HttpStatus.CONFLICT)throw PlaylistSnapshotChanged();throw error}
+        if(current.snapshot!=plan["snapshot"])throw PlaylistSnapshotChanged()
         val token=access(venue);val path="/playlists/${enc(playlist)}"
         when(plan["action"]) {
             "rename" -> apiJson("PUT",path,token,mapOf("name" to plan["name"]!!))

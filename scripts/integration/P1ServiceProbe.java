@@ -572,11 +572,11 @@ public class P1ServiceProbe {
     }
 
     static class FakeMusic implements MusicEditGateway {
-        boolean lost,enabled=true;int effects;String title="My Bar",snap="s1",created=null;
+        boolean lost,unreadableAfterWrite,enabled=true;int effects;String title="My Bar",snap="s1",created=null;
         List<Map<String,Object>> tracks=new ArrayList<>(List.of(Map.of("id",TRACK_A),Map.of("id",TRACK_B)));
         CountDownLatch entered,release;
         public boolean getEnabled(){return enabled;}
-        public MusicPlaylist snapshot(UUID venue,String playlist){return new MusicPlaylist(playlist,title,snap,new ArrayList<>(tracks));}
+        public MusicPlaylist snapshot(UUID venue,String playlist){if(unreadableAfterWrite&&effects>0)throw new RuntimeException("read unavailable");return new MusicPlaylist(playlist,title,snap,new ArrayList<>(tracks));}
         public String create(UUID venue,String name,String marker){created="CCCCCCCCCCCCCCCCCCCCCC";title=name;effects++;if(lost)throw new RuntimeException("lost response");return created;}
         public String findCreated(UUID venue,String marker){return created;}
         public void edit(UUID venue,Map<String,? extends Object> plan){
@@ -591,13 +591,14 @@ public class P1ServiceProbe {
         UUID v=venue(),c=customer(),id=UUID.randomUUID();var fake=new FakeMusic();
         var edits=new AdminMusic(db,new com.fasterxml.jackson.databind.ObjectMapper(),fake);
         var input=Map.<String,Object>of("action","add","snapshot","s1","trackId",TRACK_A);
-        fake.lost=true;
-        check("UNCERTAIN".equals(edits.execute(v,id,input).get("status")),"Lost admin response must remain uncertain");
+        fake.lost=true;fake.unreadableAfterWrite=true;
+        check("UNCERTAIN".equals(edits.execute(v,id,input).get("status")),"Lost admin response with unavailable reads must remain uncertain");
         check(fake.effects==1,"Admin effect must happen once");
         edits.execute(v,id,input);check(fake.effects==1,"Same edit ID must not repeat an uncertain effect");
         forbidden(()->edits.execute(v,id,Map.of("action","create","name","other")),HttpStatus.CONFLICT,"Edit ID cannot change its input");
         var commands=new RequestCommands(db,new VenuePresence(db),new FakeSpotify(),new CustomerWallet(db,true),false);
         forbidden(()->commands.submit(v,c,body(TRACK_A,"guest-admin-edits"),key()),HttpStatus.CONFLICT,"Uncertain admin edit must block customer mutation");
+        fake.unreadableAfterWrite=false;
         check("COMPLETED".equals(edits.reconcile(v,id,Map.of()).get("status")),"Read-only recovery must recognize applied admin change");
         check(fake.effects==1,"Admin recovery must not write to provider");
         fake.lost=false;
@@ -621,7 +622,12 @@ public class P1ServiceProbe {
         UUID crash=UUID.randomUUID();
         db.exec("INSERT INTO venue_music_operation(id,venue_id,input_hash,status,updated_at) VALUES(?,?,?,'PREPARING',now()-interval '10 minutes')",crash,v,"fixture");
         check("FAILED".equals(edits.reconcile(v,crash,Map.of()).get("status")),"Crashed preflight must release safely without provider write");
-        System.out.println("PASS admin music: durable edits, no duplicate create, recovery, snapshot conflicts and request exclusion");
+        var readable=new FakeMusic();readable.lost=true;UUID recoveredVenue=venue();
+        var readableEdits=new AdminMusic(db,new com.fasterxml.jackson.databind.ObjectMapper(),readable);
+        var automatic=readableEdits.execute(recoveredVenue,UUID.randomUUID(),Map.of("action","remove","snapshot","s1","position",0));
+        check("COMPLETED".equals(automatic.get("status"))&&automatic.containsKey("playlist"),"A lost response must confirm automatically when the playlist reflects the removal");
+        check(readable.effects==1&&readable.tracks.size()==1,"Automatic readback must never repeat the removal");
+        System.out.println("PASS admin music: durable edits, automatic lost-response confirmation, no duplicate create, recovery, snapshot conflicts and request exclusion");
     }
 
     static void analyticsCommand(UUID venue,UUID customer,String track,String status,String confirmed) {

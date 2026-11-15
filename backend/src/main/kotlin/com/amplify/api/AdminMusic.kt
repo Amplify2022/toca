@@ -78,6 +78,7 @@ class AdminMusic(private val db:Db,private val json:ObjectMapper,private val gat
             v["playlist_id"] as? String ?: ""
         } ?: return response(row(id,venue))
         var applying=false
+        var rejectedBeforeWrite=false
         var confirmed:MusicPlaylist?=null
         try {
             val plan=if(action=="create")mapOf("action" to "create","name" to required(body,"name",100),"marker" to "toca:$id")
@@ -90,27 +91,32 @@ class AdminMusic(private val db:Db,private val json:ObjectMapper,private val gat
                 json.writeValueAsString(plan),id)
             if(changed!=1)fail(HttpStatus.CONFLICT,"La edición ya no está activa")
             applying=true
-            val playlist=if(action=="create")gateway.create(venue,plan["name"] as String,plan["marker"] as String)
-                else {gateway.edit(venue,plan);selected}
-            val actual=gateway.snapshot(venue,playlist)
-            if(action!="create" && !matches(plan,actual))fail(HttpStatus.CONFLICT,"Spotify cambió durante la edición. Revisá el estado actual.")
+            val actual=if(action=="create")gateway.snapshot(venue,gateway.create(venue,plan["name"] as String,plan["marker"] as String))
+                else {
+                    val writeFailure=try{gateway.edit(venue,plan);null}catch(error:Exception){
+                        if(error is PlaylistSnapshotChanged||error is SpotifyHttpFailure&&error.providerStatus in 400..499){rejectedBeforeWrite=true;throw error}
+                        error
+                    }
+                    MusicEditVerification.confirm(plan,{gateway.snapshot(venue,selected)})
+                        ?:throw (writeFailure?:io.micronaut.http.exceptions.HttpStatusException(HttpStatus.CONFLICT,"Spotify todavía no confirmó el cambio en la playlist."))
+                }
             finish(id,venue,actual,action=="create")
             confirmed=actual
         } catch (error:Exception) {
             val reason=(error as? io.micronaut.http.exceptions.HttpStatusException)?.message
                 ?.replace(Regex("[\\r\\n\\t]")," ")?.take(200)
-            val retry=if(!applying && error is PlaylistSnapshotChanged)
+            val retry=if(error is PlaylistSnapshotChanged)
                 json.writeValueAsString(mapOf("code" to "PLAYLIST_CHANGED","beforeWrite" to true)) else null
+            val notApplied=!applying||rejectedBeforeWrite||error is PlaylistSnapshotChanged
             db.exec("UPDATE venue_music_operation SET status=?,message=?,result=?,updated_at=now() WHERE id=? AND status IN ('PREPARING','APPLYING')",
-                if(applying)"UNCERTAIN" else "FAILED",
-                (if(applying)"No se confirmó el resultado. Consultá el estado antes de realizar otra edición." else "No se pudo preparar la edición. Actualizá la playlist y verificá la conexión.")+
+                if(notApplied)"FAILED" else "UNCERTAIN",
+                (if(!notApplied)"Estamos comprobando el cambio en Spotify." else "No se pudo guardar el cambio. La playlist se actualizará para que puedas reintentarlo.")+
                     (reason?.let {" $it"}?:""),retry,id)
         }
         val result=response(row(id,venue))
         return confirmed?.let { result+mapOf("playlist" to mapOf("id" to it.id,"name" to it.name,"snapshot" to it.snapshot,"tracks" to it.tracks)) }?:result
     }
-    private fun matches(plan:Map<String,Any?>,state:MusicPlaylist)=
-        state.ids==plan["expected"] && (plan["action"]!="rename" || state.name==plan["name"])
+    private fun matches(plan:Map<String,Any?>,state:MusicPlaylist)=MusicEditVerification.matches(plan,state)
     private fun finish(id:UUID,venue:UUID,state:MusicPlaylist,select:Boolean) {
         db.transaction {
             db.one("SELECT id FROM venue WHERE id=? FOR UPDATE",venue)
@@ -134,7 +140,10 @@ class AdminMusic(private val db:Db,private val json:ObjectMapper,private val gat
         val playlist=if(created)gateway.findCreated(venue,plan["marker"] as String) else plan["playlistId"] as String
         if(playlist!=null) {
             val state=gateway.snapshot(venue,playlist)
-            if(created || matches(plan,state))finish(id,venue,state,created)
+            if(created || matches(plan,state)){
+                finish(id,venue,state,created)
+                return response(row(id,venue))+mapOf("playlist" to mapOf("id" to state.id,"name" to state.name,"snapshot" to state.snapshot,"tracks" to state.tracks))
+            }
             else if(body["acceptSnapshot"]==state.snapshot) {
                 db.exec("UPDATE venue_music_operation SET status='RELEASED',message='Estado actual aceptado por el administrador',updated_at=now() WHERE id=?",id)
             }

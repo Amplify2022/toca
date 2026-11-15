@@ -21,7 +21,7 @@ with sync_playwright() as p:
   venue=dict(id=ID,name='Sync Bar',address='Test street 123',city='Montevideo',active=True,published=True,requestAccessMode='NEARBY',openingHours='W2|-|19:00-00:00|19:00-00:00|19:00-00:00|21:00-05:00|21:00-05:00|18:00-00:00')
   playlist=dict(id='P'*22,name='Night',snapshot='s1',tracks=[CAT[A].copy(),CAT[B].copy()])
   player=dict(now=CAT[A].copy(),isPlaying=True,contextUri='spotify:playlist:'+playlist['id'],progressMs=5000,repeat='off',shuffle=False,device=dict(id='speakers',name='Bar speakers',volume=50))
-  edits=[];controls=[];saved={};lag=[];held=[];hold_edit=[False];hold_control=[False];conflict=[False];external=[False];uncertain=[False];pending=[None];version=[1];player_reads=[];hold_player=[False];held_players=[]
+  reconciles=[];edits=[];controls=[];saved={};lag=[];held=[];hold_edit=[False];hold_control=[False];conflict=[False];external=[False];uncertain=[False];pending=[None];reject=[False];recover=[False];pending_result=[None];version=[1];player_reads=[];hold_player=[False];held_players=[]
   def bump():version[0]+=1;playlist['snapshot']='s'+str(version[0])
   def reply(route,data,status=200):route.fulfill(status=status,content_type='application/json',body=json.dumps(data),headers={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'*','Access-Control-Allow-Methods':'GET,POST,PUT,OPTIONS'})
   def apply_control(body):
@@ -49,11 +49,23 @@ with sync_playwright() as p:
    if path.endswith('/music/playlist'):
     if external[0]:external[0]=False;playlist['tracks'].insert(0,CAT[X].copy());bump()
     return reply(route,dict(playlist=lag.pop(0) if lag else playlist,operation=pending[0]))
+   if path.endswith('/reconcile'):
+    reconciles.append(path)
+    if pending_result[0]:
+     result=pending_result[0];pending_result[0]=None;pending[0]=None;return reply(route,result)
+    return reply(route,pending[0] or dict(status='RELEASED'))
    if '/music/edits/' in path:
     edits.append((path,copy.deepcopy(body)))
     if path in saved:return reply(route,saved[path])
     if uncertain[0]:
-     uncertain[0]=False;pending[0]=dict(id=path.rsplit('/',1)[1],status='UNCERTAIN',action=body['action'],message='Resultado pendiente de verificación');data=dict(status='UNCERTAIN',result=dict(code='PLAYLIST_CHANGED',beforeWrite=False));saved[path]=data;return reply(route,data)
+     uncertain[0]=False;pending[0]=dict(id=path.rsplit('/',1)[1],status='UNCERTAIN',action=body['action'],message='Resultado pendiente de verificación');data=dict(status='UNCERTAIN',result=dict(code='PLAYLIST_CHANGED',beforeWrite=False));saved[path]=data
+     if recover[0]:
+      recover[0]=False;playlist['tracks'].append(CAT[body['trackId']].copy());bump();pending_result[0]=dict(status='COMPLETED',playlist=copy.deepcopy(playlist))
+     return reply(route,data)
+    if reject[0]:
+     reject[0]=False;data=dict(status='FAILED',message='No se pudo quitar la canción.');saved[path]=data
+     if hold_edit[0]:hold_edit[0]=False;held.append((route,data));return
+     return reply(route,data)
     if conflict[0]:
      conflict[0]=False;playlist['tracks'].insert(0,CAT[X].copy());bump();data=dict(status='FAILED',result=dict(code='PLAYLIST_CHANGED',beforeWrite=True));saved[path]=data;return reply(route,data)
     assert body['snapshot']==playlist['snapshot'],body
@@ -89,22 +101,42 @@ with sync_playwright() as p:
   page.wait_for_function("document.querySelector('[data-studio-edit=add]').textContent==='Agregando…'")
   assert root.locator('[data-studio-edit=add]').is_disabled() and held
   route,data=held.pop();reply(route,data)
-  root.locator('[data-cabina-add-feedback]:visible').wait_for()
-  assert 'Track C' in root.locator('[data-cabina-add-feedback]').inner_text()
-  assert root.locator('[data-studio-edit=add]').inner_text()=='Agregado ✓'
+  page.wait_for_function("!document.querySelector('dialog[open]')")
+  assert 'Track C' in page.locator('.toasty').inner_text()
+  assert root.locator('[data-studio-status]').inner_text()==''
+  assert root.locator('[data-cabina-add-feedback]:visible').count()==0
   assert root.locator('[data-track-index] strong').all_text_contents()==['Track A','Track B','Track C']
-  root.locator('dialog[open] [data-cabina-close]').first.click()
-  page.clock.fast_forward(4000);assert root.locator('[data-studio-status]').inner_text().startswith('Playlist actualizada.')
-  page.clock.fast_forward(1200);assert root.locator('[data-studio-status]').inner_text()==''
-  assert root.locator('.cabina-added-row').count()==0
+  page.clock.run_for(400);assert page.locator('.toasty').evaluate('(n)=>n.getAnimations()[0].effect.getTiming().duration')==300
+  page.clock.fast_forward(3500);assert page.locator('.toasty').count()==1
+  page.clock.run_for(250);assert page.locator('.toasty[data-leaving]').count()==1
+  page.clock.run_for(700);assert page.locator('.toasty').count()==0
   # A stale preparation is retried only after the server confirms no provider write.
   conflict[0]=True
   root.locator('[data-cabina-track="1"]').click();root.locator('[data-studio-edit=remove]').click()
   page.wait_for_function("!Array.from(document.querySelectorAll('[data-track-index] strong')).some(x=>x.textContent==='Track B')")
+  page.wait_for_function("!document.querySelector('[data-cabina-open=add]').disabled")
   assert [t['title'] for t in playlist['tracks']]==['External Track','Track A','Track C']
   assert edits[-2][0]!=edits[-1][0] and edits[-1][1]['position']==2
   # The late pre-edit read does not resurrect the removed item.
   assert root.locator('[data-track-index] strong').all_text_contents()==['External Track','Track A','Track C']
+  # Removal is visible immediately while the provider response is still pending.
+  lag.clear();hold_edit[0]=True;root.locator('[data-cabina-track="0"]').click()
+  with page.expect_request(lambda r:'/music/edits/' in r.url):root.locator('[data-studio-edit=remove]').click()
+  page.wait_for_timeout(100)
+  assert held and root.locator('dialog[open]').count()==0,(bool(held),root.locator('dialog[open]').count())
+  assert root.locator('[data-track-index="0"]').is_hidden()
+  assert root.locator('[data-track-index]:visible strong').all_text_contents()==['Track A','Track C']
+  route,data=held.pop();reply(route,data)
+  page.wait_for_function("!document.querySelector('[data-cabina-open=add]').disabled")
+  assert root.locator('[data-track-index] strong').all_text_contents()==['Track A','Track C']
+  # A definite rejection restores the hidden row without asking for a second delete.
+  lag.clear();hold_edit[0]=True;reject[0]=True;root.locator('[data-cabina-track="0"]').click()
+  with page.expect_request(lambda r:'/music/edits/' in r.url):root.locator('[data-studio-edit=remove]').click()
+  page.wait_for_timeout(100)
+  assert held and root.locator('[data-track-index="0"]').is_hidden()
+  route,data=held.pop();reply(route,data)
+  page.wait_for_function("!document.querySelector('[data-cabina-open=add]').disabled")
+  assert root.locator('[data-track-index]:visible strong').all_text_contents()==['Track A','Track C']
   # Duplicate occurrences cannot be safely rebased after an external insertion.
   page.wait_for_function("!document.querySelector('[data-cabina-open=add]').disabled")
   lag.clear();playlist['tracks']=[CAT[A].copy(),CAT[B].copy(),CAT[A].copy()];bump();root=open_music();external[0]=True;count=len(edits)
@@ -112,12 +144,27 @@ with sync_playwright() as p:
   page.wait_for_function("document.querySelector('[data-studio-status]').textContent.includes('inequívoca')")
   assert len(edits)==count and [t['id'] for t in playlist['tracks']].count(A)==2
   message=root.locator('[data-studio-status]').inner_text();page.clock.fast_forward(6000);assert root.locator('[data-studio-status]').inner_text()==message
+  # A delayed verification completes automatically using reads, then closes the search.
+  uncertain[0]=True;recover[0]=True;count=len(edits)
+  root.locator('[data-cabina-open=add]').click();root.locator('[data-studio-search]').fill('Track C');root.locator('[data-studio-edit=add]').click()
+  page.wait_for_function("!document.querySelector('dialog[open]')")
+  assert len(edits)==count+1 and reconciles and root.locator('[data-studio-operation]').inner_text()==''
+  assert root.locator('[data-track-index] strong').all_text_contents()[-1]=='Track C'
   # An unknown provider result must never trigger an automatic second write.
   uncertain[0]=True;count=len(edits)
   root.locator('[data-cabina-open=add]').click();root.locator('[data-studio-search]').fill('Track C');root.locator('[data-studio-edit=add]').click()
+  page.clock.run_for(2200)
   root.locator('[data-studio-reconcile]').wait_for()
+  assert len(reconciles)>=1
   assert len(edits)==count+1 and root.locator('[data-cabina-open=add]').is_disabled()
   saved[edits[-1][0]]=dict(status='RELEASED');pending[0]=None
+  # Pending changes left by an older app are also verified automatically on load.
+  page.evaluate("sessionStorage.removeItem('toca-music-edit:'+state.venueId)")
+  pending[0]=dict(id='old-operation',status='UNCERTAIN',action='remove',message='Confirmando cambio anterior')
+  pending_result[0]=dict(status='COMPLETED',action='remove',playlist=copy.deepcopy(playlist));count=len(edits)
+  root=open_music()
+  page.wait_for_function("document.querySelector('[data-studio-operation]').textContent===''")
+  assert len(edits)==count and reconciles[-1].endswith('/old-operation/reconcile')
   # SDK samples anchor a local clock. Ticking does not poll the HTTP API each second.
   root=open_music();root.locator('.cabina-heading-actions [data-cabina-open=connection]').click();root.locator('[data-browser-connect]').click()
   page.wait_for_function("!document.querySelector('dialog[open]')")

@@ -39,7 +39,26 @@ function saveDemo(v){localStorage.setItem('amplify-demo',JSON.stringify(v))}
 const state={demo:(window.TOCA_CONFIG?.mode||localStorage.getItem('amplify-mode')||(['localhost','127.0.0.1'].includes(location.hostname)?'demo':'live'))!=='live',token:sessionStorage.getItem('amplify-token')||'',user:JSON.parse(sessionStorage.getItem('amplify-user')||'null'),venues:[],detail:null,requests:[],catalog:[],search:'',filter:'Todos',adminTab:'general',venueId:null,busy:false,error:'',playlist:[],spotify:{},lastUrl:'',joinToken:'',map:null};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt=(d)=>{try{return new Intl.DateTimeFormat('es-UY',{hour:'2-digit',minute:'2-digit'}).format(new Date(d))}catch{return ''}};
-const toast=(msg,duration=3600)=>{let n=document.getElementById('toast');n.innerHTML=`<div class="toasty">${esc(msg)}</div>`;clearTimeout(window.toastTimeout);window.toastTimeout=setTimeout(()=>n.innerHTML='',duration)};
+let toastRevision=0;
+const toast=(msg,duration=4000)=>{
+ const host=document.getElementById('toast');if(!host)return;
+ const revision=++toastRevision;clearTimeout(window.toastTimeout);
+ const reduced=matchMedia('(prefers-reduced-motion:reduce)').matches;
+ const show=()=>{
+  if(revision!==toastRevision)return;
+  const node=document.createElement('div');node.className='toasty';node.textContent=msg;node.setAttribute('role','status');host.replaceChildren(node);
+  node.animate([{opacity:0,transform:reduced?'none':'translateY(18px)'},{opacity:1,transform:'none'}],{duration:reduced?160:300,easing:'cubic-bezier(.2,.8,.2,1)',fill:'both'});
+  window.toastTimeout=setTimeout(()=>{
+   if(revision!==toastRevision||!node.isConnected)return;
+   node.dataset.leaving='true';const exit=reduced?160:650;
+   const remove=()=>{if(node.isConnected)node.remove();};
+   node.animate([{opacity:1,transform:'none'},{opacity:0,transform:reduced?'none':'translateY(12px)'}],{duration:exit,easing:'ease-in',fill:'forwards'}).finished.then(remove,remove);
+   setTimeout(remove,exit+50);
+  },duration);
+ };
+ const previous=host.firstElementChild;
+ if(previous){previous.animate([{opacity:getComputedStyle(previous).opacity},{opacity:0}],{duration:reduced?100:180,fill:'forwards'});setTimeout(show,reduced?100:180);}else show();
+};
 const api=async(path,opts={})=>{const res=await fetch(`${API_URL}${path}`,{method:opts.method||'GET',cache:opts.cache,headers:{...(path.match(/^\/api\/venues\/[^/]+\/requests$/) && (opts.method||'GET')==='POST' && window.tocaCustomerBearer?.()?{'X-TOCA-Customer':window.tocaCustomerBearer()}:{}),...(state.token?{Authorization:`Bearer ${state.token}`}:{}),...(opts.body?{'Content-Type':'application/json'}:{}),...(opts.headers||{})},body:opts.body?JSON.stringify(opts.body):undefined,signal:opts.signal||((opts.method||'GET')==='GET'?window.tocaNavigationSignal?.():undefined)});let data;try{data=await res.json()}catch{data={}}if(!res.ok){const error=Error(data._embedded?.errors?.[0]?.message||data.message||data.error||`Error HTTP ${res.status}`);error.status=res.status;error.code=data.code||data._embedded?.errors?.[0]?.code;throw error}return data};
 const joinKey=(id)=>`toca:join:${id}`;
 function rememberJoin(id,token){
@@ -204,7 +223,7 @@ if(['music','spotify'].includes(state.adminTab)){
  body=window.tocaAdminMusicMarkup(v,spotify,{blocks,allows,requests:items});
 }
 if(state.adminTab==='qr'){let join=state.demo?'demo-access':v.joinToken||'';let full=location.origin+location.pathname+'#/venue/'+encodeURIComponent(v.id)+(join?'?join='+encodeURIComponent(join):'');body=`<div class="grid2"><div class="card"><h3 style="margin-bottom:15px">Invitá a tus clientes</h3><p class="subtitle" style="margin-top:0">Mostrá este enlace o imprimí un código QR para que entren directamente a tu establecimiento.</p><div class="field" style="margin-top:19px"><label>Enlace exclusivo del bar</label><input class="input" id="join-link" readonly value="${esc(full)}" /></div><button class="btn" style="margin-top:15px" data-action="copy-join">⧉ Copiar enlace</button>${state.demo?'':`<button class="btn ghost" style="margin:15px 0 0 10px" data-action="rotate-join">↻ Renovar código</button>`}<p class="legal">El código de acceso se utiliza para validar las solicitudes de invitados. Compartirlo públicamente permite solicitar desde fuera del local.</p></div><div class="card center"><h3 style="margin-bottom:13px">QR para imprimir</h3><div id="qr-container" class="qrbox"><span style="color:#243238">GENERANDO QR...</span></div><p class="legal">El QR se genera localmente; tu enlace privado no se envía a proveedores externos.</p><button class="btn ghost small" data-action="print-qr" style="margin-top:14px">⎙ Imprimir</button></div></div>`;window.currentJoin=full;setTimeout(drawQr,0)}
-if(state.adminTab==='account'){body=`<section class="toca-profile-editor"><div class="card toca-account-card"><header class="toca-editor-heading"><span class="eyebrow">PERFIL DEL ADMINISTRADOR</span><h2>Mi cuenta</h2><p>Este perfil es de tu usuario administrador, independiente de los datos públicos del bar.</p></header><form id="account-update" class="stack"><div class="field"><label for="account-name">Nombre</label><input id="account-name" class="input" name="name" value="${esc(state.user?.name||'')}" minlength="2" maxlength="120" required autocomplete="name" /></div><div class="field"><label>Correo electrónico</label><input class="input" value="${esc(state.user?.email||'')}" disabled /></div><p class="toca-location-help">Por ahora podés actualizar tu nombre. La dirección de correo se mantiene sin cambios.</p><div class="toca-editor-actions"><button class="btn">Guardar mi perfil</button></div></form>
+if(state.adminTab==='account'){body=`<section class="toca-profile-editor"><div class="card toca-account-card"><header class="toca-editor-heading"><span class="eyebrow">PERFIL DEL ADMINISTRADOR</span><h2>Mi cuenta</h2><p>Este perfil es de tu usuario administrador, independiente de los datos públicos del bar.</p></header>${window.tocaAdminAvatarMarkup?.()||''}<form id="account-update" class="stack"><div class="field"><label for="account-name">Nombre</label><input id="account-name" class="input" name="name" value="${esc(state.user?.name||'')}" minlength="2" maxlength="120" required autocomplete="name" /></div><div class="field"><label>Correo electrónico</label><input class="input" value="${esc(state.user?.email||'')}" disabled /></div><p class="toca-location-help">La foto y el nombre son de tu cuenta. El correo electrónico se mantiene sin cambios.</p><div class="toca-editor-actions"><button class="btn">Guardar mi perfil</button></div></form>
 <details class="toca-dev-settings">
   <summary>Opciones avanzadas</summary>
   <p>Configuración técnica del entorno de desarrollo:
