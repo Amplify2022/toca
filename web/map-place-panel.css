@@ -4,12 +4,12 @@ body.toca-place-map-open{overflow:hidden}
 .toca-map-art.toca-place-map{position:fixed;top:var(--place-header,85px);bottom:var(--place-nav,0px);left:0;right:0;width:100%;height:auto!important;min-height:0!important;margin:0;border:0;border-radius:0;z-index:94;isolation:isolate}
 .toca-place-map>.toca-map-you{display:none}
 .toca-place-map .leaflet-marker-icon.toca-place-selected .toca-map-venue-pin-v1845{transform:scale(1.22);border-color:#edffdf!important;box-shadow:0 0 0 6px #b9fc8926,0 5px 15px #0009!important}
-.toca-place-panel{--place-panel:#111e1a;--place-line:#2b3d35;--place-text:#f1f5ee;--place-muted:#9bac9f;--place-lime:#b9f583;position:absolute;z-index:20;left:22px;top:80px;bottom:20px;width:366px;max-width:calc(100% - 44px);border:1px solid #34463a;border-radius:19px;background:var(--place-panel);box-shadow:0 12px 45px #0006;color:var(--place-text);overflow:hidden;font:13px/1.5 'DM Sans',sans-serif;text-align:left}
-.toca-place-panel *,.place-map-toolbar *{box-sizing:border-box}
-.toca-place-panel svg,.place-map-toolbar svg{position:static;inset:auto;width:20px;height:20px;display:block;flex:none;opacity:1;transform:none}
-.toca-place-panel button,.place-map-toolbar button{font:inherit;cursor:pointer;color:inherit}
+.toca-place-panel{--place-panel:#111e1a;--place-line:#2b3d35;--place-text:#f1f5ee;--place-muted:#9bac9f;--place-lime:#b9f583;position:absolute;z-index:20;left:22px;top:20px;bottom:20px;width:366px;max-width:calc(100% - 44px);border:1px solid #34463a;border-radius:19px;background:var(--place-panel);box-shadow:0 12px 45px #0006;color:var(--place-text);overflow:hidden;font:13px/1.5 'DM Sans',sans-serif;text-align:left}
+.toca-place-panel *{box-sizing:border-box}
+.toca-place-panel svg{position:static;inset:auto;width:20px;height:20px;display:block;flex:none;opacity:1;transform:none}
+.toca-place-panel button{font:inherit;cursor:pointer;color:inherit}
 .toca-place-panel a{color:inherit;text-decoration:none}
-.toca-place-panel :is(button,a):focus-visible,.place-map-toolbar button:focus-visible{outline:2px solid #b9f583;outline-offset:3px}
+.toca-place-panel :is(button,a):focus-visible{outline:2px solid #b9f583;outline-offset:3px}
 .toca-place-panel .place-scroll{height:100%;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#40533f transparent;padding:23px 20px 18px}
 .toca-place-panel .place-handle{display:none}
 .toca-place-panel .place-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
@@ -52,9 +52,6 @@ body.toca-place-map-open{overflow:hidden}
 .toca-place-panel .place-equalizer i{display:block;width:2px;height:11px;border-radius:2px;background:#b4d98e}.toca-place-panel .place-equalizer i:nth-child(2){height:20px}.toca-place-panel .place-equalizer i:nth-child(3){height:16px}.toca-place-panel .place-equalizer i:nth-child(4){height:8px}
 .toca-place-panel .place-about{padding-top:21px}.toca-place-panel .place-about h3{font:500 15px 'Outfit','DM Sans',sans-serif;margin:0 0 8px;color:#edf3e7}.toca-place-panel .place-about p{font-size:11px;line-height:1.85;color:#a0b198;margin:0;white-space:pre-line;overflow-wrap:anywhere}
 .toca-place-panel .place-demo{font-size:9px;color:#8b9f81;margin:20px 0 0}
-.place-map-toolbar{position:absolute;z-index:15;top:20px;left:22px;width:366px;max-width:calc(100% - 44px);display:flex;align-items:center;justify-content:space-between;gap:12px;color:#a9bda1;font:11px 'DM Sans',sans-serif}
-.place-map-toolbar>button{display:flex;align-items:center;gap:9px;min-height:42px;padding:0 14px;border:1px solid #35483b;border-radius:11px;background:#15231ff2;box-shadow:0 5px 16px #0003;font-size:12px;color:#d3e1ca}
-.place-map-toolbar>span{font-size:10px;text-shadow:0 1px 4px #000}
 .toca-place-panel .place-photo-dialog{width:min(850px,94vw);max-height:90dvh;padding:0;border:1px solid #3b4b3b;background:#101a16;border-radius:16px;overflow:hidden}
 .toca-place-panel .place-photo-dialog::backdrop{background:#030807d9;backdrop-filter:blur(8px)}
 .toca-place-panel .place-photo-dialog img{display:block;width:100%;max-height:85dvh;object-fit:contain}
@@ -72,7 +69,6 @@ body.toca-place-map-open{overflow:hidden}
  .toca-place-panel .place-address{padding:14px 0;gap:10px}.toca-place-panel .place-address strong{font-size:11px}.toca-place-panel .place-address span{font-size:9px}.toca-place-panel .place-address>svg{width:16px;height:16px}
  .toca-place-panel .place-music{padding:12px;margin-top:14px;min-height:68px}.toca-place-panel .place-song-cover{height:37px;width:37px}.toca-place-panel .place-song-copy strong{font-size:11px}
  .toca-place-panel.is-expanded{height:calc(100% - 9px)}
- .place-map-toolbar{top:14px;left:15px;width:auto;right:15px;max-width:none}.place-map-toolbar>button{min-height:38px;padding:0 12px;font-size:11px}.place-map-toolbar>span{display:none}
  .toca-place-map .leaflet-bottom.leaflet-right{bottom:calc(var(--place-sheet-height) + 8px)}
  .toca-place-map .leaflet-control-zoom{display:none}.toca-place-map.place-expanded .leaflet-bottom.leaflet-right{display:none}
 }

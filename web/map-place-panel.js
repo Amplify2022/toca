@@ -23,7 +23,7 @@
   function expanded(ctx,value){ctx.root.classList.toggle('is-expanded',value);ctx.parent.classList.toggle('place-expanded',value);const b=ctx.root.querySelector('[data-place-expand]');b.setAttribute('aria-expanded',String(value));b.setAttribute('aria-label',value?'Reducir ficha del bar':'Ampliar ficha del bar');}
   function close(restore=true,focus=false){
     const ctx=current;if(!ctx)return;current=null;clearTimeout(ctx.timer);ctx.abort.abort();ctx.map?.off('unload',ctx.unload);
-    const dialog=ctx.root.querySelector('dialog');if(dialog?.open)dialog.close();ctx.root.remove();ctx.toolbar.remove();ctx.parent.classList.remove('toca-place-map','place-expanded');document.body.classList.remove('toca-place-map-open');
+    const dialog=ctx.root.querySelector('dialog');if(dialog?.open)dialog.close();ctx.root.remove();ctx.parent.classList.remove('toca-place-map','place-expanded');document.body.classList.remove('toca-place-map-open');
     const marker=ctx.marker?.getElement();marker?.classList.remove('toca-place-selected');marker?.setAttribute('aria-expanded','false');
     if(restore&&ctx.map&&ctx.parent.isConnected){requestAnimationFrame(()=>{if(!current&&ctx.parent.isConnected&&state.map===ctx.map){ctx.map.invalidateSize({pan:false});ctx.map.setView(ctx.before.center,ctx.before.zoom,{animate:false});}});}
     if(focus&&marker?.isConnected)marker.focus({preventScroll:true});
@@ -67,16 +67,15 @@
     const parent=map?.getContainer()?.closest('.toca-map-art')||document.querySelector('.toca-primary-map .toca-map-art');if(!parent)return;
     const before=current?.map===map?current.before:(map?{center:map.getCenter(),zoom:map.getZoom()}:null);close(false);
     const root=document.createElement('section');root.className='toca-place-panel';root.setAttribute('role','region');root.setAttribute('aria-labelledby','toca-place-name');root.innerHTML=markup(venue);
-    const toolbar=document.createElement('div');toolbar.className='place-map-toolbar';toolbar.innerHTML=`<button type="button" data-place-back>${icon('back')}Explorar bares</button><span>${esc(venue.city||'')}</span>`;
-    const ctx={venue,marker,map,before,parent,root,toolbar,abort:new AbortController(),busy:false};current=ctx;
-    parent.classList.add('toca-place-map');document.body.classList.add('toca-place-map-open');parent.append(toolbar,root);dimensions(ctx);photos(ctx);
+    const ctx={venue,marker,map,before,parent,root,abort:new AbortController(),busy:false};current=ctx;
+    parent.classList.add('toca-place-map');document.body.classList.add('toca-place-map-open');parent.append(root);dimensions(ctx);photos(ctx);
     const selected=marker?.getElement();selected?.classList.add('toca-place-selected');selected?.setAttribute('aria-expanded','true');
     ctx.unload=()=>{if(current===ctx)close(false);};map?.on('unload',ctx.unload);
     requestAnimationFrame(()=>center(ctx));void refresh(ctx);
     let start=null,dragged=false;const handle=root.querySelector('[data-place-expand]');
     handle.onclick=()=>{if(dragged){dragged=false;return;}expanded(ctx,!root.classList.contains('is-expanded'));};
     handle.onpointerdown=e=>{start=e.clientY;dragged=false;handle.setPointerCapture(e.pointerId);};handle.onpointerup=e=>{if(start===null)return;const delta=e.clientY-start;start=null;if(Math.abs(delta)>25){dragged=true;expanded(ctx,delta<0);e.preventDefault();}};handle.onpointercancel=()=>{start=null;dragged=false;};
-    root.querySelector('[data-place-close]').onclick=()=>close(true,true);toolbar.querySelector('button').onclick=()=>close(true,true);
+    root.querySelector('[data-place-close]').onclick=()=>close(true,true);
     const dialog=root.querySelector('dialog');root.querySelector('[data-place-photo-close]').onclick=()=>dialog.close();dialog.onclick=e=>{if(e.target===dialog)dialog.close();};
   };
   document.addEventListener('click',event=>{const link=event.target.closest('.toca-map-art .toca-map-pin');if(!link)return;const id=decodeURIComponent(link.getAttribute('href')?.split('/venue/')[1]||''),v=state.venues.find(v=>v.id===id);if(v){event.preventDefault();window.tocaOpenMapVenue(v);}});
