@@ -45,7 +45,7 @@
 }
 #leaflet-map .toca-venue-popup .toca-popup-media::after {
   content: '';
-  background: linear-gradient(180deg, #0005, transparent 26%, #0002 38%, #000b 68%, #090b0c 100%);
+  background: linear-gradient(180deg, #0005, transparent 26%, #0002 38%, #0009 68%, #090b0c99 100%);
   pointer-events: none;
 }
 #leaflet-map .toca-venue-popup .toca-popup-cover {
@@ -128,9 +128,9 @@
   overflow: hidden;
   border: 1px solid #ffffff14;
   border-radius: 999px;
-  background: #27282bd9;
-  -webkit-backdrop-filter: blur(18px) saturate(130%);
-  backdrop-filter: blur(18px) saturate(130%);
+  background: #27282b59;
+  -webkit-backdrop-filter: blur(12px) saturate(130%);
+  backdrop-filter: blur(12px) saturate(130%);
 }
 #leaflet-map .toca-venue-popup .toca-popup-links > a {
   display: flex;
