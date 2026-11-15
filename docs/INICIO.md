@@ -4,6 +4,8 @@ La página reúne la presentación, “La app” (beneficios y recorrido con cap
 
 Los enlaces de la cabecera y el pie llevan a secciones de la misma página mediante el router existente: `/#/?section=la-app`, `/#/?section=para-bares` y `/#/?section=contacto`. Los enlaces anteriores a `section=como-funciona` siguen llevando a “La app”. Funcionan al abrir un enlace directo y al usar atrás/adelante, y conservan el formulario mientras se navega entre secciones. La cabecera permanece visible; sus enlaces se agrupan a la derecha junto a “Descargá la app”. En celular se reúnen en un menú junto al mismo botón.
 
+El recorrido de cuatro pasos avanza automáticamente cada cinco segundos y vuelve al primero al terminar. Muestra el número de paso, una barra de progreso y un control para pausar/reanudar. Se pausa fuera del área visible, con la pestaña oculta, al pasar el mouse o al enfocar los pasos con el teclado. Una selección manual queda en pausa hasta pulsar “Reanudar”. Con movimiento reducido comienza pausado. Los observadores y la animación se eliminan al salir de inicio.
+
 ## Vista previa
 
 - [Inicio en escritorio](previews/inicio-1440.png)
@@ -71,6 +73,7 @@ Compose ejecuta las migraciones antes del API. Actualizar el navegador con `Cmd+
 Comprobaciones incluidas:
 
 - `scripts/test-landing.py`: escritorio y celulares de 390/320 px, anclas, historial, recorrido y teclado, imágenes cargadas, QR local, destinos iOS/Android y reintentos del formulario.
+- `scripts/test-landing-autoplay.py --mode desktop` y `--mode mobile`: duración real de cinco segundos, ciclo completo, pausas por visibilidad/interacción, controles, touch, movimiento reducido y limpieza al navegar.
 - `ContactInputTest.kt`: normalización, validación y campo trampa.
 - `scripts/integration/P1ServiceProbe.java`: persistencia, concurrencia, reintentos y notificaciones con transporte simulado, junto con las regresiones existentes.
 - `scripts/integration/http_contact_probe.py`: formulario real → API real → PostgreSQL de prueba, validación HTTP, idempotencia, límites y rechazo de cabeceras de proxy no confiables. Requiere las variables y protecciones de base de prueba de `http_auth_probe.py`; `TOCA_TEST_WEB_URL` habilita el envío desde Chromium.
