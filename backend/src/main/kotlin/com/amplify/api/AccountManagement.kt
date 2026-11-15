@@ -26,13 +26,24 @@ class AccountMail(
  fun enabled()=host.isNotBlank()&&from.isNotBlank()&&origin.startsWith("https://")
  fun send(email:String,token:String,purpose:String,kind:String){
   if(!enabled())fail(HttpStatus.SERVICE_UNAVAILABLE,"El envío de correo no está configurado")
+  deliver(email,if(purpose=="reset")"Restablecer contraseña TOCÁ" else "Verificar correo TOCÁ",
+   "Abrí este enlace de un solo uso (vence en 30 minutos):\n$origin/#/account?kind=$kind&purpose=$purpose&token=$token\nSi no lo solicitaste, ignoralo.")
+ }
+ fun contactEnabled()=host.isNotBlank()&&from.isNotBlank()
+ fun sendContact(recipient:String,name:String,email:String,kind:String,text:String){
+  if(!contactEnabled())fail(HttpStatus.SERVICE_UNAVAILABLE,"El correo de contacto no está configurado")
+  deliver(recipient,"TOCÁ · "+when(kind){"problem"->"Reporte de un problema";"suggestion"->"Nueva sugerencia";else->"Consulta"},
+   "Nombre: $name\nCorreo: $email\nTipo: $kind\n\n$text",email)
+ }
+ private fun deliver(email:String,subject:String,text:String,replyTo:String?=null){
   val props=Properties();props["mail.smtp.host"]=host;props["mail.smtp.port"]=port.toString()
   props["mail.smtp.auth"]=username.isNotBlank().toString();props["mail.smtp.starttls.enable"]="true";props["mail.smtp.starttls.required"]="true"
   props["mail.smtp.ssl.checkserveridentity"]="true";props["mail.smtp.connectiontimeout"]="10000";props["mail.smtp.timeout"]="10000";props["mail.smtp.writetimeout"]="10000"
   val session=Session.getInstance(props,object:Authenticator(){override fun getPasswordAuthentication()=PasswordAuthentication(username,password)})
   val message=MimeMessage(session);message.setFrom(InternetAddress(from));message.setRecipients(Message.RecipientType.TO,InternetAddress.parse(email,true))
-  message.subject=if(purpose=="reset")"Restablecer contraseña TOCÁ" else "Verificar correo TOCÁ"
-  message.setText("Abrí este enlace de un solo uso (vence en 30 minutos):\n$origin/#/account?kind=$kind&purpose=$purpose&token=$token\nSi no lo solicitaste, ignoralo.","UTF-8")
+  message.subject=subject
+  if(replyTo!=null)message.replyTo=arrayOf(InternetAddress(replyTo,true))
+  message.setText(text,"UTF-8")
   try{Transport.send(message)}catch(_:Exception){fail(HttpStatus.SERVICE_UNAVAILABLE,"No se pudo enviar el correo. Reintentá más tarde")}
  }
 }

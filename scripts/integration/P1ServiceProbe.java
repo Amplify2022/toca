@@ -13,6 +13,7 @@ import java.util.concurrent.atomic.*;
  */
 public class P1ServiceProbe {
     static final List<UUID> owners = new ArrayList<>(), customers = new ArrayList<>();
+    static final List<UUID> contacts = new ArrayList<>();
     static Db db;
     static HikariDataSource datasource;
     static String marker = "p1-" + UUID.randomUUID();
@@ -696,6 +697,39 @@ public class P1ServiceProbe {
         System.out.println("PASS admin music: durable edits, automatic lost-response confirmation, no duplicate create, recovery, snapshot conflicts and request exclusion");
     }
 
+    static class FakeContactMail extends AccountMail {
+        int sent;boolean fail;
+        FakeContactMail(){super("",587,"","","","https://example.test");}
+        @Override public boolean contactEnabled(){return true;}
+        @Override public void sendContact(String recipient,String name,String email,String kind,String message){
+            check(recipient.equals("support@example.test"),"Visitor input must not select the notification recipient");
+            if(fail)throw new RuntimeException("synthetic delivery failure");sent++;
+        }
+    }
+    static Map<String,Object> contactBody(UUID id,String message){return Map.of("id",id.toString(),"name","Contact fixture","email","contact@example.test","kind","suggestion","message",message);}
+    static UUID contactId(){UUID id=UUID.randomUUID();contacts.add(id);return id;}
+    static void contactMessages() throws Exception {
+        var mail=new FakeContactMail();var service=new ContactMessages(db,new AuthRateLimiter(db),mail,"support@example.test");
+        UUID id=contactId();var body=contactBody(id,"Una sugerencia de prueba para TOCÁ.");String peer="contact-"+marker;
+        service.submit(peer,body);for(int i=0;i<12;i++)service.submit(peer,body);
+        check(((Number)db.one("SELECT count(*) AS n FROM contact_message WHERE id=?",id).get("n")).intValue()==1,"Repeated contact submissions must remain one durable message");
+        forbidden(()->service.submit(peer,contactBody(id,"Un mensaje distinto con el mismo identificador.")),HttpStatus.CONFLICT,"A receipt cannot overwrite another message");
+        service.notifyPending();service.notifyPending();check(mail.sent==1,"One contact receipt must produce one normal notification");
+        UUID retry=contactId();service.submit(peer,contactBody(retry,"Una consulta cuya notificación se reintenta."));mail.fail=true;service.notifyPending();
+        var retained=db.one("SELECT notified_at,notification_attempts FROM contact_message WHERE id=?",retry);
+        check(retained.get("notified_at")==null&&((Number)retained.get("notification_attempts")).intValue()==1,"Mail failure must preserve the contact and schedule delivery retry");
+        db.exec("UPDATE contact_message SET next_attempt_at=now()-interval '1 second' WHERE id=?",retry);mail.fail=false;service.notifyPending();check(mail.sent==2,"Retry must deliver the retained message without another form submission");
+        UUID trap=contactId();var trapped=new HashMap<String,Object>(contactBody(trap,"Este mensaje automatizado no debe guardarse."));trapped.put("website","https://spam.test");service.submit(peer,trapped);
+        check(db.one("SELECT id FROM contact_message WHERE id=?",trap)==null,"Form trap must not create inbox rows");
+        String limited="limited-"+marker;for(int i=0;i<5;i++)service.submit(limited,contactBody(contactId(),"Consulta limitada de prueba número "+i));
+        try{service.submit(limited,contactBody(contactId(),"Sexto mensaje que debe quedar limitado."));throw new AssertionError("Contact peer limit missing");}catch(ContactLimited expected){check(expected.getRetry()==3600,"Contact errors must provide a retry interval");}
+        UUID concurrent=contactId();var workers=Executors.newFixedThreadPool(2);
+        try{var one=workers.submit(()->service.submit("concurrent-"+marker,contactBody(concurrent,"Mensaje enviado concurrentemente por el mismo formulario.")));var two=workers.submit(()->service.submit("concurrent-"+marker,contactBody(concurrent,"Mensaje enviado concurrentemente por el mismo formulario.")));one.get(5,TimeUnit.SECONDS);two.get(5,TimeUnit.SECONDS);}
+        finally{workers.shutdownNow();}
+        check(((Number)db.one("SELECT count(*) AS n FROM contact_message WHERE id=?",concurrent).get("n")).intValue()==1,"Concurrent duplicate contact posts must remain one receipt");
+        System.out.println("PASS contact inbox: persistent receipt, idempotence, collision, limits, trap, optional notifications, delivery retry and concurrent submissions");
+    }
+
     static void analyticsCommand(UUID venue,UUID customer,String track,String status,String confirmed) {
         var timestamp=Timestamp.from(java.time.Instant.parse(confirmed));
         db.exec("""
@@ -753,11 +787,12 @@ public class P1ServiceProbe {
             flyway.migrate();
             if(fresh)verifyCreditUpgrade(legacyPending,legacyConfirmed);
             if(fresh)verifyRestartUpgrade(legacyRestart);
-            transactionReuse();adminMusicEdits();presenceEvidence();requestPlaybackCycles();repeatedPaidRequests();authAtomicBudgets();requestIdentityAndReplay();authenticatedWindowCap();policyRevalidation();uncertainRemoteEffect();automaticRecovery();crashedWorkerRecovery();lostOwnershipFencesMutation();walletAndRequests();playbackBeforeCharge();analyticsSnapshot();
+            transactionReuse();adminMusicEdits();presenceEvidence();requestPlaybackCycles();repeatedPaidRequests();authAtomicBudgets();requestIdentityAndReplay();authenticatedWindowCap();policyRevalidation();uncertainRemoteEffect();automaticRecovery();crashedWorkerRecovery();lostOwnershipFencesMutation();walletAndRequests();playbackBeforeCharge();analyticsSnapshot();contactMessages();
             System.out.println("PASS P1 regression assertions="+assertions);
         } finally {
             for(UUID owner:owners){db.exec("DELETE FROM venue WHERE owner_id=?",owner);db.exec("DELETE FROM admin_user WHERE id=?",owner);}
             for(UUID customer:customers)db.exec("DELETE FROM customer_account WHERE id=?",customer);
+            for(UUID id:contacts)db.exec("DELETE FROM contact_message WHERE id=?",id);
             datasource.close();
         }
     }

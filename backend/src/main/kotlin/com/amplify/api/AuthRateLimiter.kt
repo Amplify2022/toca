@@ -84,7 +84,10 @@ class AuthRateLimiter(private val db: Db) {
         RETURNING attempts""", rule.scope, hashToken(rule.key), rule.seconds, rule.seconds, rule.limit) != null
 
     fun check(path: String, peer: String, body: Map<String, Any?>?, authorization: String): Int? {
-        val rules = AuthRatePolicy.rules(path, peer, body, authorization)
+        return checkRules(AuthRatePolicy.rules(path, peer, body, authorization))
+    }
+
+    fun checkRules(rules:List<AuthRateRule>):Int? {
         if (rules.isEmpty()) return null
         return try {
             db.transaction {
