@@ -60,18 +60,25 @@
   function music(ctx,snapshot,error=false){
     const box=ctx.root.querySelector('.place-music'),block=ctx.root.querySelector('.place-request-block'),controls=ctx.root.querySelector('.place-request-controls');
     const playing=!error&&snapshot?.active===true&&snapshot.isPlaying===true&&typeof snapshot.now?.title==='string'&&!!snapshot.now.title.trim();
+    const cover=playing?coverUrl(snapshot.now.imageUrl):'';
+    const signature=playing?JSON.stringify([snapshot.now.id||'',snapshot.now.title,snapshot.now.artist||'',cover]):'unavailable';
+    // Position changes every second. Keep the existing cover, focused link and
+    // equalizer animation until the actual song or availability changes.
+    const retryCover=cover&&ctx.failedCover===cover&&performance.now()>=ctx.coverRetryAt;
+    if(ctx.musicSignature===signature&&!retryCover)return;
+    ctx.musicSignature=signature;ctx.failedCover=null;
     block.classList.toggle('is-unavailable',!playing);
     if(!playing){box.innerHTML=`<p>${unavailable}</p>`;controls.replaceChildren();return;}
-    const cover=coverUrl(snapshot.now.imageUrl);
     box.innerHTML=`<div class="place-song-cover">${icon('music')}${cover?`<img src="${esc(cover)}" alt="Portada de ${esc(snapshot.now.title)}" decoding="async" referrerpolicy="no-referrer">`:''}</div><div class="place-song-copy"><span>SUENA AHORA</span><strong>${esc(snapshot.now.title)}</strong><small>${esc(snapshot.now.artist||'')}</small></div><div class="place-equalizer" aria-hidden="true"><i></i><i></i><i></i><i></i></div>`;
-    const image=box.querySelector('.place-song-cover img');if(image)image.onerror=()=>image.remove();
+    const image=box.querySelector('.place-song-cover img');if(image)image.onerror=()=>{image.remove();if(valid(ctx)&&ctx.musicSignature===signature){ctx.failedCover=cover;ctx.coverRetryAt=performance.now()+30000;}};
     if(!controls.childElementCount)controls.innerHTML=`<p class="place-request-help" id="toca-place-request-help">Elegí tu tema y sumalo a la playlist del bar.</p><div class="place-actions"><a class="place-primary" href="#/request/${encodeURIComponent(ctx.venue.id)}" aria-describedby="toca-place-request-help">${icon('music')}Pedir una canción</a></div>`;
   }
   async function refresh(ctx){
     if(!valid(ctx)||ctx.busy||document.hidden)return;ctx.busy=true;clearTimeout(ctx.timer);
-    try{const result=state.demo?{active:ctx.venue.active,isPlaying:!!ctx.venue.now,now:ctx.venue.now}:await api(`/api/venues/${encodeURIComponent(ctx.venue.id)}/music-status`,{signal:ctx.abort.signal,cache:'no-store'});if(valid(ctx))music(ctx,result);}
-    catch(error){if(valid(ctx)&&error.name!=='AbortError')music(ctx,null,true);}
-    finally{ctx.busy=false;if(valid(ctx)&&!state.demo)ctx.timer=setTimeout(()=>void refresh(ctx),15000);}
+    let delay=1000;
+    try{const result=state.demo?{active:ctx.venue.active,isPlaying:!!ctx.venue.now,now:ctx.venue.now}:await api(`/api/venues/${encodeURIComponent(ctx.venue.id)}/playback`,{signal:ctx.abort.signal,cache:'no-store'});if(valid(ctx)){ctx.failures=0;music(ctx,result);}}
+    catch(error){if(valid(ctx)&&error.name!=='AbortError'){ctx.failures=(ctx.failures||0)+1;delay=error.status===429?30000:Math.min(15000,1000*2**Math.min(ctx.failures-1,4));music(ctx,null,true);}}
+    finally{ctx.busy=false;if(valid(ctx)&&!state.demo)ctx.timer=setTimeout(()=>void refresh(ctx),delay);}
   }
   window.tocaOpenMapVenue=(venue,marker=null,map=null)=>{
     const parent=map?.getContainer()?.closest('.toca-map-art')||document.querySelector('.toca-primary-map .toca-map-art');if(!parent)return;

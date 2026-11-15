@@ -12,7 +12,16 @@ En `/#/explore`, seleccionar un pin abre la ficha del establecimiento en lugar d
 - El botón abre directamente la búsqueda de canciones de ese bar. El flujo existente valida la sesión de cliente y pide iniciar sesión si hace falta; abrir el buscador no consume tokens.
 - Las fotos se recorren horizontalmente y se pueden ampliar. Instagram aparece debajo de la dirección, como ícono y `@usuario`, sólo si el bar tiene un usuario válido.
 
-La ficha usa los datos públicos y las fotos del bar. La canción actual se consulta en `music-status` para el bar seleccionado y se actualiza cada 15 segundos mientras la ficha está visible. Las consultas se cancelan al cerrar o cambiar de bar; una respuesta anterior no reemplaza la selección actual. Un fallo al consultar Spotify no bloquea la información del bar. Esta pantalla no inicia reproducción, pide canciones ni consume tokens.
+La ficha usa los datos públicos y las fotos del bar. La canción actual se consulta cada segundo en `/api/venues/{id}/playback` mientras la ficha está visible. Esta lectura consulta sólo el reproductor, sin cargar la playlist ni usar la caché de 12 segundos de `music-status`. Las consultas simultáneas al mismo bar comparten una muestra de 500 ms; ante errores o límites del proveedor se aplica una espera compartida. El JSON público contiene únicamente el estado de reproducción y los metadatos de la canción, sin información del dispositivo ni credenciales.
+
+La portada y las barras animadas se conservan mientras no cambie la canción; la consulta frecuente no reconstruye esos elementos ni reinicia la animación. Las consultas se cancelan al cerrar o cambiar de bar; una respuesta anterior no reemplaza la selección actual. Un fallo al consultar Spotify no bloquea la información del bar. Esta pantalla no inicia reproducción, pide canciones ni consume tokens.
+
+Este endpoint requiere actualizar la API además de la web:
+
+```bash
+git pull origin main
+docker compose up --build -d api web
+```
 
 El prototipo visual inicial se conserva en `/prototypes/map-place-panel/`, con datos ilustrativos y un mapa de referencia; no alimenta la ficha real.
 

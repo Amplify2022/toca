@@ -67,6 +67,10 @@ identity. An API accidentally pointing at a different database fails this guard.
 
 Coverage:
 
+- Lightweight public playback: inactive/disabled bars return explicit false/null
+  state without provider credentials, private device fields or a playlist. The
+  response is uncached by HTTP clients. Backend unit tests cover half-second
+  freshness, concurrent readers, venue isolation and shared provider backoff.
 - Owner dashboard analytics: successful commands only, distinct/recurrent users,
   repeated songs, comparable periods, local calendar boundaries, venue isolation,
   explicit zero/empty JSON and income left unconfigured. The HTTP probe checks

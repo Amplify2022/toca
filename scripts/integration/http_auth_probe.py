@@ -137,6 +137,12 @@ def presence_http(token,other_token):
     created.extend([('venue',venue),('admin_user',owner)])
     sql(f"INSERT INTO admin_user(id,name,email,password_hash) VALUES('{owner}','Location fixture','{owner}@example.test','unused');"
         f"INSERT INTO venue(id,owner_id,name,slug,address,city,latitude,longitude,join_token,active,request_access_mode,queue_started_at) VALUES('{venue}','{owner}','Location fixture','{venue}','Test','Test',-34.9,-56.17,'{venue}',true,'NEARBY',now());")
+    for active,premium in [('false','true'),('true','false')]:
+        sql(f"UPDATE venue SET active={active},spotify_premium={premium} WHERE id='{venue}'")
+        status,cache,data=request(f'/api/venues/{venue}/playback',method='GET')
+        assert status==200 and data['active'] is False and data['isPlaying'] is False and data['now'] is None
+        assert 'no-store' in cache.get('Cache-Control','') and 'device' not in data and 'playlist' not in data
+    print('PASS lightweight playback HTTP: inactive/disabled music has explicit false/null state, no device/playlist data, uncached response and no Spotify credentials required')
     path=f'/api/venues/{venue}/presence';headers={'X-TOCA-Customer':'Bearer '+token}
     status,_,_=request(path,method='GET');assert status==401
     status,cache,data=request(path,headers=headers,method='GET')

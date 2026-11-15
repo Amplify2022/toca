@@ -28,7 +28,7 @@ try:
    context.add_init_script("localStorage.setItem('amplify-mode','live')")
    authenticated=width==1440
    if authenticated:context.add_init_script("sessionStorage.setItem('toca:customer:session','synthetic-map-customer-session-abcdefghijklmnopqrstuvwxyz')")
-   page=context.new_page();held=[];errors=[];calls=[];art_calls=[]
+   page=context.new_page();page.clock.install();held=[];errors=[];calls=[];art_calls=[]
    page.on('pageerror',lambda e:errors.append(str(e)))
    model={'hold':True,'mode':'paused','image':ART_TWO,'title':'Canción del segundo bar'}
    def reply(route,data,status=200):route.fulfill(status=status,body=json.dumps(data),content_type='application/json',headers={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'Authorization,Content-Type,X-TOCA-Customer,X-TOCA-Join,Idempotency-Key','Access-Control-Allow-Methods':'GET,OPTIONS'})
@@ -49,7 +49,7 @@ try:
     if path=='/api/customers/me/wallet':return reply(route,dict(balance=0,reserved=0,requestCost=1,packs=[],movements=[],simulationEnabled=True))
     if '/photos/' in path:return route.fulfill(body=(ROOT/'web/assets/venues/bar-1.webp').read_bytes(),content_type='image/webp')
     if path=='/api/venues':return reply(route,venues)
-    if path.endswith('/music-status'):
+    if path.endswith('/playback'):
      if model['mode']=='fail':return reply(route,dict(message='Provider unavailable'),503)
      if ONE in path and model['hold']:model['hold']=False;held.append(route);return
      return reply(route,dict(active=model['mode']!='disabled',isPlaying=model['mode']!='paused',now=None if model['mode']=='empty' else dict(title=model['title'],artist='Artista del segundo bar',imageUrl=model['image'])))
@@ -77,8 +77,9 @@ try:
    assert not art_calls,'A stale or paused song must not load artwork'
    def refresh(mode):
     model['mode']=mode
-    with page.expect_response(lambda response:response.url.endswith('/music-status')):
+    with page.expect_response(lambda response:response.url.endswith('/playback')) as response:
      page.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
+    response.value.body()
    cover=panel.locator('.place-song-cover img')
    refresh('playing')
    expect(panel.locator('.place-primary')).to_be_visible()
@@ -86,8 +87,14 @@ try:
    page.wait_for_function("document.querySelector('.place-song-cover img')?.naturalWidth>0")
    assert cover.evaluate("img=>Math.abs(img.getBoundingClientRect().width-img.parentElement.getBoundingClientRect().width)<=2")
    page.screenshot(path=f'/tmp/toca-map-current-cover-{width}.png')
+   page.evaluate("window.__songNodes=[document.querySelector('.place-song-cover img'),document.querySelector('.place-equalizer'),document.querySelector('.place-primary')]")
+   with page.expect_response(lambda response:response.url.endswith('/playback')):page.clock.run_for(1100)
+   assert page.evaluate("window.__songNodes.every((node,i)=>node===document.querySelector(['.place-song-cover img','.place-equalizer','.place-primary'][i]))"),'Polling must not restart the artwork, animation or focused request link'
    model['image']=ART_ONE;model['title']='Nueva canción del bar seleccionado'
-   refresh('playing');expect(cover).to_have_attribute('src',ART_ONE)
+   # Regress the original delay: an ordinary track change is detected by the
+   # next one-second sample, with no visibility event or manual refresh.
+   with page.expect_response(lambda response:response.url.endswith('/playback')):page.clock.run_for(1100)
+   expect(cover).to_have_attribute('src',ART_ONE)
    expect(panel.locator('.place-song-copy strong')).to_have_text(model['title'])
    page.wait_for_function("document.querySelector('.place-song-cover img')?.naturalWidth>0")
    model['image']=ART_BROKEN
@@ -110,6 +117,7 @@ try:
    expect(panel.locator('.place-primary')).to_be_visible()
    assert panel.locator('.place-primary').get_attribute('href')=='#/request/'+ONE
    expect(panel.locator('.place-photos img')).to_be_visible()
+   assert not any(path.endswith('/music-status') or path.endswith('/playlist') for method,path in calls),calls
    # Route departure cancels the selected bar's lifecycle and restores scrolling.
    panel.get_by_role('link',name='Pedir una canción',exact=True).click()
    if authenticated:
@@ -126,6 +134,6 @@ try:
    assert not errors,errors
    assert all(method in ['GET','OPTIONS'] for method,path in calls),calls
    assert not any('/requests' in path for method,path in calls if method!='GET')
-   context.close();print('PASS live map panel:',width,'current-song artwork, song changes, failed/unsafe image fallback, requests hidden while loading/paused/disabled/empty/error, stale-state isolation, search/login and read-only requests',flush=True)
+   context.close();print('PASS live map panel:',width,'one-second song/cover updates without manual refresh, stable animation/DOM, artwork fallback, availability, stale-state isolation, search/login and lightweight read-only requests',flush=True)
   browser.close()
 finally:server.shutdown()
