@@ -31,12 +31,13 @@ def scenario(browser,width):
     """)
     page=context.new_page();errors=[];dialogs=[];orders=[];topup_calls=[];credited={};movements=[]
     model=dict(balance=0,processing=False,order='success',topup='success',checks=0)
+    accepted_requests={};held_topups=[]
     page.on('pageerror',lambda error:errors.append(str(error)))
     page.on('dialog',lambda dialog:(dialogs.append(dialog.message),dialog.dismiss()))
     def wallet():return dict(balance=model['balance'],requestCost=1,simulationEnabled=True,currency='UYU',packs=PACKS,**({'movements':movements} if movements else {}))
     def api(route):
         request=route.request;path=request.url.split('8080',1)[1].split('?',1)[0];data=[];status=200
-        if path=='/api/customers/me':data=dict(id='customer-test',name='Nacho',email='nacho@example.test',roles=['CUSTOMER'])
+        if path=='/api/customers/me':data=dict(id=model.get('customerId','customer-test'),name='Nacho',email='nacho@example.test',roles=['CUSTOMER'])
         elif path=='/api/customers/me/avatar':data=dict(avatar=None)
         elif path=='/api/customers/me/wallet':
             if model.get('walletError'):
@@ -52,6 +53,7 @@ def scenario(browser,width):
                 movements.insert(0,dict(kind='TOPUP',amount=amount,createdAt='2026-11-14T18:00:00Z'))
                 if model['topup']=='lost':model['topup']='success';route.abort('failed');return
             data=dict(wallet(),topupId=idem,creditedTokens=amount,simulated=True)
+            if model.pop('holdTopup',False):held_topups.append((route,data));return
         elif path.endswith('/google/config'):data=dict(enabled=False,clientId='')
         elif path.endswith('/presence'):
             if request.method=='POST':
@@ -65,7 +67,13 @@ def scenario(browser,width):
         elif path.endswith('/requests') and request.method=='POST':
             assert request.headers.get('x-toca-customer','').startswith('Bearer synthetic-')
             assert request.headers.get('idempotency-key');orders.append(request.headers['idempotency-key'])
-            if model['order'] in ('race','race-code','race-legacy','failed-no-funds'):
+            idem=request.headers['idempotency-key']
+            if idem in accepted_requests:
+                data=accepted_requests[idem]
+            elif model['order']=='lost-song':
+                assert model['balance']>=1;model['balance']-=1
+                accepted_requests[idem]=dict(commandId='command-test',status='DISPATCHED');route.abort('failed');return
+            elif model['order'] in ('race','race-code','race-legacy','failed-no-funds'):
                 model['balance']=0
                 status={'race':402,'race-code':409,'race-legacy':500,'failed-no-funds':200}[model['order']]
                 data=dict(message='No tenés tokens suficientes. Recargá para pedir esta canción.')
@@ -114,13 +122,16 @@ def scenario(browser,width):
     sheet.locator('.tw-packs label').filter(has=page.locator('input[value="5"]')).click()
     expect(sheet.locator('[data-topup-total]')).to_have_text('5 tokens')
     sheet.locator('[data-wallet-topup]').dblclick();expect(sheet).not_to_be_visible()
-    expect(page.locator('[data-wallet-balance]')).to_have_text('5 tokens')
-    assert model['balance']==5 and len(topup_calls)==1 and len(credited)==1
-    expect(page.locator('.tw-chosen')).to_contain_text('Original Prankster')
-    page.screenshot(path=str(SHOTS/f'funded-{width}.png'))
-    page.locator('[data-wallet-request]').click();expect(page).to_have_url(re.compile('/#/venue/'+VENUE_ID+'$'))
-    expect(page.locator('#toast')).to_contain_text('se agregó a la playlist')
-    assert len(orders)==1 and model['balance']==4 and not dialogs
+    confirmation=page.locator('#toca-song-added');expect(confirmation).to_be_visible()
+    expect(confirmation.locator('h2')).to_have_text('¡Tema agregado!')
+    assert model['balance']==4 and len(topup_calls)==1 and len(credited)==1 and len(orders)==1
+    assert page.locator('[data-wallet-request]:visible').count()==0
+    page.wait_for_timeout(300)
+    box=confirmation.bounding_box();assert abs(box['x']+box['width']/2-width/2)<2 and abs(box['y']+box['height']/2-450)<2,box
+    page.screenshot(path=str(SHOTS/f'added-after-topup-{width}.png'))
+    expect(page).to_have_url(re.compile('/#/venue/'+VENUE_ID+'$'))
+    expect(confirmation).not_to_be_visible()
+    assert not dialogs
     page.goto(BASE+'/#/profile');expect(page.locator('[data-wallet-balance]')).to_have_text('4 tokens')
     page.reload();expect(page.locator('[data-wallet-balance]')).to_have_text('4 tokens')
     page.screenshot(path=str(SHOTS/f'profile-{width}.png'))
@@ -132,10 +143,11 @@ def scenario(browser,width):
     model['topup']='lost';sheet.locator('[data-wallet-topup]').click()
     expect(sheet.locator('[data-topup-error]')).to_be_visible();assert model['balance']==12
     expect(sheet.locator('input[value="5"]')).to_be_disabled()
+    model['order']='failed'
     sheet.locator('[data-wallet-topup]').click();expect(sheet).not_to_be_visible()
+    expect(page.locator('[data-wallet-request]')).to_be_visible()
     expect(page.locator('[data-wallet-balance]')).to_have_text('12 tokens')
     assert topup_calls[-1]==topup_calls[-2] and model['balance']==12
-    model['order']='failed';page.locator('[data-wallet-request]').click()
     expect(page.locator('#toast')).to_contain_text('No se descontaron tokens')
     expect(page.locator('[data-wallet-balance]')).to_have_text('12 tokens')
     # The final available token can remain reserved until the same order settles.
@@ -182,9 +194,45 @@ def scenario(browser,width):
     button.click();expect(page).to_have_url(re.compile('/#/venue/'+VENUE_ID+'$'))
     assert model['balance']==0 and len(orders)==order_count+3 and model['checkins']==2
     assert page.evaluate('window.__gpsModes.slice(-2)')==[True,False]
+    # A confirmed top-up resumes automatically after refreshing during a pending song.
+    model.update(balance=0,order='reload',nearby=False,processing=False);button=search();button.click();expect(sheet).to_be_visible()
+    sheet.locator('.tw-packs label').filter(has=page.locator('input[value="5"]')).click()
+    count_before=len(orders);sheet.locator('[data-wallet-topup]').click()
+    page.wait_for_function("Object.keys(sessionStorage).some(k=>k.startsWith('toca:request:credits-v1:')&&JSON.parse(sessionStorage.getItem(k)).commandId)")
+    assert len(orders)==count_before+1 and model['balance']==5
+    assert page.locator('#toca-song-added').count()==0,'Pending is not success'
+    page.reload();expect(page.locator('.tw-request-status')).to_contain_text('Agregando')
+    model['order']='success';expect(page.locator('#toca-song-added')).to_be_visible()
+    expect(page).to_have_url(re.compile('/#/venue/'+VENUE_ID+'$'))
+    assert len(orders)==count_before+1 and model['balance']==4
+    # A lost song response is checked automatically with the same durable key.
+    model.update(balance=0,order='lost-song',processing=False);button=search();button.click();expect(sheet).to_be_visible()
+    count_before=len(orders);sheet.locator('[data-wallet-topup]').click()
+    expect(page.locator('#toca-song-added')).to_be_visible()
+    expect(page).to_have_url(re.compile('/#/venue/'+VENUE_ID+'$'))
+    assert len(orders)==count_before+2 and orders[-1]==orders[-2] and model['balance']==11
+    # Canceling the original request leaves subsequent profile top-ups independent.
+    model.update(balance=0,order='success');button=search();button.click();expect(sheet).to_be_visible()
+    sheet.get_by_role('button',name='Cancelar',exact=True).click()
+    assert page.evaluate("sessionStorage.getItem('toca:wallet:song:customer-test')") is None
+    page.goto(BASE+'/#/profile/tokens?recharge=1');expect(sheet).to_be_visible()
+    count_before=len(orders);sheet.locator('[data-wallet-topup]').click();expect(sheet).not_to_be_visible()
+    expect(page.locator('[data-wallet-balance]')).to_have_text('12 tokens')
+    assert len(orders)==count_before and page.locator('#toca-song-added').count()==0
+    assert '/profile/tokens' in page.url and page.locator('.tw-chosen').count()==0
+    # A late top-up reply cannot submit the previous customer's song for a new session.
+    model.update(balance=0,holdTopup=True);button=search();button.click();expect(sheet).to_be_visible()
+    sheet.locator('[data-wallet-topup]').click();page.wait_for_timeout(100);assert held_topups
+    count_before=len(orders)
+    model['customerId']='other-customer'
+    page.evaluate("async()=>{tocaCustomerForgetSession();await tocaCustomerAcceptGoogleSession('synthetic-other-customer-session-abcdefghijklmnopqrstuvwxyz','other-customer');location.hash='#/profile'}")
+    route,data=held_topups.pop();route.fulfill(status=200,content_type='application/json',body=json.dumps(data),headers={'Access-Control-Allow-Origin':'*'})
+    page.wait_for_timeout(400)
+    assert len(orders)==count_before and page.locator('#toca-song-added').count()==0
+    assert page.evaluate('tocaCustomerUser().id')=='other-customer' and page.url.endswith('/#/profile')
     assert not dialogs and not errors,(dialogs,errors)
     assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
-    context.close();print('PASS integrated credits: wallet, recharge, one charge, playlist return, concurrency, lost-response retry, location reuse, expiry and GPS recovery without reload:',width,flush=True)
+    context.close();print('PASS integrated credits: automatic request after top-up, centered success, one debit, reload/lost-response recovery, independent top-ups, customer isolation and GPS:',width,flush=True)
 
 with sync_playwright() as p:
     browser=p.chromium.launch(executable_path='/usr/bin/chromium',args=['--no-sandbox'])

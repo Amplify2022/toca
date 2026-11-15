@@ -327,8 +327,10 @@ function requestSyncFeedback(venueId, message) {
   box.textContent = message;
 }
 const tocaRequestsInFlight = new Set();
-window.tocaRequestSong = async (venueId, track) => {
+window.tocaRequestSongPending = (venueId,trackId) => requestSyncClient().pending(venueId,trackId);
+window.tocaRequestSong = async (venueId, track, options={}) => {
   if (!state.demo && !(await window.tocaCustomerRequireForRequest(location.hash))) return;
+  if(options.isCurrent&&!options.isCurrent())return;
   const customerId=window.tocaCustomerUser?.()?.id;
   const key = `${customerId}:${venueId}:${track.id}`;
   if (tocaRequestsInFlight.has(key)) return;
@@ -337,8 +339,10 @@ window.tocaRequestSong = async (venueId, track) => {
     if (state.demo) {demoRequest(venueId,track);toast('Canción agregada a la playlist de prueba');navigate(`#/venue/${encodeURIComponent(venueId)}`);return;}
     // Retained commands are queried without starting another admission or charge.
     if (!requestSyncClient().pending(venueId,track.id) && !(await window.tocaWalletCanRequest(venueId,track))) return;
+    if(options.isCurrent&&!options.isCurrent())return;
     if (!(await window.tocaPresenceEnsure(venueId))) return;
-    return await submitSynchronizedRequest(venueId,track);
+    if(options.isCurrent&&!options.isCurrent())return;
+    return await submitSynchronizedRequest(venueId,track,options);
   } catch(error) {
     if(window.tocaCustomerUser?.()?.id!==customerId)return;
     if(window.tocaWalletHandleInsufficient(error,venueId,track)){
@@ -347,7 +351,7 @@ window.tocaRequestSong = async (venueId, track) => {
     throw error;
   } finally {tocaRequestsInFlight.delete(key);}
 };
-async function submitSynchronizedRequest(venueId, track) {
+async function submitSynchronizedRequest(venueId, track, options={}) {
   const flowPath=route().path,customer=window.tocaCustomerUser?.()?.id;
   requestSyncFeedback(venueId, 'Agregando tu canción…');
   const client = requestSyncClient();
@@ -373,8 +377,13 @@ async function submitSynchronizedRequest(venueId, track) {
   if (window.tocaCustomerUser?.()?.id!==customer) return result;
   if (result.status === 'DISPATCHED') {
     window.tocaWalletRequested(venueId,track.id);
-    toast(`“${track.title}” se agregó a la playlist · 1 token`);
-    if (route().path === flowPath) navigate(`#/venue/${encodeURIComponent(venueId)}`);
+    const currentFlow=()=>route().path===flowPath&&window.tocaCustomerUser?.()?.id===customer&&(!options.isCurrent||options.isCurrent());
+    if(options.confirmation==='center'){
+      if(currentFlow()&&await window.tocaWalletConfirmSong(track,currentFlow)&&currentFlow())navigate(`#/venue/${encodeURIComponent(venueId)}`);
+    }else{
+      toast(`“${track.title}” se agregó a la playlist · 1 token`);
+      if(currentFlow())navigate(`#/venue/${encodeURIComponent(venueId)}`);
+    }
   } else if (result.status === 'FAILED') {
     if(window.tocaWalletHandleInsufficient(result,venueId,track))return result;
     const message=result.message || 'No pudimos agregar la canción. No se descontaron tokens.';

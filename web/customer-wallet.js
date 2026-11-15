@@ -1,7 +1,7 @@
 /* Account-owned credits. The API alone decides balances, reservations and costs. */
 (() => {
   'use strict';
-  let dialog, panelWallet, topupBusy=false, opening=false, activeOwner='';
+  let dialog, panelWallet, topupBusy=false, opening=false, activeOwner='', requestFlow=null;
   const owner = () => String(window.tocaCustomerUser?.()?.id || '');
   const key = part => `toca:wallet:${part}:${owner()}`;
   const read = name => {try{return JSON.parse(sessionStorage.getItem(name)||'null');}catch{return null;}};
@@ -28,7 +28,7 @@
     return item && /^[a-f0-9-]{36}$/i.test(item.venueId) && /^[A-Za-z0-9]{22}$/.test(item.track?.id||'') ? item : null;
   }
   window.tocaWalletNeedsTopup=(venueId,track)=>{
-    save(key('song'),{venueId,venueName:String(state.detail?.id===venueId?state.detail.name:'Tu bar'),track:{id:track.id,title:String(track.title||'Tu canción').slice(0,300),artist:String(track.artist||'').slice(0,300)}});
+    save(key('song'),{intentId:crypto.randomUUID(),autoResume:true,venueId,venueName:String(state.detail?.id===venueId?state.detail.name:'Tu bar'),track:{id:track.id,title:String(track.title||'Tu canción').slice(0,300),artist:String(track.artist||'').slice(0,300)}});
     navigate('#/profile/tokens?recharge=1');
   };
   window.tocaWalletHandleInsufficient=(error,venueId,track)=>{
@@ -66,11 +66,42 @@
   }
   function songCard(wallet) {
     const item=selection();if(!item)return '';
+    const busy=requestFlow?.owner===owner()&&requestFlow.intentId===item.intentId;
     return `<section class="tw-chosen"><span class="tw-art">${iconSvg('music',27)}</span><div><small>Tu canción elegida</small><strong>${esc(item.track.title)}</strong><span>${esc(item.track.artist)} · ${esc(item.venueName)}</span></div>
-      ${wallet.balance>=1?'<button type="button" class="tw-button" data-wallet-request>Pedir · 1 token</button>':''}
+      ${busy||item.autoResume&&wallet.balance>=wallet.requestCost?'<p class="tw-request-status" role="status">Agregando tu canción…</p>':item.requestError?`<p class="tw-request-status tw-error" role="status">${esc(item.requestError)}</p>`:item.autoResume?'<p class="tw-request-status">Al recargar, agregaremos esta canción automáticamente.</p>':''}
+      ${!busy&&!item.autoResume&&(wallet.balance>=wallet.requestCost||window.tocaRequestSongPending?.(item.venueId,item.track.id))?'<button type="button" class="tw-button" data-wallet-request>Reintentar pedido</button>':''}
       <a href="#/venue/${encodeURIComponent(item.venueId)}" class="tw-back-playlist">Volver a la playlist ${iconSvg('arrow',16)}</a></section>`;
   }
-  window.tocaWalletPage=async()=>{
+  async function resumeChosen(wallet,item=selection(),manual=false){
+    const currentOwner=owner(),bearer=window.tocaCustomerBearer?.();
+    if(!item||!currentOwner||!bearer||route().path!=='/profile/tokens'||requestFlow?.owner===currentOwner||(!manual&&!item.autoResume))return false;
+    if(selection()?.intentId!==item.intentId||!manual&&!selection()?.autoResume)return false;
+    if(wallet.balance<wallet.requestCost&&!window.tocaRequestSongPending?.(item.venueId,item.track.id))return false;
+    const flow={owner:currentOwner,bearer,intentId:item.intentId||crypto.randomUUID(),cancelled:false};requestFlow=flow;
+    const current=()=>requestFlow===flow&&!flow.cancelled&&owner()===currentOwner&&window.tocaCustomerBearer?.()===bearer&&route().path==='/profile/tokens'&&(!selection()||selection().intentId===flow.intentId);
+    save(key('song'),{...item,intentId:flow.intentId,autoResume:true,requestError:null});
+    const card=document.querySelector('.tw-chosen');if(card)card.outerHTML=songCard(wallet);
+    let errorMessage;
+    try{
+      const request=()=>window.tocaRequestSong(item.venueId,item.track,{confirmation:'center',isCurrent:current});
+      let result;
+      try{result=await request();}catch(error){
+        if(!current()||!window.tocaRequestSongPending?.(item.venueId,item.track.id)||(error.status&&error.status<500))throw error;
+        // A lost response retains its durable key. Query that same operation once.
+        await new Promise(resolve=>setTimeout(resolve,350));
+        if(!current())return false;
+        result=await request();
+      }
+      if(result?.status==='DISPATCHED')return true;
+      errorMessage=result?.status==='FAILED'?result.message:'Tu recarga está lista. No pudimos completar el pedido; podés volver a intentarlo.';
+    }catch(error){errorMessage=error.message;}
+    finally{
+      if(current()&&selection()?.intentId===flow.intentId)save(key('song'),{...selection(),autoResume:false,requestError:errorMessage||'Consultá el resultado de tu pedido para continuar.'});
+      if(requestFlow===flow)requestFlow=null;
+    }
+    return false;
+  }
+  window.tocaWalletPage=async(options={})=>{
     await window.tocaCustomerEnsure();
     if(!window.tocaCustomerVerified()){navigate('#/customer/login');return;}
     const user=window.tocaCustomerUser(),currentOwner=owner();
@@ -87,18 +118,26 @@
       ${songCard(wallet)}<section class="tw-movements"><h2>Movimientos</h2>${movements(wallet)}</section>
       <p class="tw-help">Las recargas son simuladas. No se cobra dinero.</p></section>`,'profile');
     if(route().params.get('recharge')==='1'){
+      if(topupBusy)return; // Keep the query so the finished top-up can reopen it.
       history.replaceState(null,'','#/profile/tokens');
       await openRecharge(wallet);
+    }else if(options.resume!==false&&!topupBusy&&!read(key('topup'))&&selection()?.autoResume){
+      await resumeChosen(wallet);
+      if(owner()===currentOwner&&route().path==='/profile/tokens'&&!requestFlow&&selection()?.requestError)await window.tocaWalletPage({resume:false});
     }
   };
-  function closeRecharge(){if(dialog?.open)dialog.close();}
+  function cancelAutomaticRequest(){
+    const item=selection();if(item?.autoResume)save(key('song'),window.tocaRequestSongPending?.(item.venueId,item.track.id)?{...item,autoResume:false}:null);
+    if(requestFlow?.owner===owner())requestFlow.cancelled=true;
+  }
+  function closeRecharge(cancel=false){if(cancel)cancelAutomaticRequest();if(dialog?.open)dialog.close();}
   function ensureDialog() {
     if(dialog)return;
     dialog=document.createElement('dialog');dialog.id='toca-token-recharge';dialog.className='toca-wallet tw-dialog';dialog.setAttribute('aria-labelledby','tw-recharge-title');document.body.append(dialog);
-    dialog.addEventListener('cancel',event=>{if(topupBusy)event.preventDefault();});
+    dialog.addEventListener('cancel',event=>{if(topupBusy)event.preventDefault();else cancelAutomaticRequest();});
     dialog.addEventListener('click',event=>{
       if(event.target!==dialog)return;const rect=dialog.getBoundingClientRect();
-      if(!topupBusy&&(event.clientX<rect.left||event.clientX>rect.right||event.clientY<rect.top||event.clientY>rect.bottom))closeRecharge();
+      if(!topupBusy&&(event.clientX<rect.left||event.clientX>rect.right||event.clientY<rect.top||event.clientY>rect.bottom))closeRecharge(true);
     });
     dialog.addEventListener('change',event=>{
       if(!event.target.matches('[name="token-pack"]'))return;
@@ -108,7 +147,7 @@
     });
   }
   async function openRecharge(knownWallet) {
-    if(opening||topupBusy)return;opening=true;
+    if(opening||topupBusy||requestFlow?.owner===owner())return;opening=true;
     const currentOwner=owner();
     try{
       const wallet=knownWallet||await walletApi();
@@ -129,6 +168,7 @@
   async function topup() {
     if(topupBusy||owner()!==activeOwner)return;
     const packId=dialog.querySelector('[name="token-pack"]:checked')?.value;if(!packId)return;
+    const currentOwner=owner(),bearer=window.tocaCustomerBearer?.(),chosen=selection();
     const storageKey=key('topup'),previous=read(storageKey),operation=previous||{packId,key:crypto.randomUUID()};
     if(operation.packId!==packId)return;
     save(storageKey,operation);topupBusy=true;
@@ -137,13 +177,17 @@
     try{
       const wallet=await walletApi('/topups',{method:'POST',headers:{'Idempotency-Key':operation.key},body:JSON.stringify({packId})});
       save(storageKey,null);
-      if(owner()!==activeOwner)return;
+      if(owner()!==currentOwner||window.tocaCustomerBearer?.()!==bearer)return;
       closeRecharge();
-      if(route().path==='/profile/tokens')await window.tocaWalletPage();
-      if(owner()===activeOwner)toast(`Recarga lista · +${count(wallet.creditedTokens)}`,5000);
+      const shouldResume=chosen?.autoResume&&selection()?.intentId===chosen.intentId&&selection()?.autoResume&&route().path==='/profile/tokens';
+      if(route().path==='/profile/tokens')await window.tocaWalletPage({resume:false});
+      if(shouldResume){
+        await resumeChosen(wallet,chosen);
+        if(owner()===currentOwner&&route().path==='/profile/tokens')await window.tocaWalletPage({resume:false});
+      }else if(owner()===currentOwner)toast(`Recarga lista · +${count(wallet.creditedTokens)}`,5000);
     }catch(error){
       if([400,401,403,409,503].includes(error.status))save(storageKey,null);
-      if(owner()!==activeOwner)return;
+      if(owner()!==currentOwner||window.tocaCustomerBearer?.()!==bearer)return;
       const box=dialog.querySelector('[data-topup-error]');box.hidden=false;box.textContent=error.message;
     }finally{
       topupBusy=false;dialog.removeAttribute('aria-busy');
@@ -151,17 +195,30 @@
       const pending=read(storageKey);
       dialog.querySelectorAll('input').forEach(input=>input.disabled=!!pending&&input.value!==pending.packId);
       const button=dialog.querySelector('[data-wallet-topup]');if(button)button.textContent='Simular recarga';
+      if(owner()===currentOwner&&route().path==='/profile/tokens'&&route().params.get('recharge')==='1')void window.tocaWalletPage();
     }
   }
   document.addEventListener('click',async event=>{
     const button=event.target.closest('[data-wallet-close],[data-wallet-topup],[data-wallet-open],[data-wallet-request],[data-wallet-retry]');if(!button||button.disabled)return;
-    if(button.hasAttribute('data-wallet-close')){closeRecharge();return;}
+    if(button.hasAttribute('data-wallet-close')){closeRecharge(true);await window.tocaWalletPage({resume:false});return;}
     if(button.hasAttribute('data-wallet-topup')){await topup();return;}
     if(button.hasAttribute('data-wallet-retry')){await window.tocaWalletPage();return;}
     if(button.hasAttribute('data-wallet-open')){await openRecharge();return;}
     const item=selection();if(!item)return;
     button.disabled=true;button.textContent='Agregando…';
-    try{await window.tocaRequestSong(item.venueId,item.track);}catch(error){toast(error.message);}finally{if(button.isConnected){button.disabled=false;button.textContent='Pedir · 1 token';}}
+    try{await resumeChosen(await walletApi(),item,true);if(route().path==='/profile/tokens')await window.tocaWalletPage({resume:false});}catch(error){toast(error.message);}finally{if(button.isConnected){button.disabled=false;button.textContent='Reintentar pedido';}}
   });
-  window.addEventListener('hashchange',closeRecharge);
+  window.addEventListener('hashchange',()=>{closeRecharge();if(route().path!=='/profile/tokens')cancelAutomaticRequest();});
+
+  // Success is shown only after the existing durable request confirms dispatch.
+  window.tocaWalletConfirmSong=(track,isCurrent)=>new Promise(resolve=>{
+    if(!isCurrent()){resolve(false);return;}
+    const confirmation=document.createElement('dialog');confirmation.className='toca-wallet tw-confirmation';confirmation.id='toca-song-added';confirmation.setAttribute('aria-labelledby','tw-added-title');
+    confirmation.innerHTML=`<div class="tw-confirmation-check" aria-hidden="true">${iconSvg('check',32)}</div><h2 id="tw-added-title" tabindex="-1">¡Tema agregado!</h2><p>${esc(track.title)}</p><small>Volviendo a la playlist…</small>`;
+    document.body.append(confirmation);
+    let done=false,timer;
+    const finish=()=>{if(done)return;done=true;clearTimeout(timer);window.removeEventListener('hashchange',finish);const valid=isCurrent();confirmation.close();confirmation.remove();resolve(valid);};
+    confirmation.addEventListener('cancel',event=>{event.preventDefault();finish();});window.addEventListener('hashchange',finish);
+    confirmation.showModal();confirmation.querySelector('h2').focus({preventScroll:true});timer=setTimeout(finish,1500);
+  });
 })();

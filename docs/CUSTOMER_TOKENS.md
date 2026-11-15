@@ -6,9 +6,9 @@ El saldo ahora está integrado con la API y PostgreSQL. Las cuentas nuevas y exi
 
 1. Al tocar **Pedir**, la app consulta el saldo de la cuenta de cliente.
 2. Sin saldo, abre **Mi perfil → Tus tokens** con el panel de recarga. No envía el pedido ni consulta Spotify para agregarlo. Conserva el tema y el bar elegidos.
-3. La recarga simulada permite elegir 5, 12 o 30 tokens. Se acredita en el servidor, cierra el panel y muestra una confirmación durante 5 segundos. No se cobra dinero.
-4. La canción elegida sigue visible con **Pedir · 1 token**. También se puede volver a la playlist y elegir otro tema.
-5. Con saldo, el servidor agrega el tema. **Sólo al confirmar el éxito descuenta 1 token**, avisa **«se agregó a la playlist · 1 token»** y vuelve a la playlist del bar. No hay una pantalla intermedia de éxito ni un pedido de aprobación del bar.
+3. La recarga simulada permite elegir 5, 12 o 30 tokens. Se acredita en el servidor y cierra el panel. No se cobra dinero.
+4. Si la recarga vino de un pedido sin saldo, continúa automáticamente con el tema y el bar elegidos: valida el acceso, envía el mismo pedido y espera su confirmación. No requiere volver a tocar **Pedir**. Al confirmarse, muestra **«¡Tema agregado!»** en el centro durante 1,5 segundos y vuelve automáticamente a la playlist.
+5. **Sólo al confirmar el éxito descuenta 1 token**. Un pedido iniciado con saldo conserva su aviso y regreso directo a la playlist. No hay aprobación del bar. Una recarga habitual desde el perfil, sin pedido elegido, sólo acredita tokens y muestra el aviso de recarga.
 6. Mientras se procesa, el saldo y los movimientos permanecen iguales. Si falla, no se descuenta ningún token. Los reintentos y pedidos simultáneos se coordinan internamente para impedir un doble gasto; no se muestran tokens en reserva.
 7. Si la playlist terminó y Spotify sigue con recomendaciones u otro contexto, coloca el tema pedido al principio y reinicia **toda la playlist** desde ese primer tema. Requiere la salida de audio y el control de reproducción que usa el bar. Si la playlist sigue sonando normalmente, el pedido mantiene el flujo habitual y no interrumpe la canción actual.
 8. Al reiniciar comienza una nueva vuelta de pedidos: los pedidos históricos no ocupan lugares pendientes. Si el primer tema está pausado y no hay otros pedidos pendientes de esa misma vuelta, el siguiente pedido va en la posición 2. Los pedidos de esa vuelta respetan el orden de llegada. La migración V22 reconoce los reinicios automáticos ya confirmados en versiones anteriores.
@@ -38,6 +38,8 @@ V21 devuelve los descuentos anteriores que no llegaron a confirmarse: **4 tokens
 
 Las recargas y los pedidos conservan sus claves de reintento por cuenta. Repetir una operación por pérdida de respuesta no acredita ni descuenta dos veces. El historial muestra recargas y canciones confirmadas.
 
+La continuación automática también se guarda por cuenta: al refrescar durante un pedido posterior a la recarga, consulta la misma operación pendiente. Ante una respuesta de pedido perdida, hace un reintento acotado con su clave original. Si no se puede completar, conserva el resultado para reintentar; no muestra éxito ni fuerza un segundo descuento. Cancelar la recarga o salir antes del envío cancela la continuación automática. Una respuesta tardía no envía el tema de la cuenta anterior ni cambia la pantalla de otro usuario.
+
 ## Configuración y actualización local
 
 `TOKEN_SIMULATED_TOPUPS_ENABLED=true` es el valor predeterminado de esta etapa. `false` deshabilita las recargas simuladas; no modifica los saldos existentes. Los paquetes y precios (5 / UYU 99, 12 / UYU 199, 30 / UYU 399) son ejemplos. El costo actual es 1 token por canción agregada.
@@ -52,6 +54,6 @@ La API anterior debe estar detenida durante esta migración para no mezclar las 
 
 ## Verificación
 
-`python scripts/test-customer-tokens.py` comprueba el recorrido completo en móvil y escritorio con API simulada, incluyendo falta de saldo, recarga, retorno a la playlist, respuesta perdida, carrera de saldo y recarga de página con el último token reservado. Usa `TOCA_WEB_URL` para elegir el servidor estático, por defecto `http://localhost:5174`.
+`python scripts/test-customer-tokens.py` comprueba el recorrido completo en móvil y escritorio con API simulada: falta de saldo, pedido automático tras la recarga, aviso centrado, regreso a la playlist, un único descuento, respuestas perdidas, carrera de saldo, continuación al refrescar, cancelación y separación de cuentas. También cubre pedidos con saldo y validación de ubicación. Usa `TOCA_WEB_URL` para elegir el servidor estático, por defecto `http://localhost:5174`.
 
 La [sonda de servicios](../scripts/integration/README.md) usa PostgreSQL real y Spotify simulado para comprobar concurrencia, devolución y recuperación. La sonda HTTP verifica autorización, saldo inicial, paquetes e idempotencia. Con `TOCA_TEST_WEB_URL` también prueba la pantalla contra esa API y PostgreSQL reales. Las pruebas no usan una cuenta real de Spotify.
