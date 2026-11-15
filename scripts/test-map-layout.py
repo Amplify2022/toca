@@ -99,7 +99,13 @@ try:
    assert panel.locator('.place-social-handle').count()==0
    expect(panel.locator('.place-no-photo')).to_be_visible()
    assert panel.locator('.place-photos img').count()==0
-   expect(panel.locator('.place-music')).to_contain_text('inactiva')
+   expect(panel.locator('.place-music')).to_have_text('Por el momento no podés pedir canciones en este bar.')
+   expect(panel.locator('.place-primary')).to_have_count(0)
+   expect(panel.locator('.place-request-help')).to_have_count(0)
+   panel.get_by_role('button',name='Cerrar ficha del bar',exact=True).click()
+   expect(panel).to_have_count(0)
+   pin.click()
+   expect(panel.locator('.place-primary')).to_be_visible()
    panel.locator('.place-primary').click();page.wait_for_url('**/#/request/demo-2')
    expect(page.locator('#song-search')).to_be_visible()
    page.wait_for_function("!document.body.classList.contains('toca-place-map-open')")

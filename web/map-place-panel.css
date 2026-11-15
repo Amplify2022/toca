@@ -21,6 +21,8 @@ body.toca-place-map-open{overflow:hidden}
 .toca-place-panel .place-close{display:grid;place-items:center;padding:0;width:31px;height:31px;flex:none;border:1px solid #3b4d40;background:#25342b;border-radius:50%;color:#b4c2ad;margin-top:-3px}
 .toca-place-panel .place-close svg{width:17px;height:17px}
 .toca-place-panel .place-request-block{margin:17px 0 18px;padding:14px;border:1px solid #354a31;border-radius:12px;background:#1b2c20}
+.toca-place-panel .place-request-block.is-unavailable{margin:14px 0 17px;padding:0;border:0;background:transparent}
+.toca-place-panel .is-unavailable .place-music{min-height:0}
 .toca-place-panel .place-request-help{font-size:10.5px;line-height:1.65;color:#afc1a2;margin:11px 0 3px}
 .toca-place-panel .place-actions{display:flex;align-items:center;gap:8px;min-height:44px;margin:3px 0 0}
 .toca-place-panel .place-actions>a{position:relative;display:flex;align-items:center;justify-content:center;gap:6px;min-height:34px;height:34px;border:1px solid #40533f;border-radius:8px;font-size:11px;font-weight:600;flex:0 0 auto;padding:0 12px}
@@ -51,7 +53,8 @@ body.toca-place-map-open{overflow:hidden}
 .toca-place-panel .place-address span{font-size:10px;color:#859c7e;margin-top:3px}
 .toca-place-panel .place-music{display:flex;align-items:center;gap:11px;min-height:42px}
 .toca-place-panel .place-music>p{font-size:11px;color:#a3b695;margin:0;line-height:1.75}
-.toca-place-panel .place-song-cover{display:grid;place-items:center;flex:none;width:42px;height:42px;border:1px solid #566c3f;border-radius:7px;background:linear-gradient(135deg,#8a9f55,#304b35);color:#eff7d1}
+.toca-place-panel .place-song-cover{position:relative;display:grid;place-items:center;flex:none;width:42px;height:42px;overflow:hidden;border:1px solid #566c3f;border-radius:7px;background:linear-gradient(135deg,#8a9f55,#304b35);color:#eff7d1}
+.toca-place-panel .place-song-cover img{position:absolute;inset:0;display:block;width:100%;height:100%;object-fit:cover;border-radius:inherit}
 .toca-place-panel .place-song-copy{min-width:0}
 .toca-place-panel .place-song-copy>span{display:block;font-size:7px;font-weight:600;letter-spacing:.9px;color:#a9ca8b}
 .toca-place-panel .place-song-copy strong{display:block;margin:5px 0 3px;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

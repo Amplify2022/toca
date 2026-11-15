@@ -6,6 +6,11 @@
   const valid=ctx=>ctx===current&&ctx.parent.isConnected&&route().path==='/explore';
   const icons={close:'<path d="m6 6 12 12M18 6 6 18"/>',instagram:'<rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.4" cy="6.6" r=".7" fill="currentColor" stroke="none"/>',photo:'<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.5"/><path d="m3 17 5-5 4 4 4-6 5 7"/>'};
   const icon=name=>icons[name]?`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name]}</svg>`:iconSvg(name,20);
+  const unavailable='Por el momento no podés pedir canciones en este bar.';
+  function coverUrl(value){
+    if(typeof value!=='string'||!value.trim())return '';
+    try{const url=new URL(value,location.origin);return !url.username&&!url.password&&(url.protocol==='https:'||(url.protocol==='http:'&&url.origin===location.origin))?url.href:'';}catch(_){return '';}
+  }
   function dimensions(ctx){
     const header=document.querySelector('.toca-app-header')?.getBoundingClientRect().height||0;
     const nav=document.querySelector('.toca-bottom-nav')?.getBoundingClientRect().height||0;
@@ -34,10 +39,9 @@
     const genres=String(v.genre||'').split(/[,•·]/).map(s=>s.trim()).filter(Boolean).join(' · ');
     return `<button type="button" class="place-handle" data-place-expand aria-expanded="false" aria-label="Ampliar ficha del bar"><span></span></button><div class="place-scroll">
       <header class="place-heading"><div><span class="place-status ${v.active?'':'inactive'}"><i></i>${v.active?'Música activa':'Música inactiva'}${state.demo?' · Demo':''}</span><h2 id="toca-place-name">${esc(v.name||'Bar')}</h2>${genres?`<p>${esc(genres)}</p>`:''}</div><button type="button" class="place-close" data-place-close aria-label="Cerrar ficha del bar">${icon('close')}</button></header>
-      <section class="place-request-block" aria-label="Qué suena y cómo pedir tu canción">
+      <section class="place-request-block is-unavailable" aria-label="Qué suena y cómo pedir tu canción">
         <div class="place-music" aria-live="polite"><p>Consultando canción actual…</p></div>
-        <p class="place-request-help" id="toca-place-request-help">Elegí tu tema y sumalo a la playlist del bar.</p>
-        <div class="place-actions"><a class="place-primary" href="#/request/${encodeURIComponent(v.id)}" aria-describedby="toca-place-request-help">${icon('music')}Pedir una canción</a></div>
+        <div class="place-request-controls"></div>
       </section>
       <div class="place-photos" aria-label="Fotos del bar"></div>
       ${v.address||v.city||instagram?`<div class="place-details ${instagram?'has-instagram':''}">${v.address||v.city?`<div class="place-address">${icon('pin')}<div>${v.address?`<strong>${esc(v.address)}</strong>`:''}${v.city?`<span>${esc(v.city)}</span>`:''}</div></div>`:''}${instagram}</div>`:''}
@@ -54,11 +58,14 @@
     urls.forEach((url,index)=>{const button=document.createElement('button');button.type='button';button.setAttribute('aria-label',`Abrir foto ${index+1} de ${v.name||'este bar'}`);const image=document.createElement('img');image.src=url;image.alt=state.demo?'Ambiente ilustrativo del bar':`Foto ${index+1} de ${v.name||'este bar'}`;image.loading=index?'lazy':'eager';image.onerror=()=>{button.remove();count();};button.append(image);button.onclick=()=>{const dialog=ctx.root.querySelector('dialog'),full=dialog.querySelector('img');full.src=image.src;full.alt=image.alt;dialog.showModal();};gallery.append(button);});count();
   }
   function music(ctx,snapshot,error=false){
-    const box=ctx.root.querySelector('.place-music');
-    if(error){box.innerHTML='<p>No pudimos consultar qué está sonando. Podés seguir viendo el bar.</p>';return;}
-    if(!snapshot?.active){box.innerHTML=`${icon('music')}<p>La sesión musical está inactiva.</p>`;return;}
-    if(!snapshot.now?.title){box.innerHTML=`${icon('music')}<p>No hay una canción informada en este momento.</p>`;return;}
-    box.innerHTML=`<div class="place-song-cover">${icon('music')}</div><div class="place-song-copy"><span>${snapshot.isPlaying?'SUENA AHORA':'REPRODUCCIÓN PAUSADA'}</span><strong>${esc(snapshot.now.title)}</strong><small>${esc(snapshot.now.artist||'')}</small></div>${snapshot.isPlaying?'<div class="place-equalizer" aria-hidden="true"><i></i><i></i><i></i><i></i></div>':''}`;
+    const box=ctx.root.querySelector('.place-music'),block=ctx.root.querySelector('.place-request-block'),controls=ctx.root.querySelector('.place-request-controls');
+    const playing=!error&&snapshot?.active===true&&snapshot.isPlaying===true&&typeof snapshot.now?.title==='string'&&!!snapshot.now.title.trim();
+    block.classList.toggle('is-unavailable',!playing);
+    if(!playing){box.innerHTML=`<p>${unavailable}</p>`;controls.replaceChildren();return;}
+    const cover=coverUrl(snapshot.now.imageUrl);
+    box.innerHTML=`<div class="place-song-cover">${icon('music')}${cover?`<img src="${esc(cover)}" alt="Portada de ${esc(snapshot.now.title)}" decoding="async" referrerpolicy="no-referrer">`:''}</div><div class="place-song-copy"><span>SUENA AHORA</span><strong>${esc(snapshot.now.title)}</strong><small>${esc(snapshot.now.artist||'')}</small></div><div class="place-equalizer" aria-hidden="true"><i></i><i></i><i></i><i></i></div>`;
+    const image=box.querySelector('.place-song-cover img');if(image)image.onerror=()=>image.remove();
+    if(!controls.childElementCount)controls.innerHTML=`<p class="place-request-help" id="toca-place-request-help">Elegí tu tema y sumalo a la playlist del bar.</p><div class="place-actions"><a class="place-primary" href="#/request/${encodeURIComponent(ctx.venue.id)}" aria-describedby="toca-place-request-help">${icon('music')}Pedir una canción</a></div>`;
   }
   async function refresh(ctx){
     if(!valid(ctx)||ctx.busy||document.hidden)return;ctx.busy=true;clearTimeout(ctx.timer);
