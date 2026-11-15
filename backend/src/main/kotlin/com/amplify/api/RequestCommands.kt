@@ -185,12 +185,16 @@ class RequestCommands(private val db: Db, private val presence: VenuePresence,
                 val currentVenue = currentForCommand(refreshed) // repeat fresh rules AFTER provider metadata
                 db.exec("UPDATE request_command SET title=?,artist=?,updated_at=now() WHERE id=? AND worker_id=? AND status='PREPARING'",
                     track["title"].orEmpty().take(300), track["artist"].orEmpty().take(300), id, owner)
-                val rows = db.list("""SELECT track_id FROM song_request WHERE venue_id=? AND status='DISPATCHED'
-                    AND queued_at>=GREATEST(COALESCE(?::timestamptz,'epoch'::timestamptz),
-                        COALESCE(?::timestamptz,'epoch'::timestamptz)) ORDER BY queued_at,id""",
-                    venueId, command["session_started_at"], currentVenue["request_cycle_started_at"])
+                // The summary row groups songs for reporting. FIFO must use
+                // individual successful commands so repeated paid requests keep
+                // their own occurrence and chronological place in the queue.
+                val rows = db.list("""SELECT track_id FROM request_command WHERE venue_id=? AND status='SUCCEEDED'
+                    AND session_started_at IS NOT DISTINCT FROM ?::timestamptz
+                    AND updated_at>=GREATEST(COALESCE(?::timestamptz,'epoch'::timestamptz),
+                        COALESCE(?::timestamptz,'epoch'::timestamptz)) ORDER BY sequence""",
+                    venueId,command["session_started_at"],command["session_started_at"],currentVenue["request_cycle_started_at"])
                     .map { it.getValue("track_id") as String }
-                (rows + command.getValue("track_id").toString()).distinct()
+                rows + command.getValue("track_id").toString()
             }
             val plan = gateway.prepare(venueId, command.getValue("track_id") as String, token, queue, command.getValue("playlist_id") as String)
             db.transaction {

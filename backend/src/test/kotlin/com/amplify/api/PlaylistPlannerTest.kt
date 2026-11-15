@@ -43,4 +43,38 @@ class PlaylistPlannerTest {
         val next=PlaylistPlanner.reconcile(plan.expected,"first",true,listOf("first","second","third"),"third")
         assertEquals(listOf("first","second","third")+historical,next.expected)
     }
+    @Test fun `each new paid request inserts one copy even when the track is already next`() {
+        val first=PlaylistPlanner.reconcile(listOf("playing","base"),"playing",true,listOf("a"),"a")
+        val second=PlaylistPlanner.reconcile(first.expected,"playing",true,listOf("a","a"),"a")
+        assertEquals(listOf("playing","a","a","base"),second.expected)
+        assertEquals(listOf("a","a"),second.activeQueue)
+        assertEquals("INSERTED",second.steps.last().action)
+        assertEquals(2,second.steps.last().desiredIndex)
+        val third=PlaylistPlanner.reconcile(second.expected,"playing",true,listOf("a","a","b"),"b")
+        assertEquals(listOf("playing","a","a","b","base"),third.expected)
+    }
+    @Test fun `repeated requests retain their chronological slots between other songs`() {
+        var ids:List<String?> = listOf("playing","base")
+        val queue=mutableListOf<String>()
+        for(track in listOf("a","b","a","c","a")){
+            queue.add(track)
+            ids=PlaylistPlanner.reconcile(ids,"playing",true,queue,track).expected
+            assertEquals(listOf("playing")+queue+"base",ids)
+        }
+    }
+    @Test fun `currently playing repeat is passed and later copies retain FIFO`() {
+        val plan=PlaylistPlanner.reconcile(listOf("a","b","a","base"),"a",true,listOf("a","b","a","c"),"c")
+        assertEquals(listOf("b","a","c"),plan.activeQueue)
+        assertEquals(listOf("a","b","a","c","base"),plan.expected)
+    }
+    @Test fun `missing historical duplicates are not recreated`() {
+        val plan=PlaylistPlanner.reconcile(listOf("playing","a","base"),"playing",true,listOf("a","a","gone","a"),"a")
+        assertEquals(listOf("playing","a","a","base"),plan.expected)
+        assertEquals(1,plan.steps.count{it.action=="INSERTED"})
+    }
+    @Test fun `a base playlist occurrence is not reused as a paid request`() {
+        val plan=PlaylistPlanner.reconcile(listOf("playing","a","base"),"playing",true,listOf("a"),"a")
+        assertEquals(listOf("playing","a","a","base"),plan.expected)
+        assertEquals(1,plan.steps.single().desiredIndex)
+    }
 }

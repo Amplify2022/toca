@@ -132,9 +132,8 @@ class Spotify(
                            orderedQueue:List<String>, expectedPlaylistId:String):String = withRequestBudget {
         requirePlaylistWrites()
         if(!trackId.matches(Regex("[A-Za-z0-9]{22}")))fail(HttpStatus.BAD_REQUEST,"ID de canción inválido")
-        if(orderedQueue.isEmpty() || trackId !in orderedQueue)
+        if(orderedQueue.lastOrNull()!=trackId)
             fail(HttpStatus.BAD_REQUEST,"La solicitud no está en la cola de TOCÁ")
-        if(orderedQueue.size>100)fail(HttpStatus.CONFLICT,"Máximo 100 solicitudes en la cola de pruebas")
         requireSelectedPlaylist(venueId,expectedPlaylistId)
         val before=readRequestSnapshot(expectedPlaylistId,token)
         val playback=apiGet("/me/player",token)
@@ -143,11 +142,12 @@ class Spotify(
         val samePlaylist=RequestedPlaylistPlayback.usesPlaylist(expectedPlaylistId,before.ids,context,currentTrack)
         if(!samePlaylist && !controlEnabled)fail(HttpStatus.PRECONDITION_FAILED,"La playlist terminó. Habilitá el control de reproducción del bar para reiniciarla automáticamente.")
         val calculated=PlaylistPlanner.reconcile(before.ids,currentTrack,samePlaylist,if(samePlaylist)orderedQueue else listOf(trackId),trackId)
+        if(calculated.activeQueue.size>100)fail(HttpStatus.CONFLICT,"Máximo 100 solicitudes pendientes en la cola de pruebas")
         if(calculated.expected.size>1000)
             fail(HttpStatus.CONFLICT,"La playlist superaría el máximo de 1000 canciones de las pruebas")
         val plan=RequestPlaylistPlan(expectedPlaylistId,trackId,before.ids,
             calculated.steps.filter {it.action!="ALREADY_IN_ORDER"},
-            calculated.protectedPrefix+calculated.activeQueue.indexOf(trackId),!samePlaylist,!samePlaylist)
+            calculated.protectedPrefix+calculated.activeQueue.lastIndex,!samePlaylist,!samePlaylist)
         check(plan.states().last()==calculated.expected) { "Saved Spotify plan does not match calculated result" }
         RequestPlanCodec.encode(json,plan)
     }
@@ -283,10 +283,15 @@ class Spotify(
         return RequestPlaylistSnapshot(ids,snapshot)
     }
 
-    private fun savedRequestPlan(planJson:String):RequestPlaylistPlan = try {
-        RequestPlanCodec.decode(json,planJson)
-    } catch (_:Exception) {
-        fail(HttpStatus.CONFLICT,"El plan guardado del pedido no es válido; revisá su sincronización")
+    private fun savedRequestPlan(planJson:String):RequestPlaylistPlan {
+        val plan=try{RequestPlanCodec.decode(json,planJson)}catch(_:Exception){
+            fail(HttpStatus.CONFLICT,"El plan guardado del pedido no es válido; revisá su sincronización")
+        }
+        // Legacy pending plans could merely move/reuse an existing copy. They
+        // must not become a successful charge under the new per-request rule.
+        if(!plan.addsRequestedOccurrence())throw RequestNotApplied(HttpStatus.CONFLICT,
+            "Este pedido necesita prepararse de nuevo para agregar otra copia. No se descontaron tokens.")
+        return plan
     }
 
     private fun requestPlanResult(plan:RequestPlaylistPlan, changed:Boolean):PlaylistChange {

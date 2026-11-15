@@ -49,5 +49,13 @@ const settings = storage => ({storage, customerId: ()=>'customer-1', bearer: ()=
   }});
   await client.submit('venue','track',{trackId:'track'});
   assert(newRequest,'Commands must stay scoped to the authenticated customer');
+  const deliberate=[];let nextId=0;
+  const repeats=create({...settings(store()),makeId:()=>`new-request-${++nextId}`,api:async(url,opts)=>{
+    deliberate.push(opts.headers['Idempotency-Key']);return {commandId:`done-${nextId}`,status:'DISPATCHED'};
+  }});
+  await repeats.submit('venue','same-song',{trackId:'same-song'});
+  await repeats.submit('venue','same-song',{trackId:'same-song'});
+  assert.equal(deliberate.length,2);
+  assert.notEqual(deliberate[0],deliberate[1],'Two intentional requests for one song must be distinct operations');
   console.log('PASS: durable request key reuse, status polling, uncertain retention, terminal cleanup and customer isolation');
 })().catch(error=>{console.error(error);process.exitCode=1});

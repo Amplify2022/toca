@@ -12,6 +12,26 @@ class RequestPlaylistReplayTest {
         RequestPlaylistPlan("P".repeat(22), wanted, listOf(a,b), steps, position, false)
     private fun insert(track: String, at: Int) = PlaylistPlanner.OrderStep(track,at,null,"INSERTED")
 
+    @Test fun `reusing or moving an existing copy does not qualify as a paid insertion`() {
+        assertFalse(RequestPlaylistPlan("P".repeat(22),d,listOf(a,d,b),emptyList(),1,false).addsRequestedOccurrence())
+        assertFalse(RequestPlaylistPlan("P".repeat(22),d,listOf(a,b,d),listOf(PlaylistPlanner.OrderStep(d,1,2,"REORDERED")),1,false).addsRequestedOccurrence())
+        assertTrue(RequestPlaylistPlan("P".repeat(22),d,listOf(a,d,b),listOf(insert(d,2)),2,false).addsRequestedOccurrence())
+    }
+
+    @Test fun `a second paid copy is verified separately and a lost response never adds a third`() {
+        val calculated=PlaylistPlanner.reconcile(listOf(a,d,b),a,true,listOf(d,d),d)
+        val command=RequestPlaylistPlan("P".repeat(22),d,listOf(a,d,b),calculated.steps.filter{it.action!="ALREADY_IN_ORDER"},2,false)
+        val remote=mutableListOf<String?>(a,d,b);var writes=0
+        assertThrows(IllegalStateException::class.java){
+            RequestPlaylistReplay.apply(command,{RequestPlaylistSnapshot(remote.toList(),"s1")}){step,_->
+                remote.add(step.desiredIndex,step.trackId);writes++;error("response lost")
+            }
+        }
+        assertEquals(listOf(a,d,d,b),remote)
+        assertFalse(RequestPlaylistReplay.apply(command,{RequestPlaylistSnapshot(remote.toList(),"s2")}){_,_->fail<Unit>("Do not repeat the second paid insertion")})
+        assertEquals(1,writes)
+    }
+
     @Test fun `lost provider response does not duplicate an already inserted song`() {
         val command = plan(listOf(insert(d,1)))
         val remote = mutableListOf<String?>(a,b)

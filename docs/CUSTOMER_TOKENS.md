@@ -8,7 +8,7 @@ El saldo ahora está integrado con la API y PostgreSQL. Las cuentas nuevas y exi
 2. Sin saldo, abre **Mi perfil → Tus tokens** con el panel de recarga. No envía el pedido ni consulta Spotify para agregarlo. Conserva el tema y el bar elegidos.
 3. La recarga simulada permite elegir 5, 12 o 30 tokens. Se acredita en el servidor y cierra el panel. No se cobra dinero.
 4. Si la recarga vino de un pedido sin saldo, continúa automáticamente con el tema y el bar elegidos: valida el acceso, envía el mismo pedido y espera su confirmación. No requiere volver a tocar **Pedir**. Al confirmarse, muestra **«¡Tema agregado!»** en el centro durante 1,5 segundos y vuelve automáticamente a la playlist.
-5. **Sólo al confirmar el éxito descuenta 1 token**. Un pedido iniciado con saldo conserva su aviso y regreso directo a la playlist. No hay aprobación del bar. Una recarga habitual desde el perfil, sin pedido elegido, sólo acredita tokens y muestra el aviso de recarga.
+5. **Cada pedido nuevo agrega una copia propia y sólo al confirmar el éxito descuenta 1 token**. Se puede pedir el mismo tema varias veces: cada pedido conserva su lugar en el orden de llegada. Una copia que ya estuviera en la playlist no reemplaza el nuevo pedido. Reintentar la misma operación conserva su clave y no agrega ni cobra otra copia. Un pedido iniciado con saldo conserva su aviso y regreso directo a la playlist. No hay aprobación del bar. Una recarga habitual desde el perfil, sin pedido elegido, sólo acredita tokens y muestra el aviso de recarga.
 6. Mientras se procesa, el saldo y los movimientos permanecen iguales. Si falla, no se descuenta ningún token. Los reintentos y pedidos simultáneos se coordinan internamente para impedir un doble gasto; no se muestran tokens en reserva.
 7. Si la playlist terminó y Spotify sigue con recomendaciones u otro contexto, coloca el tema pedido al principio y reinicia **toda la playlist** desde ese primer tema. Requiere la salida de audio y el control de reproducción que usa el bar. Si la playlist sigue sonando normalmente, el pedido mantiene el flujo habitual y no interrumpe la canción actual.
 8. Al reiniciar comienza una nueva vuelta de pedidos: los pedidos históricos no ocupan lugares pendientes. Si el primer tema está pausado y no hay otros pedidos pendientes de esa misma vuelta, el siguiente pedido va en la posición 2. Los pedidos de esa vuelta respetan el orden de llegada. La migración V22 reconoce los reinicios automáticos ya confirmados en versiones anteriores.
@@ -21,9 +21,13 @@ La falta de saldo tiene un manejo común en la consulta inicial, el envío y los
 
 El panel del bar muestra actividad de solo lectura y se actualiza automáticamente. Los pedidos no se aprueban manualmente.
 
+La cola usa los comandos exitosos individuales, mientras que `song_request` conserva el resumen por canción para informes. Los planes antiguos todavía pendientes que sólo movían o reutilizaban una copia no se confirman como una nueva inserción cobrada; deben prepararse nuevamente. Los resultados ya confirmados y su historial se conservan.
+
 Un conflicto persistente con la playlist no se convierte en una tarea de revisión del bar: después de comprobarlo con el proceso anterior ya detenido, la app puede terminar el pedido sin descontar tokens y continuar con los siguientes. No sobrescribe una playlist incompatible ni informa una canción como agregada sin verificarlo.
 
 El perfil habitual mantiene foto, favoritos y accesos de cuenta. Ahora incluye saldo y un enlace a los movimientos. La pantalla de tokens se abre en **http://localhost:5173/#/profile/tokens** con sesión de cliente.
+
+El saldo, la recarga y sus confirmaciones comparten la paleta del resto de la app: fondos oscuros, bordes verde grisáceo y acentos lima de `--lime`.
 
 ## Datos y API
 

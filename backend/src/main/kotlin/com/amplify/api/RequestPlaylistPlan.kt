@@ -15,6 +15,10 @@ data class RequestPlaylistPlan(
     val outsideContext: Boolean,
     val restartPlayback: Boolean = false,
 ) {
+    /** A new paid request must add a copy, even if the same URI already exists. */
+    fun addsRequestedOccurrence():Boolean =
+        states().last().count{it==requestedTrack}==initialIds.count{it==requestedTrack}+1
+
     fun states(): List<List<String?>> {
         require(playlistId.matches(Regex("[A-Za-z0-9]{15,40}"))) { "Invalid saved playlist" }
         require(requestedTrack.matches(Regex("[A-Za-z0-9]{22}"))) { "Invalid saved track" }

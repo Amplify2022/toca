@@ -69,48 +69,36 @@ object PlaylistPlanner {
                          val expected: List<String?>, val activeQueue: List<String>)
 
     /**
-     * Reconcile only the requests that have NOT passed the Spotify playback
-     * cursor, plus the track requested right now. A DISPATCHED DB row is a
-     * historical request, not proof that the song is still waiting to play.
-     *
-     * Example: B,C at indices 0,1; Spotify is playing index 6; D is requested.
-     * Only D goes at index 7. We must not insert B,C again at indices 7,8.
-     *
-     * For an external playback context, Spotify provides no cursor into this
-     * playlist; we preserve the already-present FIFO prefix from index zero.
+     * Preserve each paid request occurrence still ahead of the playback cursor.
+     * Missing historical occurrences are already played/removed; never recreate
+     * them. Prefer newer requests when only some repeated songs remain.
+     * The final queue entry is this NEW request and always inserts one new copy.
+     * Retries replay the frozen RequestPlaylistPlan instead of calling this again.
      */
     fun reconcile(ids: List<String?>, currentTrack: String?, samePlaylist: Boolean,
                   orderedQueue: List<String>, requestedTrack: String): OrderPlan {
-        require(requestedTrack in orderedQueue) { "Requested track must be in the DB queue" }
+        require(orderedQueue.lastOrNull()==requestedTrack) { "New request must be last in the DB queue" }
         val currentIndex = if(samePlaylist && !currentTrack.isNullOrBlank())
             ids.indexOfFirst { it == currentTrack } else -1
         val firstFree = if(currentIndex < 0) 0 else currentIndex + 1
-        val futureIds = ids.drop(firstFree).toSet()
-        // Previously requested tracks no longer ahead of the cursor have
-        // already been played; only an explicit new request may re-add one.
-        val activeQueue = orderedQueue.distinct().filter { it == requestedTrack || it in futureIds }
+        val available = ids.drop(firstFree).filterNotNull().groupingBy { it }.eachCount().toMutableMap()
+        val previous = orderedQueue.dropLast(1).asReversed().filter { id ->
+            val remaining=available[id]?:0
+            if(remaining>0){available[id]=remaining-1;true}else false
+        }.asReversed()
+        val activeQueue = previous + requestedTrack
         val mutable = ids.toMutableList()
         val steps = mutableListOf<OrderStep>()
-        activeQueue.forEachIndexed { n, wanted ->
-            val pos = firstFree + n
-            // Never move an occurrence before the cursor, nor the playing song.
-            // If a previously played track is explicitly requested again, the
-            // new copy is intentional, unlike the historical duplicates in v18.
-            val existing = (pos until mutable.size).firstOrNull { mutable[it] == wanted }
-            val action = when {
-                existing == null -> "INSERTED"
-                existing == pos -> "ALREADY_IN_ORDER"
-                else -> "REORDERED"
-            }
-            when(action) {
-                "INSERTED" -> mutable.add(pos, wanted)
-                "REORDERED" -> {
-                    val moved = mutable.removeAt(existing!!)
-                    mutable.add(pos, moved)
-                }
-            }
+        previous.forEachIndexed { n,wanted ->
+            val pos=firstFree+n
+            val existing=(pos until mutable.size).first { mutable[it]==wanted }
+            val action=if(existing==pos)"ALREADY_IN_ORDER" else "REORDERED"
+            if(existing!=pos)mutable.add(pos,mutable.removeAt(existing))
             steps.add(OrderStep(wanted,pos,existing,action))
         }
+        val position=firstFree+previous.size
+        mutable.add(position,requestedTrack)
+        steps.add(OrderStep(requestedTrack,position,null,"INSERTED"))
         return OrderPlan(firstFree,steps,mutable,activeQueue)
     }
 }

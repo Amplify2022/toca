@@ -21,10 +21,10 @@ class RequestedPlaylistPlaybackTest {
         assertEquals(mapOf("uri" to "spotify:track:$wanted"),body["offset"])
         assertEquals(0,body["position_ms"])
     }
-    @Test fun `an existing requested song moves to first without being duplicated`() {
+    @Test fun `a new request inserts its own copy first when restarting the playlist`() {
         val plan=PlaylistPlanner.reconcile(listOf(a,b,wanted),b,false,listOf(wanted),wanted)
-        assertEquals(listOf(wanted,a,b),plan.expected)
-        assertEquals(1,plan.expected.count{it==wanted})
+        assertEquals(listOf(wanted,a,b,wanted),plan.expected)
+        assertEquals(2,plan.expected.count{it==wanted})
     }
     @Test fun `recovery does not restart a playlist again after a lost response`() {
         assertTrue(RequestedPlaylistPlayback.shouldRestart(true,false,true))

@@ -138,6 +138,72 @@ public class P1ServiceProbe {
         check(credits(wallet,c)==26,"An expired location grant must not debit tokens");
         System.out.println("PASS request cycles: one location check-in, restart excludes historical requests, FIFO, idempotent replay and expired authorization");
     }
+    /** Production planner/replay with a fake Spotify playlist, backed by real SQL commands and credits. */
+    static class RepeatedSpotify extends FakeSpotify implements RecoverableRequestSpotifyGateway {
+        final String playing="X".repeat(22),playlist="P".repeat(22);
+        final com.fasterxml.jackson.databind.ObjectMapper json=new com.fasterxml.jackson.databind.ObjectMapper();
+        final List<String> ids=new ArrayList<>(List.of(playing,TRACK_B));
+        List<String> queued=List.of();int writes;boolean loseNextResponse;
+        @Override public String prepare(UUID venue,String track,String token,List<String> order,String selected) {
+            queued=List.copyOf(order);
+            var calculated=PlaylistPlanner.INSTANCE.reconcile(new ArrayList<>(ids),playing,true,order,track);
+            var steps=calculated.getSteps().stream().filter(step->!step.getAction().equals("ALREADY_IN_ORDER")).toList();
+            var plan=new RequestPlaylistPlan(playlist,track,new ArrayList<>(ids),steps,
+                calculated.getProtectedPrefix()+calculated.getActiveQueue().size()-1,false,false);
+            check(plan.addsRequestedOccurrence(),"Every freshly prepared paid plan must add a new occurrence");
+            return RequestPlanCodec.INSTANCE.encode(json,plan);
+        }
+        @Override public RequestPlaylistResult apply(UUID venue,String token,String raw) {
+            var plan=RequestPlanCodec.INSTANCE.decode(json,raw);
+            RequestPlaylistReplay.INSTANCE.apply(plan,()->new RequestPlaylistSnapshot(new ArrayList<>(ids),"s"+writes),(step,snapshot)->{
+                if(step.getAction().equals("INSERTED"))ids.add(step.getDesiredIndex(),step.getTrackId());
+                else ids.add(step.getDesiredIndex(),ids.remove((int)step.getExistingIndex()));
+                writes++;
+                if(loseNextResponse){loseNextResponse=false;throw new RuntimeException("lost duplicate insertion response");}
+                return kotlin.Unit.INSTANCE;
+            });
+            return new RequestPlaylistResult("FIFO_VERIFIED",plan.getPosition(),null);
+        }
+        @Override public RequestPlaylistResult verify(UUID venue,String token,String raw) {
+            var plan=RequestPlanCodec.INSTANCE.decode(json,raw);
+            return plan.states().getLast().equals(ids)?new RequestPlaylistResult("FIFO_VERIFIED",plan.getPosition(),null):null;
+        }
+        @Override public RequestPlaylistResult applyOwned(UUID venue,String token,String raw,kotlin.jvm.functions.Function0<kotlin.Unit> fence) {
+            fence.invoke();return apply(venue,token,raw);
+        }
+        @Override public RequestPlaylistResult resumeOwned(UUID venue,String token,String raw,kotlin.jvm.functions.Function0<kotlin.Unit> fence) {
+            return applyOwned(venue,token,raw,fence);
+        }
+    }
+    static void repeatedPaidRequests() {
+        UUID v=venue(),c=customer();var wallet=new CustomerWallet(db,true);var fake=new RepeatedSpotify();
+        var commands=new RequestCommands(db,new VenuePresence(db),fake,wallet,true);
+        String firstKey=key();
+        check("DISPATCHED".equals(commands.submit(v,c,body(TRACK_A,"repeat-request-one"),firstKey).get("status")),"First paid request must confirm");
+        check(fake.ids.equals(List.of(fake.playing,TRACK_A,TRACK_B))&&credits(wallet,c)==29,"First request adds and charges exactly once");
+        commands.submit(v,c,body(TRACK_A,"repeat-request-one"),firstKey);
+        check(fake.writes==1&&credits(wallet,c)==29,"Replaying the same request must not add or charge again");
+        db.exec("UPDATE request_command SET created_at=now()-interval '20 seconds' WHERE venue_id=?",v);
+        fake.loseNextResponse=true;String secondKey=key();
+        var second=commands.submit(v,c,body(TRACK_A,"repeat-request-two"),secondKey);
+        check("DISPATCHED".equals(second.get("status")),"Lost response after the second insertion must recover automatically");
+        check(fake.ids.equals(List.of(fake.playing,TRACK_A,TRACK_A,TRACK_B)),"Two intentional requests must leave two physical copies");
+        check(fake.writes==2&&credits(wallet,c)==28,"Two requests must have two insertions and two charges");
+        check(((Number)second.get("playlistPosition")).intValue()==2,"Repeated request must point to its newly inserted occurrence");
+        commands.submit(v,c,body(TRACK_A,"repeat-request-two"),secondKey);
+        check(fake.writes==2&&credits(wallet,c)==28,"Retry of the recovered second copy must not add a third or debit again");
+        db.exec("UPDATE request_command SET created_at=now()-interval '20 seconds' WHERE venue_id=?",v);
+        commands.submit(v,c,body(TRACK_B,"repeat-request-next"),key());
+        db.exec("UPDATE request_command SET created_at=now()-interval '20 seconds' WHERE venue_id=?",v);
+        var fourth=commands.submit(v,c,body(TRACK_A,"repeat-request-three"),key());
+        check(fake.queued.equals(List.of(TRACK_A,TRACK_A,TRACK_B,TRACK_A)),"The DB FIFO must preserve every successful request, including repeated tracks");
+        check(fake.ids.equals(List.of(fake.playing,TRACK_A,TRACK_A,TRACK_B,TRACK_A,TRACK_B)),"Later songs must respect each paid occurrence's chronological slot");
+        check(((Number)fourth.get("playlistPosition")).intValue()==4&&credits(wallet,c)==26,"The last repeat must report its own position and debit one token");
+        check(((Number)db.one("SELECT count(*) AS n FROM song_request_event WHERE venue_id=?",v).get("n")).intValue()==4,"History must retain one event per real requested occurrence");
+        check(((Number)db.one("SELECT count(*) AS n FROM customer_token_entry WHERE customer_id=? AND kind='SPEND'",c).get("n")).intValue()==4,"Confirmed playlist insertions and token debits must match");
+        System.out.println("PASS repeated paid requests: real SQL + production planner/replay, duplicate copies, FIFO, own positions, one debit per insertion and lost-response idempotence");
+    }
+
     static void walletAndRequests() throws Exception {
         var wallet=new CustomerWallet(db,true);
         UUID c=customer(false),other=customer(false),v=venue();var fake=new FakeSpotify();
@@ -687,7 +753,7 @@ public class P1ServiceProbe {
             flyway.migrate();
             if(fresh)verifyCreditUpgrade(legacyPending,legacyConfirmed);
             if(fresh)verifyRestartUpgrade(legacyRestart);
-            transactionReuse();adminMusicEdits();presenceEvidence();requestPlaybackCycles();authAtomicBudgets();requestIdentityAndReplay();authenticatedWindowCap();policyRevalidation();uncertainRemoteEffect();automaticRecovery();crashedWorkerRecovery();lostOwnershipFencesMutation();walletAndRequests();playbackBeforeCharge();analyticsSnapshot();
+            transactionReuse();adminMusicEdits();presenceEvidence();requestPlaybackCycles();repeatedPaidRequests();authAtomicBudgets();requestIdentityAndReplay();authenticatedWindowCap();policyRevalidation();uncertainRemoteEffect();automaticRecovery();crashedWorkerRecovery();lostOwnershipFencesMutation();walletAndRequests();playbackBeforeCharge();analyticsSnapshot();
             System.out.println("PASS P1 regression assertions="+assertions);
         } finally {
             for(UUID owner:owners){db.exec("DELETE FROM venue WHERE owner_id=?",owner);db.exec("DELETE FROM admin_user WHERE id=?",owner);}

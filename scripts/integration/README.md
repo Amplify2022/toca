@@ -99,6 +99,8 @@ Coverage:
 
 These are integration regressions, not live-provider OAuth/playback validation.
 
+La sonda también usa el planificador y el ejecutor de playlist de producción con una playlist de Spotify simulada para pedir el mismo tema varias veces. Comprueba copias físicas separadas, posiciones y orden de llegada, un débito por inserción confirmada y recuperación de una respuesta perdida sin sumar una copia ni un cargo extra.
+
 La sonda también comprueba el saldo inicial cero, las recargas simuladas sin doble acreditación, el gasto concurrente del último token, las reservas, las devoluciones y la recuperación de pedidos sin un segundo descuento. La prueba HTTP valida que la identidad del bar no autorice una billetera de cliente. Con `TOCA_TEST_WEB_URL=http://localhost:5174`, también abre el perfil en Chromium y verifica una recarga persistida contra la API y PostgreSQL reales.
 
 Para comprobar también el POST real de un pedido sin saldo, iniciar la API de prueba con `SPOTIFY_PRIVATE_TEST_PLAYLIST_WRITES=true` y ejecutar la sonda HTTP con `TOCA_TEST_REQUEST_FLOW=true`. El bar es sintético y el saldo es cero: la petición debe devolver `INSUFFICIENT_TOKENS` antes de consultar Spotify y no debe crear un pedido en el panel del bar. Si se pasa `TOCA_TEST_WEB_URL`, Chromium comprueba que esa respuesta abre el panel de recarga del usuario sin un aviso genérico de error. El servidor estático de estas pruebas puede elegirse con `TOCA_WEB_URL`.
