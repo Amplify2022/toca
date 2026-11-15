@@ -37,9 +37,6 @@
 .landing-stages>button{display:flex;text-align:left;align-items:center;gap:20px;width:100%;padding:24px 22px;border:1px solid transparent;border-radius:17px;color:#c1d0c5;background:transparent;font:inherit;cursor:pointer;transition:background .2s,border-color .2s}
 .landing-stages>button[aria-selected=true]{border-color:#547c3a;background:#182a1d}
 .landing-stages>button{position:relative;overflow:hidden}
-.landing-stage-progress{position:absolute;bottom:0;left:0;right:0;height:3px;background:#b4ff7915;opacity:0;pointer-events:none}
-.landing-stages>button[aria-selected=true] .landing-stage-progress{opacity:1}
-.landing-stage-progress>i{display:block;width:100%;height:100%;background:var(--lime);transform:scaleX(var(--stage-progress,0));transform-origin:left center}
 .landing-stages>button:hover{background:#14221d}.landing-stage-number{font-family:'Outfit',sans-serif;font-size:22px;color:#6a8675;align-self:flex-start;padding-top:2px}
 .landing-stages>button[aria-selected=true] .landing-stage-number{color:var(--lime)}
 .landing-stages>button>span:nth-child(2){flex:1;min-width:0}.landing-stages strong{display:block;font-size:18px;font-weight:750;line-height:1.4;letter-spacing:-.3px;color:#eef6ed}

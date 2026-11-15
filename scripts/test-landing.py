@@ -55,7 +55,8 @@ try:
     tabs.nth(i).click();expect(tabs.nth(i)).to_have_attribute('aria-selected','true');expect(page.locator(f'#landing-screen-{i}')).to_be_visible()
     image=page.locator(f'#landing-screen-{i} img');page.wait_for_function('(src)=>Array.from(document.images).some(i=>i.src.endsWith(src)&&i.naturalWidth>0)',arg=image.get_attribute('src'))
    tabs.last.press('Home');expect(tabs.first).to_have_attribute('aria-selected','true')
-   expect(page.locator('[data-stage-playback]')).to_have_text('Reanudar')
+   expect(page.locator('[data-stage-playback]')).to_have_text('Pausar')
+   assert not root.locator('.landing-stage-progress,[role=progressbar]').count()
    header_anchor('contacto');page.wait_for_timeout(450)
    form=page.locator('#landing-contact-form');form.locator('[name=name]').fill('Landing fixture');form.locator('[name=email]').fill('landing@example.test');form.locator('[name=message]').fill('Tengo una sugerencia para mejorar la aplicación.')
    header_anchor('la-app');page.go_back();expect(form.locator('[name=name]')).to_have_value('Landing fixture')
@@ -75,7 +76,7 @@ try:
     page.locator('#'+id).scroll_into_view_if_needed();page.wait_for_timeout(100)
    page.wait_for_function("Array.from(document.querySelectorAll('.landing-expanded img')).filter(i=>!i.closest('[hidden]')).every(i=>i.complete&&i.naturalWidth>0)")
    form.locator('.landing-form-status').evaluate('(node)=>node.hidden=true')
-   page.locator('[data-stage-playback]').click();page.mouse.move(0,0)
+   tabs.first.click();page.mouse.move(0,0)
    page.evaluate('scrollTo(0,0)');page.wait_for_timeout(150)
    assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),width
    page.screenshot(path=str(OUT/f'inicio-{width}.png'),full_page=True)

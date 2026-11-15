@@ -21,7 +21,7 @@
   ['Recargá tus tokens si lo necesitás','Cada canción agregada usa 1 token. Las recargas de esta etapa son de prueba, sin cobros.','tokens.png'],
   ['Listo. Tu tema está en la playlist','Tu pedido se agrega automáticamente. Si el bar lo requiere, validamos que estés a 100 metros.','success.png']
  ];
- function walkthrough(){return `<div class="landing-walkthrough"><div class="landing-section-heading landing-walkthrough-heading"><div><h3>Tu próxima canción, en cuatro pasos.</h3><p>De encontrar el bar a sumar tu tema. Así se ve TOCÁ por dentro.</p></div><div class="landing-walkthrough-controls"><span data-stage-count>Paso 1 de 4</span><button type="button" data-stage-playback title="Avance automático: 5 segundos por paso" aria-label="Pausar el avance automático de los pasos">${svg('<path d="M9 5v14M15 5v14"/>',16)}Pausar</button></div></div><div class="landing-how-grid"><div class="landing-stages" role="tablist" aria-label="Cómo funciona TOCÁ" aria-orientation="vertical">${stages.map(([title,copy],i)=>`<button type="button" role="tab" id="landing-stage-${i}" aria-controls="landing-screen-${i}" aria-selected="${i===0}" tabindex="${i===0?'0':'-1'}" data-landing-stage="${i}"><span class="landing-stage-number">0${i+1}</span><span><strong>${title}</strong><small>${copy}</small></span>${iconSvg('arrow',18)}<span class="landing-stage-progress" aria-hidden="true"><i></i></span></button>`).join('')}</div><div class="landing-screen-area">${stages.map(([title,,file],i)=>`<figure id="landing-screen-${i}" role="tabpanel" aria-labelledby="landing-stage-${i}" ${i?'hidden':''}><div class="landing-screen-phone"><img src="/assets/landing/${file}" width="390" height="780" loading="lazy" alt="Pantalla de TOCÁ: ${esc(title)}"></div><figcaption>Interfaz de TOCÁ · Datos de ejemplo</figcaption></figure>`).join('')}</div></div></div>`;}
+ function walkthrough(){return `<div class="landing-walkthrough"><div class="landing-section-heading landing-walkthrough-heading"><div><h3>Tu próxima canción, en cuatro pasos.</h3><p>De encontrar el bar a sumar tu tema. Así se ve TOCÁ por dentro.</p></div><div class="landing-walkthrough-controls"><span data-stage-count>Paso 1 de 4</span><button type="button" data-stage-playback title="Avance automático: 5 segundos por paso" aria-label="Pausar el avance automático de los pasos">${svg('<path d="M9 5v14M15 5v14"/>',16)}Pausar</button></div></div><div class="landing-how-grid"><div class="landing-stages" role="tablist" aria-label="Cómo funciona TOCÁ" aria-orientation="vertical">${stages.map(([title,copy],i)=>`<button type="button" role="tab" id="landing-stage-${i}" aria-controls="landing-screen-${i}" aria-selected="${i===0}" tabindex="${i===0?'0':'-1'}" data-landing-stage="${i}"><span class="landing-stage-number">0${i+1}</span><span><strong>${title}</strong><small>${copy}</small></span>${iconSvg('arrow',18)}</button>`).join('')}</div><div class="landing-screen-area">${stages.map(([title,,file],i)=>`<figure id="landing-screen-${i}" role="tabpanel" aria-labelledby="landing-stage-${i}" ${i?'hidden':''}><div class="landing-screen-phone"><img src="/assets/landing/${file}" width="390" height="780" loading="lazy" alt="Pantalla de TOCÁ: ${esc(title)}"></div><figcaption>Interfaz de TOCÁ · Datos de ejemplo</figcaption></figure>`).join('')}</div></div></div>`;}
  const previousLanding=tocaLanding;
  tocaLanding=function(){
   previousLanding();const root=document.querySelector('.toca-landing');if(!root)return;
@@ -52,39 +52,36 @@
   requestAnimationFrame(()=>scrollSection(route().params.get('section'),false));
  };
  function scrollSection(id,smooth=true){if(id==='como-funciona')id='la-app';if(!sections.includes(id))return;const target=document.getElementById(id);if(!target)return;target.scrollIntoView({behavior:smooth&&!matchMedia('(prefers-reduced-motion:reduce)').matches?'smooth':'instant',block:'start'});}
- function activateStage(root,index,manual=true){root.querySelectorAll('[data-landing-stage]').forEach(button=>{const selected=Number(button.dataset.landingStage)===index;button.setAttribute('aria-selected',String(selected));button.tabIndex=selected?0:-1;});root.querySelectorAll('[role="tabpanel"]').forEach((panel,i)=>panel.hidden=i!==index);stagePlayers.get(root)?.select(index,manual);}
+ function activateStage(root,index){root.querySelectorAll('[data-landing-stage]').forEach(button=>{const selected=Number(button.dataset.landingStage)===index;button.setAttribute('aria-selected',String(selected));button.tabIndex=selected?0:-1;});root.querySelectorAll('[role="tabpanel"]').forEach((panel,i)=>panel.hidden=i!==index);stagePlayers.get(root)?.select(index);}
  function startWalkthrough(root){
   const grid=root.querySelector('.landing-how-grid'),toggle=root.querySelector('[data-stage-playback]'),counter=root.querySelector('[data-stage-count]');
-  const motion=matchMedia('(prefers-reduced-motion:reduce)'),duration=5000,seen=new Set();
-  let index=0,elapsed=0,last=null,frame=null,hovered=false,focused=false,paused=motion.matches,disposed=false;
-  const running=()=>!disposed&&root.isConnected&&seen.size>0&&!document.hidden&&!paused&&!hovered&&!focused;
-  function progress(){grid.style.setProperty('--stage-progress',String(Math.min(elapsed/duration,1)));}
-  function sync(){
-   if(frame!==null)cancelAnimationFrame(frame);frame=null;last=null;if(disposed)return;
-   toggle.innerHTML=svg(paused?'<path d="m9 5 11 7-11 7V5Z"/>':'<path d="M9 5v14M15 5v14"/>',16)+(paused?'Reanudar':'Pausar');
-   toggle.setAttribute('aria-label',paused?'Reanudar el avance automático de los pasos':'Pausar el avance automático de los pasos');
-   counter.textContent=`Paso ${index+1} de ${stages.length}`;progress();
-   if(running())frame=requestAnimationFrame(tick);
+  const motion=matchMedia('(prefers-reduced-motion:reduce)'),duration=5000;
+  let index=0,timer=null,visible=false,paused=motion.matches,disposed=false;
+  const running=()=>!disposed&&root.isConnected&&visible&&!document.hidden&&!paused;
+  function cancel(){if(timer!==null)clearTimeout(timer);timer=null;}
+  function schedule(reset=false){
+   if(reset||!running())cancel();
+   if(running()&&timer===null)timer=setTimeout(()=>{timer=null;if(running())activateStage(grid,(index+1)%stages.length);},duration);
   }
-  function tick(now){
-   frame=null;if(!running()){last=null;return;}
-   if(last!==null)elapsed+=now-last;last=now;
-   if(elapsed>=duration){activateStage(grid,(index+1)%stages.length,false);return;}
-   progress();frame=requestAnimationFrame(tick);
+  function controls(){
+   const label=paused?'Reanudar':'Pausar';
+   if(toggle.textContent!==label){
+    toggle.innerHTML=svg(paused?'<path d="m9 5 11 7-11 7V5Z"/>':'<path d="M9 5v14M15 5v14"/>',16)+label;
+    toggle.setAttribute('aria-label',paused?'Reanudar el avance automático de los pasos':'Pausar el avance automático de los pasos');
+   }
+   counter.textContent=`Paso ${index+1} de ${stages.length}`;
   }
-  stagePlayers.set(grid,{select(next,manual){index=next;elapsed=0;if(manual)paused=true;sync();}});
-  const observer=new IntersectionObserver(entries=>{for(const entry of entries){if(entry.isIntersecting&&entry.intersectionRatio>=.25)seen.add(entry.target);else seen.delete(entry.target);}if(seen.size)root.querySelectorAll('img[loading="lazy"]').forEach(image=>image.loading='eager');sync();},{threshold:[0,.25],rootMargin:'-90px 0px -20px 0px'});
-  observer.observe(root.querySelector('.landing-stages'));observer.observe(root.querySelector('.landing-screen-area'));
-  const enter=event=>{if(event.pointerType==='mouse'){hovered=true;sync();}},leave=()=>{hovered=false;sync();};
-  const focus=()=>{focused=root.querySelector('.landing-stages').contains(document.activeElement);sync();};
-  const blur=event=>{focused=root.querySelector('.landing-stages').contains(event.relatedTarget);sync();};
-  const play=()=>{paused=!paused;sync();},visibility=()=>sync(),preference=event=>{if(event.matches)paused=true;sync();};
-  root.addEventListener('pointerenter',enter);root.addEventListener('pointerleave',leave);
-  root.addEventListener('focusin',focus);root.addEventListener('focusout',blur);toggle.addEventListener('click',play);
-  document.addEventListener('visibilitychange',visibility);motion.addEventListener('change',preference);sync();
-  return ()=>{disposed=true;if(frame!==null)cancelAnimationFrame(frame);observer.disconnect();stagePlayers.delete(grid);
-   root.removeEventListener('pointerenter',enter);root.removeEventListener('pointerleave',leave);root.removeEventListener('focusin',focus);root.removeEventListener('focusout',blur);toggle.removeEventListener('click',play);
-   document.removeEventListener('visibilitychange',visibility);motion.removeEventListener('change',preference);
+  stagePlayers.set(grid,{select(next){index=next;controls();schedule(true);}});
+  const observer=new IntersectionObserver(entries=>{
+   visible=entries.some(entry=>entry.isIntersecting);
+   if(visible)root.querySelectorAll('img[loading="lazy"]').forEach(image=>image.loading='eager');
+   schedule();
+  },{threshold:0,rootMargin:'-90px 0px 0px 0px'});
+  observer.observe(root);
+  const play=()=>{paused=!paused;controls();schedule(true);},visibility=()=>schedule(true),preference=event=>{if(event.matches)paused=true;controls();schedule(true);};
+  toggle.addEventListener('click',play);document.addEventListener('visibilitychange',visibility);motion.addEventListener('change',preference);controls();
+  return ()=>{disposed=true;cancel();observer.disconnect();stagePlayers.delete(grid);
+   toggle.removeEventListener('click',play);document.removeEventListener('visibilitychange',visibility);motion.removeEventListener('change',preference);
   };
  }
  function closeMenu(){const header=document.querySelector('.toca-landing-header');header?.classList.remove('is-menu-open');const toggle=header?.querySelector('.landing-menu-toggle');if(toggle){toggle.setAttribute('aria-expanded','false');toggle.setAttribute('aria-label','Abrir menú');}}
