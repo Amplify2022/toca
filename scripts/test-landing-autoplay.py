@@ -25,15 +25,14 @@ try:
    page.add_init_script("localStorage.setItem('amplify-mode','live')")
    page.route('https://**/*',lambda route:route.abort())
    page.route('http://localhost:8080/**',lambda route:route.fulfill(content_type='application/json',body='[]',headers={'Access-Control-Allow-Origin':'*'}))
-   page.goto(BASE+'/#/');expect(page.locator('[data-stage-count]')).to_have_text('Paso 1 de 4')
-   assert not page.locator('.landing-stage-progress,[role=progressbar],[data-stage-playback]').count()
+   page.goto(BASE+'/#/');expect(page.locator('[data-landing-stage="0"]')).to_have_attribute('aria-selected','true')
+   assert not page.locator('.landing-stage-progress,[role=progressbar],[data-stage-playback],[data-stage-count]').count()
    assert not page.locator('[data-landing-stage] svg').count(),'Step arrows must be removed'
    return context,page,errors
   def active(page,index):return page.locator(f'[data-landing-stage="{index}"]')
   def expect_step(page,index):
    expect(active(page,index)).to_have_attribute('aria-selected','true',timeout=6500)
    expect(page.locator(f'#landing-screen-{index}')).to_be_visible()
-   expect(page.locator('[data-stage-count]')).to_have_text(f'Paso {index+1} de 4')
   if mode=='desktop':
    context,page,errors=setup(viewport=dict(width=1440,height=900))
    page.wait_for_timeout(5300);expect_step(page,0)
@@ -78,9 +77,9 @@ try:
    page.evaluate("Object.defineProperty(document,'hidden',{configurable:true,get:()=>false});document.dispatchEvent(new Event('visibilitychange'))")
    page.wait_for_timeout(4400);expect_step(page,0);expect_step(page,1)
    page.locator('#contacto').scroll_into_view_if_needed();page.wait_for_timeout(5300);expect_step(page,1)
-   old=page.locator('[data-stage-count]').element_handle()
+   old=page.locator('.landing-how-grid').element_handle()
    page.goto(BASE+'/#/download');expect(page.locator('.landing-download-page')).to_be_visible()
-   frozen=old.text_content();page.wait_for_timeout(5300);assert old.text_content()==frozen
+   frozen=old.evaluate("node=>node.querySelector('[aria-selected=true]').dataset.landingStage");page.wait_for_timeout(5300);assert old.evaluate("node=>node.querySelector('[aria-selected=true]').dataset.landingStage")==frozen
    page.goto(BASE+'/#/');expect_step(page,0);assert not errors,errors
    context.close();print('PASS hidden/offscreen pause, full interval on return, navigation cleanup and fresh start',flush=True)
   else:

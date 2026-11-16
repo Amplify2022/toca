@@ -32,7 +32,7 @@
  ];
  function walkthrough(){return `
   <div class="landing-walkthrough">
-   <div class="landing-section-heading landing-walkthrough-heading"><div><h3>Tu próxima canción, en cuatro pasos.</h3><p>De encontrar el bar a sumar tu tema. Así se ve TOCÁ por dentro.</p></div><div class="landing-walkthrough-controls"><span data-stage-count>Paso 1 de 4</span></div></div>
+   <div class="landing-section-heading landing-walkthrough-heading"><div><h3>Tu próxima canción, en cuatro pasos.</h3><p>De encontrar el bar a sumar tu tema. Así se ve TOCÁ por dentro.</p></div></div>
    <div class="landing-how-grid">
     <div class="landing-stages" role="tablist" aria-label="Cómo funciona TOCÁ" aria-orientation="vertical">${stages.map(([title,copy],i)=>`<button type="button" role="tab" id="landing-stage-${i}" aria-controls="landing-screen-${i}" aria-selected="${i===0}" tabindex="${i===0?'0':'-1'}" data-landing-stage="${i}"><span class="landing-stage-number">0${i+1}</span><span><strong>${title}</strong><small>${copy}</small></span></button>`).join('')}</div>
     <div class="landing-screen-area">
@@ -72,7 +72,7 @@
  function scrollSection(id,smooth=true){if(id==='como-funciona')id='la-app';if(!sections.includes(id))return;const target=document.getElementById(id);if(!target)return;target.scrollIntoView({behavior:smooth&&!matchMedia('(prefers-reduced-motion:reduce)').matches?'smooth':'instant',block:'start'});}
  function activateStage(root,index){root.querySelectorAll('[data-landing-stage]').forEach(button=>{const selected=Number(button.dataset.landingStage)===index;button.setAttribute('aria-selected',String(selected));button.tabIndex=selected?0:-1;});root.querySelectorAll('[role="tabpanel"]').forEach((panel,i)=>{const selected=i===index;panel.classList.toggle('is-active',selected);panel.setAttribute('aria-hidden',String(!selected));panel.inert=!selected;});stagePlayers.get(root)?.select(index);}
  function startWalkthrough(root){
-  const grid=root.querySelector('.landing-how-grid'),counter=root.querySelector('[data-stage-count]');
+  const grid=root.querySelector('.landing-how-grid');
   const motion=matchMedia('(prefers-reduced-motion:reduce)'),duration=5000;
   let index=0,timer=null,visible=false,disposed=false;
   const running=()=>!disposed&&root.isConnected&&visible&&!document.hidden&&!motion.matches;
@@ -81,8 +81,7 @@
    if(reset||!running())cancel();
    if(running()&&timer===null)timer=setTimeout(()=>{timer=null;if(running())activateStage(grid,(index+1)%stages.length);},duration);
   }
-  function updateCount(){counter.textContent=`Paso ${index+1} de ${stages.length}`;}
-  stagePlayers.set(grid,{select(next){index=next;updateCount();schedule(true);}});
+  stagePlayers.set(grid,{select(next){index=next;schedule(true);}});
   const observer=new IntersectionObserver(entries=>{
    visible=entries.some(entry=>entry.isIntersecting);
    if(visible)root.querySelectorAll('img[loading="lazy"]').forEach(image=>image.loading='eager');
@@ -90,7 +89,7 @@
   },{threshold:0,rootMargin:'-90px 0px 0px 0px'});
   observer.observe(root);
   const visibility=()=>schedule(true),preference=()=>schedule(true);
-  document.addEventListener('visibilitychange',visibility);motion.addEventListener('change',preference);updateCount();
+  document.addEventListener('visibilitychange',visibility);motion.addEventListener('change',preference);
   return ()=>{disposed=true;cancel();observer.disconnect();stagePlayers.delete(grid);
    document.removeEventListener('visibilitychange',visibility);motion.removeEventListener('change',preference);
   };
