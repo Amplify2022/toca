@@ -16,7 +16,7 @@ try:
   for width in [1440,390]:
    context=browser.new_context(viewport=dict(width=width,height=1000),service_workers='block')
    # Two visible windows can receive each other's changes. Timers are controlled below.
-   context.add_init_script("Object.defineProperty(document,'hidden',{get:()=>false});localStorage.setItem('amplify-mode','live');sessionStorage.setItem('amplify-token','synthetic-owner');sessionStorage.setItem('amplify-user',JSON.stringify({id:'owner',name:'Owner'}))")
+   context.add_init_script("Object.defineProperty(document,'hidden',{get:()=>false});sessionStorage.setItem('amplify-token','synthetic-owner');sessionStorage.setItem('amplify-user',JSON.stringify({id:'owner',name:'Owner'}))")
    page=context.new_page();page.clock.install();page.set_default_timeout(9000)
    venue=dict(id=ID,name='Sync Bar',address='Test street',city='Montevideo',active=True,published=True)
    playlist=dict(id='P'*22,name='Night',snapshot='s1',tracks=[dict(id=str(i).zfill(22),title='Song '+str(i),artist='Test band',durationMs=167000+i) for i in range(30)])

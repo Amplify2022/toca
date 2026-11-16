@@ -109,7 +109,7 @@
   }
   window.tocaVenueDashboard=async()=>{
     const session=state.token;
-    if(state.demo||!session){navigate('#/login');return;}
+    if((!session)){navigate('#/login');return;}
     const venues=await getMyVenues();
     if(session!==state.token||!onDashboard())return;
     if(!venues.length)return oldAdmin();

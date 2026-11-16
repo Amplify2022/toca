@@ -28,7 +28,7 @@ model={'balance':0}
 with sync_playwright() as p:
  browser=p.chromium.launch(executable_path='/usr/bin/chromium',args=['--no-sandbox','--use-angle=swiftshader','--enable-unsafe-swiftshader'])
  context=browser.new_context(viewport=dict(width=390,height=780),device_scale_factor=1,service_workers='block')
- context.add_init_script("localStorage.setItem('amplify-mode','live');sessionStorage.setItem('toca:customer:session','synthetic-marketing-customer-session-abcdefghijklmnopqrstuvwxyz')")
+ context.add_init_script("sessionStorage.setItem('toca:customer:session','synthetic-marketing-customer-session-abcdefghijklmnopqrstuvwxyz')")
  page=context.new_page();errors=[];logs=[];page.on('pageerror',lambda e:errors.append(str(e)));page.on('console',lambda msg:logs.append(msg.text) if msg.type in ['warning','error'] else None)
  def reply(route,data):route.fulfill(status=200,content_type='application/json',body=json.dumps(data),headers={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'*','Access-Control-Allow-Methods':'GET,POST,PUT,OPTIONS'})
  def wallet():return dict(balance=model['balance'],requestCost=1,packs=[dict(id=str(n),tokens=n,price=v) for n,v in [(5,99),(12,199),(30,399)]],movements=[],simulationEnabled=True)
@@ -80,7 +80,7 @@ with sync_playwright() as p:
  page.screenshot(path=str(OUT/'success.png'));expect(page).to_have_url(BASE+'/#/venue/'+ID)
  context.close()
  context=browser.new_context(viewport=dict(width=1100,height=840),device_scale_factor=2,service_workers='block')
- context.add_init_script("localStorage.setItem('amplify-mode','live');sessionStorage.setItem('amplify-token','synthetic-marketing-owner-session');sessionStorage.setItem('amplify-user',JSON.stringify({id:'marketing-owner',name:'Nacho'}))")
+ context.add_init_script("sessionStorage.setItem('amplify-token','synthetic-marketing-owner-session');sessionStorage.setItem('amplify-user',JSON.stringify({id:'marketing-owner',name:'Nacho'}))")
  page=context.new_page();page.on('pageerror',lambda error:errors.append(str(error)));page.route('**/*',api)
  page.goto(BASE+'/#/admin/music');page.locator('[data-track-index="2"]').wait_for()
  page.wait_for_function("Array.from(document.querySelectorAll('.cabina-art img')).length===4&&Array.from(document.querySelectorAll('.cabina-art img')).every(image=>image.complete&&image.naturalWidth>0)")

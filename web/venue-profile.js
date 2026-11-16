@@ -49,10 +49,10 @@
   }
   function sectionPage(section,v){
     if(section==='data')return dataEditor(v,pendingImport?.id===v.id&&pendingImport.token===state.token?pendingImport:null);
-    if(section==='photos')return back(labels.photos)+head('El ambiente de tu bar.','Elegí la portada y las imágenes que verán tus clientes.')+`<section class="panel narrow">${state.demo?'<p>Las fotos se administran con una cuenta real de bar.</p>':window.tocaPhotoGalleryMarkup(v)}<p class="vp-photo-note">Las fotos se guardan al subirlas. La portada no publica un bar que está en borrador.</p></section>`;
+    if(section==='photos')return back(labels.photos)+head('El ambiente de tu bar.','Elegí la portada y las imágenes que verán tus clientes.')+`<section class="panel narrow">${(window.tocaPhotoGalleryMarkup(v))}<p class="vp-photo-note">Las fotos se guardan al subirlas. La portada no publica un bar que está en borrador.</p></section>`;
     if(section==='hours')return back(labels.hours)+head('¿Cuándo abre tu bar?','Editá los días y las horas de atención. El cierre puede ser después de medianoche.')+`<div class="narrow"><form id="venue-profile-form" class="panel" data-profile-section="hours">${window.tocaHoursEditorMarkup(v.openingHours||'')}</form>${footer('Guardar horarios')}</div>`;
     if(section==='access')return back(labels.access)+head('Elegí quién participa.','Podés cambiar esta configuración en cualquier momento.')+`<div class="narrow"><form id="venue-profile-form" data-profile-section="access">${[['NEARBY','Quienes están en el bar','Personas a menos de 100 metros del punto que confirmaste.'],['ANYWHERE','Cualquier persona','Personas desde cualquier ubicación, sin compartir su ubicación.']].map(([mode,title,copy])=>`<label class="access-choice"><input type="radio" name="mode" value="${mode}" ${(v.requestAccessMode||'NEARBY')===mode?'checked':''}><div><strong>${title}</strong><p>${copy}</p></div></label>`).join('')}<p class="intro">Todos los clientes deben iniciar sesión para pedir canciones.</p></form>${footer('Guardar configuración')}</div>`;
-    return back(labels.import)+head('Traé datos nuevos.','Buscá tu perfil y revisá las diferencias antes de guardar.','MI BAR / ACTUALIZAR')+(state.demo?'<p>La búsqueda de perfiles está disponible con una cuenta real.</p>':window.tocaVenueImportMarkup()+`<div class="page-footer"><a class="btn text" href="${link('data')}">Editar datos manualmente</a><a class="btn text" href="${link()}">Volver a Mi Bar</a></div>`);
+    return back(labels.import)+head('Traé datos nuevos.','Buscá tu perfil y revisá las diferencias antes de guardar.','MI BAR / ACTUALIZAR')+((window.tocaVenueImportMarkup()+`<div class="page-footer"><a class="btn text" href="${link('data')}">Editar datos manualmente</a><a class="btn text" href="${link()}">Volver a Mi Bar</a></div>`));
   }
   const discard=()=>`<dialog class="vp-discard" data-profile-discard><h2>Tenés cambios sin guardar</h2><p>Podés seguir editando o salir conservando los datos anteriores.</p><div class="actions"><button class="btn" type="button" data-profile-keep>Seguir editando</button><button class="btn primary" type="button" data-profile-discard-confirm>Descartar y salir</button></div></dialog>`;
   function fail(message){const box=root()?.querySelector('[data-profile-error]');if(box){box.textContent=message;box.scrollIntoView({block:'nearest',behavior:'smooth'});}else toast(message);}
@@ -60,7 +60,7 @@
   function differences(v,fields){return Object.fromEntries(Object.entries(fields).filter(([key,val])=>['latitude','longitude'].includes(key)?Number(val)!==Number(v[key]):String(val??'')!==value(v,key)));}
   async function commit(c,fields,confirmed=false,expectOverride={}){
     const changes=differences(c.v,fields);if(!Object.keys(changes).length){return false;}
-    if(state.demo){const data=db();data.venues=data.venues.map(v=>v.id===c.v.id?{...v,...changes}:v);saveDemo(data);return true;}
+
     const expected=Object.fromEntries(Object.keys(changes).map(key=>[key,Object.hasOwn(expectOverride,key)?expectOverride[key]:value(c.v,key)]));
     await api('/api/admin/venues/'+encodeURIComponent(c.v.id),{method:'PATCH',body:{changes,expected,locationConfirmed:confirmed}});return true;
   }
@@ -76,7 +76,7 @@
   window.tocaVenueProfile=async()=>{
     const path=route().path,section=path.slice(base.length).replace(/^\//,'');
     if(section&&!Object.hasOwn(labels,section)){navigate(link());return;}
-    if(!state.demo&&!state.token){navigate('#/login');return;}
+    if((!state.token)){navigate('#/login');return;}
     state.adminTab='profile';
     const owned=await getMyVenues();if(route().path!==path)return;
     if(!owned.length){navigate('#/admin/onboarding');return;}
@@ -90,7 +90,7 @@
       if(imported){const lat=Number(imported.fields.latitude??v.latitude),lon=Number(imported.fields.longitude??v.longitude);window.tocaApplyImportedLocation(root().querySelector('form'),lat,lon);c.dirty=true;}
       if(imported)await ensureMap(c);
     }
-    if(section==='import'&&!state.demo){const box=root().querySelector('[data-venue-import]');box._comparisonModel=comparisonModel(v);box._commitSelection=fields=>applyImport(c,fields);}
+    if(section==='import'){const box=root().querySelector('[data-venue-import]');box._comparisonModel=comparisonModel(v);box._commitSelection=fields=>applyImport(c,fields);}
   };
   async function save(form){const c=ctx;if(!c||c.busy)return;const button=root().querySelector('[form="venue-profile-form"]');let fields={},confirmed=false;
     try{
@@ -103,8 +103,7 @@
       }else if(c.section==='hours')fields={openingHours:window.tocaSerializeHours(form)};
       c.busy=true;button.disabled=true;
       if(c.section==='access'){
-        if(state.demo){const d=db();d.venues=d.venues.map(v=>v.id===c.v.id?{...v,requestAccessMode:data.mode}:v);saveDemo(d);}
-        else await api('/api/admin/venues/'+encodeURIComponent(c.v.id)+'/request-access',{method:'PUT',body:{mode:data.mode}});
+        {await api('/api/admin/venues/'+encodeURIComponent(c.v.id)+'/request-access',{method:'PUT',body:{mode:data.mode}});}
       }else await commit(c,fields,confirmed,pendingImport?.expected||{});
       if(ctx===c&&c.token===state.token){c.dirty=false;pendingImport=null;toast('Cambios guardados.');if(c.element.isConnected)navigate(link());}
     }catch(error){if(ctx===c&&c.element.isConnected)fail(error.message);}

@@ -13,7 +13,7 @@ with sync_playwright() as p:
  browser=p.chromium.launch(executable_path='/usr/bin/chromium',args=['--no-sandbox'])
  for width in [1440,390]:
   context=browser.new_context(viewport=dict(width=width,height=1000),service_workers='block');page=context.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
-  page.add_init_script("localStorage.setItem('amplify-mode','live');sessionStorage.setItem('amplify-token','synthetic-owner');sessionStorage.setItem('amplify-user',JSON.stringify({id:'owner',name:'Owner'}))")
+  page.add_init_script("sessionStorage.setItem('amplify-token','synthetic-owner');sessionStorage.setItem('amplify-user',JSON.stringify({id:'owner',name:'Owner'}))")
   v=dict(id=ID,name='Navigation Bar',address='Test street 123',city='Montevideo',latitude=-34.9,longitude=-56.17,active=False,published=True,requestAccessMode='NEARBY')
   def api(route):
    path=urlsplit(route.request.url).path;data=[]

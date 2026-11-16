@@ -25,7 +25,7 @@
  window.tocaAdminMusicMarkup=(venue,settings,options)=>window.tocaCabinaMarkup(venue,settings,options);
  function updateButtons(ctx){
   if(!live(ctx))return;
-  ctx.root.querySelectorAll('[data-studio-edit],[data-studio-create],[data-studio-rename]').forEach(b=>{b.disabled=b.hidden||state.demo||!ctx.settings.playlistWriteEnabled||ctx.busy||!!ctx.operation||!!sessionStorage.getItem(key(ctx.id))||(!ctx.playlist&&!b.hasAttribute('data-studio-create'))});
+  ctx.root.querySelectorAll('[data-studio-edit],[data-studio-create],[data-studio-rename]').forEach(b=>{b.disabled=b.hidden||!ctx.settings.playlistWriteEnabled||ctx.busy||!!ctx.operation||!!sessionStorage.getItem(key(ctx.id))||(!ctx.playlist&&!b.hasAttribute('data-studio-create'))});
   window.tocaCabinaUpdateButtons?.(ctx);
  }
  function renderPlaylist(ctx,data){
@@ -54,7 +54,7 @@
   if(ctx.playlist)ctx.root.querySelector('[data-playlist-count]').textContent=`${count} canciones${ctx.settings.playlistWriteEnabled?' · Arrastrá para ordenar':''}`;
  }
  async function reload(ctx,background=false){const generation=(ctx.playlistGeneration||0)+1;ctx.playlistGeneration=generation;const data=await api(musicPath(ctx.id)+'/playlist');if(!live(ctx)||generation!==ctx.playlistGeneration||(background&&syncBlocked(ctx)))return ctx.playlist;renderPlaylist(ctx,data);ctx.settings.playlistId=ctx.playlist?.id||'';state.spotify.playlistId=ctx.settings.playlistId;if(data.error)throw Error(data.error);return ctx.playlist}
- const syncBlocked=ctx=>!live(ctx)||state.demo||document.hidden||ctx.busy||ctx.root.hasAttribute('data-cabina-dragging')||!!ctx.root.querySelector('dialog[open]');
+ const syncBlocked=ctx=>!live(ctx)||document.hidden||ctx.busy||ctx.root.hasAttribute('data-cabina-dragging')||!!ctx.root.querySelector('dialog[open]');
  function syncStatus(ctx,message='Se actualiza automáticamente'){
   if(live(ctx))ctx.root.querySelector('[data-playlist-sync]').textContent=message;
  }
@@ -81,7 +81,7 @@
  if(syncChannel)syncChannel.onmessage=event=>{if(live(current)&&event.data?.venueId===current.id)syncSoon(current)};
  document.addEventListener('close',event=>{if(event.target.matches?.('.cabina-dialog')&&live(current))syncSoon(current)},true);
  async function refreshActivity(ctx){
-  if(!live(ctx)||state.demo)return;
+  if(!live(ctx))return;
   const rows=await fetchRequests(ctx.id);if(!live(ctx))return;
   const fingerprint=JSON.stringify(rows),changed=fingerprint!==ctx.activityFingerprint;ctx.activityFingerprint=fingerprint;
   state.requests=rows;window.tocaCabinaActivityUpdated?.(ctx,rows);return changed;
@@ -102,7 +102,7 @@
   notify(ctx,'Salida de audio seleccionada.');await poll(ctx);
  }
  async function loadPlaylists(ctx){
-  if(!live(ctx)||state.demo)return;
+  if(!live(ctx))return;
   const output=ctx.root.querySelector('[data-cabina-playlists]');output.textContent='Buscando playlists…';
   const lists=await api(`/api/admin/venues/${ctx.id}/spotify/playlists`);if(!live(ctx))return;
   output.innerHTML=lists.length?`<label class="cabina-field">Playlist<select class="input" data-cabina-playlist-select><option value="">Seleccionar…</option>${lists.map(p=>`<option value="${esc(p.id)}" ${p.id===ctx.settings.playlistId?'selected':''}>${esc(p.name)}</option>`).join('')}</select></label><button type="button" class="btn primary" data-cabina-select-playlist data-cabina-selection>Usar esta playlist</button>`:'<p class="cabina-help">No encontramos playlists. Podés crear una desde el menú de playlist.</p>';
@@ -142,7 +142,7 @@
  }
  document.addEventListener('cabina-playback-open',event=>{if(live(current)&&event.target===current.root)resetPlaybackOptions(current)});
  async function applyPlaybackOptions(ctx){
-  if(ctx.controlling||state.demo||!ctx.settings.controlEnabled)return;
+  if(ctx.controlling||!ctx.settings.controlEnabled)return;
   const shuffle=ctx.root.querySelector('[data-player-shuffle]:checked')?.value==='on';
   const repeat=ctx.root.querySelector('[data-player-repeat]:checked')?.value;
   if(!['off','context','track'].includes(repeat))throw Error('Elegí una opción de repetición.');
@@ -245,7 +245,7 @@
  }
  async function edit(ctx,body){
   if(!live(ctx))return;
-  if(state.demo||!ctx.settings.playlistWriteEnabled){window.tocaCabinaShowConnection?.(ctx);notify(ctx,'La edición de playlist está deshabilitada en el servidor.');return}
+  if((!ctx.settings.playlistWriteEnabled)){window.tocaCabinaShowConnection?.(ctx);notify(ctx,'La edición de playlist está deshabilitada en el servidor.');return}
   if(ctx.busy||ctx.operation||sessionStorage.getItem(key(ctx.id))){notify(ctx,'Hay un cambio pendiente. Consultá su resultado antes de volver a editar.');return}
   const intent=window.tocaMusicEditIntent.capture(ctx.playlist,body);
   ctx.busy=true;ctx.editAction=body;notify(ctx,'');
@@ -292,7 +292,7 @@
  });
  async function control(ctx,body){
   if(!live(ctx)||ctx.controlling)return;
-  if(state.demo||!ctx.settings.controlEnabled){window.tocaCabinaShowConnection?.(ctx);notify(ctx,'El control de audio está deshabilitado en el servidor.');return}
+  if((!ctx.settings.controlEnabled)){window.tocaCabinaShowConnection?.(ctx);notify(ctx,'El control de audio está deshabilitado en el servidor.');return}
   if(['start','resume'].includes(body.action)&&!ctx.audioSetup&&!(audioSetup?.id===ctx.id&&audioSetup.session===ctx.session)&&!ctx.playback?.device?.name&&!ctx.settings.deviceId&&!browser?.deviceId){
    window.tocaCabinaShowConnection?.(ctx);notify(ctx,'Elegí dónde va a sonar la música: este navegador o un dispositivo disponible.');return;
   }
@@ -412,7 +412,7 @@
   const root=document.querySelector('[data-admin-studio]');if(!root||!settings.connected){if(browser?.id===id)stopBrowser();current=null;return;}
   const ctx={id,root,settings,session:state.token,busy:false,operation:null,playlist:null,activityFingerprint:JSON.stringify(state.requests)};ctx.onPlayback=()=>renderPlayback(ctx);current=ctx;
   window.tocaCabinaInit?.(ctx);
-  if(state.demo){ctx.settings={...settings,controlEnabled:false,playlistWriteEnabled:false};renderPlaylist(ctx,{playlist:{id:'demo-list',name:'Playlist de demostración',tracks:demoCatalog.slice(0,8)},operation:null});return;}
+
   if(browser&&(browser.id!==id||browser.session!==ctx.session))stopBrowser();
   try{
    const saved=JSON.parse(sessionStorage.getItem(key(id))||'null');
@@ -485,7 +485,7 @@
  let searchTimer,searchGeneration=0;
  document.addEventListener('input',event=>{
   const input=event.target;if(input.hasAttribute('data-player-seek')&&live(current))current.seeking=true;if(!input.hasAttribute('data-studio-search'))return;
-  const ctx=current;if(!live(ctx)||state.demo)return;const generation=++searchGeneration,query=input.value.trim();clearTimeout(searchTimer);
+  const ctx=current;if(!live(ctx))return;const generation=++searchGeneration,query=input.value.trim();clearTimeout(searchTimer);
   const output=ctx.root.querySelector('[data-studio-search-results]');if(query.length<2){output.innerHTML='';return}
   searchTimer=setTimeout(async()=>{
    try{const tracks=await api(`/api/admin/venues/${ctx.id}/tracks?q=${encodeURIComponent(query)}`);if(!live(ctx)||generation!==searchGeneration||!output.isConnected)return;

@@ -1,5 +1,5 @@
 const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict'),path=require('path');
-const sandbox={document:{addEventListener(){},getElementById(){return null}},render:async()=>{},state:{demo:true},route:()=>({path:'/explore'}),api:async()=>{},esc:s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),setInterval(){},clearInterval(){},console,Date};
+const sandbox={document:{addEventListener(){},getElementById(){return null}},render:async()=>{},state:{},route:()=>({path:'/explore'}),api:async()=>{},esc:s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),setInterval(){},clearInterval(){},console,Date};
 vm.createContext(sandbox);
 vm.runInContext(fs.readFileSync(path.join(__dirname,'../web/live-music.js'),'utf8'),sandbox);
 const snapshot={active:true,isPlaying:true,now:{title:'Deja De Llorar',artist:'El Polaco',id:'a'},next:{title:'One',artist:'Metallica',id:'b'},samePlaylist:true,playlist:[{id:'a',title:'Deja De Llorar',artist:'El Polaco'},{id:'b',title:'One',artist:'Metallica'}]};

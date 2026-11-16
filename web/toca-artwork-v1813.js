@@ -171,7 +171,7 @@
 
   function shouldLookUpPlaylist() {
     const s = typeof state !== 'undefined' ? state : null;
-    if (!s || s.demo) return;
+    if (!s) return;
     const venueId = s.detail?.id || s.venueId;
     if (!venueId || !/^[a-fA-F0-9-]{36}$/.test(venueId)) return;
     const cached = playlistCache.get(venueId);

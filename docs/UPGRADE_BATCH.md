@@ -35,7 +35,7 @@ TRUSTED_PROXY_TOKEN=GENERAR_UN_VALOR_ALEATORIO_DE_AL_MENOS_32_CARACTERES
 docker compose -f docker-compose.yml -f docker-compose.override.yml -f compose.public.yml up --build -d
 ```
 
-Caddy sirve web y `/api` en el mismo origen, gestiona TLS y persiste certificados. La web usa modo real de forma predeterminada en dominios públicos (demo local por defecto); `TOCA_CONFIG.mode` permite elegirlo explícitamente. Usa el origen actual fuera de localhost; `web/config.js` permite configurar `apiUrl` explícitamente en otros despliegues. No incluye valores secretos.
+Caddy sirve web y `/api` en el mismo origen, gestiona TLS y persiste certificados. La web usa exclusivamente la API real: puerto 8080 en localhost y el origen actual fuera de localhost; `web/config.js` permite configurar `apiUrl` explícitamente en otros despliegues. No incluye valores secretos.
 
 El dominio real y sus certificados no se consideran verificados hasta probarlos con DNS/configuración reales. Caddy reemplaza los encabezados de identidad y adjunta una clave compartida aleatoria. La API acepta la IP del cliente solo con esa clave válida (mínimo 32 caracteres); sin ella ignora los encabezados. Mantené la API enlazada únicamente a loopback como indica Compose, no publiques directamente el puerto 8080, y no registres la clave ni la versionés.
 
@@ -51,7 +51,7 @@ Los enlaces tienen un token aleatorio de un solo uso, hash en DB y vencimiento d
 
 Eliminar una cuenta requiere confirmación y contraseña actual; una cuenta solo Google debe establecer primero una contraseña por recuperación. Un administrador debe eliminar/transferir sus bares; un cliente debe resolver pedidos pendientes. No se borran silenciosamente operaciones remotas en Spotify.
 
-Los favoritos autenticados se guardan en PostgreSQL y se sincronizan al cargar la cuenta en otro navegador. Se migran de forma idempotente los favoritos locales cuya clave ya está asociada a la cuenta verificada. No se migra la antigua clave compartida entre usuarios. Si falla la sincronización, se conserva la copia local para reintentar. La demo mantiene favoritos locales.
+Los favoritos autenticados se guardan en PostgreSQL y se sincronizan al cargar la cuenta en otro navegador. Se migran de forma idempotente los favoritos locales cuya clave ya está asociada a la cuenta verificada. No se migra la antigua clave compartida entre usuarios. Si falla la sincronización, se conserva la copia local para reintentar.
 
 ## Fotos, paginación y arquitectura
 
@@ -61,7 +61,7 @@ Exploración: `GET /api/venues?limit=50&offset=0`, con máximo 150 por página; 
 
 `runtime.js` centraliza el ciclo de navegación, descarta commits de pantallas anteriores, gestiona foco/títulos/semántica y carga mapas bajo demanda. Es una consolidación incremental: los módulos históricos siguen presentes, no se afirma haber reescrito todo el frontend. Los servicios extraídos tampoco convierten automáticamente todos los Maps a DTOs.
 
-La demo permite pedidos sin backend y tiene identificación visible. El mapa fallido conserva la ilustración. La PWA precarga las URLs versionadas exactas y excluye `/api`; no almacena respuestas privadas. Regenerá el manifiesto después de modificar recursos:
+Los pedidos requieren la API; los errores de conexión permiten reintentar sin datos ficticios de respaldo. El mapa fallido conserva la ilustración. La PWA precarga las URLs versionadas exactas y excluye `/api`; no almacena respuestas privadas. Regenerá el manifiesto después de modificar recursos:
 
 ```bash
 python3 scripts/build-precache.py
@@ -77,6 +77,7 @@ Gradle Wrapper 8.14.6 con checksum oficial, lock de dependencias, exclusión de 
 cd backend
 ./gradlew test installDist
 cd ..
+python3 scripts/test-live-api.py
 python3 scripts/test-runtime.py
 python3 scripts/test-request-flow.py
 python3 scripts/test-google-login.py

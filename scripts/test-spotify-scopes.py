@@ -27,7 +27,7 @@ try:
   for width in [1440,390]:
    for mode in ['known-missing','legacy-sdk-error','token-api-error']:
     context=browser.new_context(viewport=dict(width=width,height=1000),service_workers='block');page=context.new_page();page.set_default_timeout(8000)
-    page.add_init_script("localStorage.setItem('amplify-mode','live');sessionStorage.setItem('amplify-token','synthetic-owner');sessionStorage.setItem('amplify-user',JSON.stringify({id:'owner',name:'Owner'}))")
+    page.add_init_script("sessionStorage.setItem('amplify-token','synthetic-owner');sessionStorage.setItem('amplify-user',JSON.stringify({id:'owner',name:'Owner'}))")
     track=dict(id='A'*22,title='Test song',artist='Test band',durationMs=180000)
     playlist=dict(id='P'*22,name='Saved playlist',snapshot='s1',tracks=[track])
     venue=dict(id=ID,name='Permission Bar',address='Test street',city='Montevideo',active=True,published=True)

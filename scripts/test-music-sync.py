@@ -17,7 +17,7 @@ with sync_playwright() as p:
   context=browser.new_context(viewport=dict(width=width,height=1000),service_workers='block')
   page=context.new_page();page.clock.install();page.set_default_timeout(9000)
   errors=[];page.on('pageerror',lambda e:errors.append(str(e)));page.on('dialog',lambda d:d.accept())
-  page.add_init_script("localStorage.setItem('amplify-mode','live');sessionStorage.setItem('amplify-token','synthetic-owner');sessionStorage.setItem('amplify-user',JSON.stringify({id:'owner',name:'Owner'}))")
+  page.add_init_script("sessionStorage.setItem('amplify-token','synthetic-owner');sessionStorage.setItem('amplify-user',JSON.stringify({id:'owner',name:'Owner'}))")
   venue=dict(id=ID,name='Sync Bar',address='Test street 123',city='Montevideo',active=True,published=True,requestAccessMode='NEARBY',openingHours='W2|-|19:00-00:00|19:00-00:00|19:00-00:00|21:00-05:00|21:00-05:00|18:00-00:00')
   playlist=dict(id='P'*22,name='Night',snapshot='s1',tracks=[CAT[A].copy(),CAT[B].copy()])
   player=dict(now=CAT[A].copy(),isPlaying=True,contextUri='spotify:playlist:'+playlist['id'],progressMs=5000,repeat='off',shuffle=False,device=dict(id='speakers',name='Bar speakers',volume=50))

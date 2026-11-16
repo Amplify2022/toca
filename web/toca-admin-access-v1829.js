@@ -9,7 +9,7 @@
     return /^#\/admin\/profile(?:[?]|$)/.test(location.hash);
   }
   async function mount() {
-    if (!isAdminProfile() || typeof state === 'undefined' || state.demo) return;
+    if (!isAdminProfile() || typeof state === 'undefined') return;
     const form = document.getElementById('venue-update');
     if (!form || document.querySelector('.toca-access-settings')) return;
     const venueId = String(state.detail?.id || state.venueId || '');

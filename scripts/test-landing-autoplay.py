@@ -22,7 +22,6 @@ try:
   def setup(**options):
    context=browser.new_context(service_workers='block',**options)
    page=context.new_page();errors=[];page.on('pageerror',lambda error:errors.append(str(error)))
-   page.add_init_script("localStorage.setItem('amplify-mode','live')")
    page.route('https://**/*',lambda route:route.abort())
    page.route('http://localhost:8080/**',lambda route:route.fulfill(content_type='application/json',body='[]',headers={'Access-Control-Allow-Origin':'*'}))
    page.goto(BASE+'/#/');expect(page.locator('[data-landing-stage="0"]')).to_have_attribute('aria-selected','true')

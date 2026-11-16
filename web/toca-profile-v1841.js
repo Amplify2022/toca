@@ -77,7 +77,7 @@
     </section>`;
   }
 
-  // Override the legacy demo/guest-only customer profile. Navigation and API
+  // Override the legacy guest-only customer profile. Navigation and API
   // guards are still owned by the existing auth and router modules.
   tocaProfile = async function () {
     const call = ++currentProfileCall;
@@ -87,7 +87,7 @@
       user = window.tocaCustomerUser?.() || null;
     } catch (error) { console.warn('Perfil: no se pudo verificar la sesión', error); }
     const favorites = user ? guestFavorites() : [];
-    const venues = state.demo ? db().venues : (state.venues || []);
+    const venues = (state.venues || []);
     let history = [], avatar = null, historyUnavailable = false, wallet = null;
     if (user) {
       const responses = await Promise.allSettled([customerFetch('/me/requests'), customerFetch('/me/avatar'),window.tocaWalletRead()]);

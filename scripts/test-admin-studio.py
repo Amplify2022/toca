@@ -1,7 +1,7 @@
 """Real frontend, simulated Google/Meta/Spotify responses and Web Playback SDK.
 No provider account is used and no real audio is played by this test.
 """
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright,expect
 import json,os
 from pathlib import Path
 from urllib.parse import parse_qs,urlsplit
@@ -19,9 +19,9 @@ with sync_playwright() as p:
   playlist=dict(id='P'*22,name='Night',snapshot='s1',tracks=[dict(id=A,title='Track A',artist='Band A',durationMs=180000,imageUrl='/assets/venues/bar-1.webp'),dict(id=B,title='Track B',artist='Band B',durationMs=200000)])
   writes=[];controls=[];tokens=[];edits=[];version=[1];owned=[venue]
   operation=[None];connected=[True];flags=[True];blocked=[];allowed=[];playlist_reads=[]
-  drop_response=[False];applied={};edit_ids=[];recovery_unavailable=[False]
+  drop_response=[False];applied={};edit_ids=[];recovery_unavailable=[False];reconcile_available=[True]
   playback_options=dict(shuffle=False,repeat='off');playing=[False];now=[playlist['tracks'][0].copy()];context_uri=['spotify:playlist:'+playlist['id']];device=[dict(id='speaker',name='TOCA',volume=50)]
-  page.add_init_script("localStorage.setItem('amplify-mode','live');sessionStorage.setItem('amplify-token','synthetic-admin-session');sessionStorage.setItem('amplify-user',JSON.stringify({id:'owner',name:'Owner',email:'owner@example.test'}));")
+  page.add_init_script("sessionStorage.setItem('amplify-token','synthetic-admin-session');sessionStorage.setItem('amplify-user',JSON.stringify({id:'owner',name:'Owner',email:'owner@example.test'}));")
   def api(route):
    path=route.request.url.split('8080',1)[1].split('?',1)[0];method=route.request.method;body=route.request.post_data_json if method in ['POST','PUT'] else None;data=[]
    if method=='OPTIONS':data={}
@@ -61,7 +61,10 @@ with sync_playwright() as p:
      if body['action']=='repeat':playback_options['repeat']=body['state']
     else:data=dict(now=now[0],isPlaying=playing[0],contextUri=context_uri[0],progressMs=5000,repeat=playback_options['repeat'],shuffle=playback_options['shuffle'],device=device[0])
    elif path.endswith('/music/browser-token'):tokens.append(route.request.headers.get('authorization'));data=dict(accessToken='synthetic-spotify-access-token',expiresIn=60)
-   elif path.endswith('/reconcile'):operation[0]=None;data=dict(status='COMPLETED')
+   elif path.endswith('/reconcile'):
+    if not reconcile_available[0]:
+     route.fulfill(status=503,content_type='application/json',body=json.dumps(dict(message='Verificación temporalmente no disponible.')),headers={'Access-Control-Allow-Origin':'*'});return
+    operation[0]=None;data=dict(status='COMPLETED')
    elif '/music/edits/' in path:
     operation_id=path.rsplit('/',1)[1];edit_ids.append(operation_id)
     if recovery_unavailable[0]:
@@ -97,7 +100,7 @@ with sync_playwright() as p:
   root.locator('[data-studio-search]').fill('Search')
   root.locator('[data-studio-search-results] [data-studio-edit="add"]').click()
   page.wait_for_function("document.querySelectorAll('[data-studio-tracks] .toca-studio-track').length===3")
-  root.locator('dialog[open] [data-cabina-close]').first.click()
+  page.wait_for_function("!document.querySelector('dialog[open]')")
   root.locator('[data-cabina-track="0"]').click()
   root.locator('[data-studio-edit="move"][data-from="0"]').click();page.wait_for_function("document.querySelector('[data-studio-tracks] [data-track-index=\"0\"] strong').textContent==='Track B'")
   root.locator('[data-cabina-open="playlist-options"]').click()
@@ -105,7 +108,7 @@ with sync_playwright() as p:
   root.locator('[data-studio-name]').fill('Renamed list');root.locator('[data-studio-rename]').click();page.wait_for_function("document.querySelector('[data-studio-playlist-name]').textContent.includes('Renamed list')")
   root.locator('.cabina-heading-actions [data-cabina-open="connection"]').click()
   root.locator('[data-browser-connect]').click();page.wait_for_function("!document.querySelector('dialog[open]')")
-  assert 'Audio conectado' in root.locator('[data-studio-status]').inner_text()
+  expect(page.locator('#toast')).to_contain_text('Audio conectado')
   root.locator('[data-cabina-start]').click()
   root.locator('[data-player-start]').click();page.wait_for_function("document.querySelector('[data-player-toggle]').textContent==='Pausar'")
   assert tokens==['Bearer synthetic-admin-session'],tokens
@@ -231,28 +234,27 @@ with sync_playwright() as p:
   page.keyboard.press('Escape')
   assert root.locator('dialog[open]').count()==0
   # A pending write locks create/add/rename/selection, but keeps playback available.
+  reconcile_available[0]=False
   operation[0]=dict(id='88888888-8888-4888-8888-888888888888',action='add',status='UNCERTAIN',message='Verificando cambio')
   page.evaluate("window.dispatchEvent(new Event('focus'))");root.locator('[data-studio-reconcile]').wait_for()
   assert root.locator('[data-cabina-open="add"]').is_disabled()
   assert root.locator('.cabina-playlist-selector').is_disabled()
   assert root.locator('[data-studio-create]').is_disabled()
   assert root.locator('[data-player-toggle]').is_enabled()
-  root.locator('[data-studio-reconcile]').click()
+  reconcile_available[0]=True;root.locator('[data-studio-reconcile]').click()
   page.wait_for_function("!document.querySelector('[data-studio-reconcile]')")
   assert root.locator('.cabina-empty-list [data-cabina-name-mode="create"]').is_enabled()
-  # Losing an edit response preserves its key; recovery never creates another edit.
+  # A lost response is confirmed automatically, without sending a new edit.
   root.locator('[data-cabina-open="playlist-options"]').click()
   root.locator('[data-cabina-name-mode="rename"]').click()
   root.locator('[data-studio-name]').fill('Recovered name');drop_response[0]=True
+  before_edits=len(edits);before_ids=len(edit_ids)
   root.locator('[data-studio-rename]').click()
-  root.locator('dialog[open] [data-cabina-close]').first.click()
-  root.locator('[data-studio-recover]').wait_for()
-  assert root.locator('.cabina-playlist-selector').is_disabled()
-  saved=page.evaluate("JSON.parse(sessionStorage.getItem('toca-music-edit:'+"+json.dumps(ID)+"))")
-  count=len(edits);root.locator('[data-studio-recover]').click()
-  page.wait_for_function("!document.querySelector('[data-studio-recover]')")
-  assert len(edits)==count and edit_ids[-1]==saved['id']
-  assert page.evaluate("sessionStorage.getItem('toca-music-edit:'+"+json.dumps(ID)+")") is None
+  page.wait_for_function("!document.querySelector('dialog[open]')")
+  expect(root.locator('[data-studio-playlist-name]')).to_contain_text('Recovered name')
+  page.wait_for_function("sessionStorage.getItem('toca-music-edit:'+"+json.dumps(ID)+")===null")
+  assert len(edits)==before_edits+1 and len(edit_ids)==before_ids+1
+  assert root.locator('[data-studio-recover]').count()==0
   # A failed recovery must not prevent loading the playlist or the player.
   saved=dict(id='99999999-9999-4999-8999-999999999999',input=dict(action='rename',name='Recovered on startup',snapshot=playlist['snapshot']))
   page.evaluate("value=>sessionStorage.setItem('toca-music-edit:'+"+json.dumps(ID)+",JSON.stringify(value))",saved)

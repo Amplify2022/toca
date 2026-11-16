@@ -10,7 +10,7 @@ customer = (ROOT / 'web/toca-customer-v1826.js').read_text()
 google = (ROOT / 'web/toca-google-v1847.js').read_text()
 
 MOCK = r'''
-window.API_URL='';window.state={demo:true,token:''};
+window.API_URL='';window.state={token:''};
 window.__routes=[];window.__requests=[];window.__renderCount=0;
 window.render=()=>++window.__renderCount;
 window.route=()=>({path:location.hash.slice(1)});

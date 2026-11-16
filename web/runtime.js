@@ -1,12 +1,10 @@
 /* One navigation coordinator, shared route lifecycle and optional map loader. */
 (() => {
- const settings=settingsView;
- settingsView=function(){if(['localhost','127.0.0.1'].includes(location.hostname)||window.TOCA_CONFIG?.development)return settings();mount('<h1>Preferencias</h1><p>Tus favoritos se sincronizan con tu cuenta.</p><a href="#/account?kind=customer">Acceso y privacidad de la cuenta</a>','profile')};
  setTimeout(()=>{const css=document.createElement('link');css.rel='stylesheet';css.href='https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap';document.head.append(css)},0);
  const originalEnsure=window.tocaCustomerEnsure;let favoritesUser=null;
  window.tocaCustomerEnsure=async()=>{
   const user=await originalEnsure();
-  if(user&&!state.demo&&favoritesUser!==user.id){try{
+  if(user&&favoritesUser!==user.id){try{
    const key=favoriteKey(user),marker=key+':server-migrated';
    let ids=await api('/api/customers/me/favorites',{headers:{Authorization:window.tocaCustomerBearer()}});
    if(!localStorage.getItem(marker)){

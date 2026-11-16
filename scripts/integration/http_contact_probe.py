@@ -59,7 +59,7 @@ try:
         with sync_playwright() as p:
             browser = p.chromium.launch(executable_path='/usr/bin/chromium', args=['--no-sandbox'])
             context = browser.new_context(viewport=dict(width=390, height=900), service_workers='block')
-            context.add_init_script("localStorage.setItem('amplify-mode','live');localStorage.setItem('amplify-api'," + json.dumps(f'http://{probe.host}:{probe.port}') + ");")
+            context.add_init_script("localStorage.setItem('amplify-api'," + json.dumps(f'http://{probe.host}:{probe.port}') + ");")
             page = context.new_page()
             errors, submissions = [], []
             page.on('pageerror', lambda error: errors.append(str(error)))

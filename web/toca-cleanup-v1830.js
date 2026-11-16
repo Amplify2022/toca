@@ -17,7 +17,7 @@
     }
     // Older TOCÁ releases can still render the obsolete note in the request view.
     const requestPage = document.querySelector('.toca-request-page');
-    requestPage?.querySelectorAll('.toca-demo-note').forEach(el => {
+    requestPage?.querySelectorAll('.toca-service-note').forEach(el => {
       if (/para solicitar canciones escane[aá] el qr/i.test(el.textContent || '')) el.remove();
     });
     // Customer auth templates on older releases may still have QR instructions.

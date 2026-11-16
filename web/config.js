@@ -1,4 +1,6 @@
 window.TOCA_CONFIG = window.TOCA_CONFIG || {};
+// The app always uses the real API. Override apiUrl only for a separate API host.
+// Locally it defaults to http://localhost:8080; elsewhere to this origin.
 // Public marketing links only. Never put API secrets here.
 window.TOCA_CONFIG.marketing = Object.assign({
   appStoreUrl: '',

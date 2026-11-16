@@ -13,7 +13,7 @@ with sync_playwright() as p:
  browser=p.chromium.launch(executable_path='/usr/bin/chromium',args=['--no-sandbox'])
  for width in [1440,390]:
   context=browser.new_context(viewport=dict(width=width,height=1000),service_workers='block');page=context.new_page();page.clock.install();page.set_default_timeout(9000)
-  page.add_init_script("localStorage.setItem('amplify-mode','live');sessionStorage.setItem('amplify-token','synthetic-owner');sessionStorage.setItem('amplify-user',JSON.stringify({id:'owner',name:'Owner'}))")
+  page.add_init_script("sessionStorage.setItem('amplify-token','synthetic-owner');sessionStorage.setItem('amplify-user',JSON.stringify({id:'owner',name:'Owner'}))")
   tracks=[dict(id=letter*22,title='Track '+letter,artist='Test band',durationMs=180000) for letter in 'ABCDEFGH']
   playlist=dict(id='P'*22,name='Night',snapshot='s1',tracks=tracks)
   venue=dict(id=ID,name='Audio Bar',address='Test street',city='Montevideo',active=True,published=True)

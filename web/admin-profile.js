@@ -18,7 +18,7 @@
  }
  function hydrate(){
   const key=identity();if(!key){account=null;return;}
-  if(!document.querySelector('.toca-admin-frame')||state.demo)return;
+  if(!document.querySelector('.toca-admin-frame'))return;
   if(account?.key!==key)account={key,token:state.token,avatar:null,loaded:false,revision:0};
   const entry=account;paint(entry);
   if(entry.loaded||entry.loading)return;

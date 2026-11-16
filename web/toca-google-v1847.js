@@ -142,7 +142,7 @@
     }
     const customerProfile = root.querySelector('.toca-profile-v1841');
     const customer = window.tocaCustomerUser?.();
-    const admin = typeof state !== 'undefined' && !state.demo && !!state.token;
+    const admin = typeof state !== 'undefined' && !!state.token;
     if (customerProfile && customer && !admin && !customerProfile.querySelector('.toca-google-link-container')) {
       const destination = customerProfile.querySelector('.toca-profile-shortcuts') || customerProfile.querySelector('.toca-profile-hero');
       if (!destination) return;

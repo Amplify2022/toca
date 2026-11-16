@@ -14,7 +14,7 @@ SHOTS=Path('/tmp/toca-customer-token-shots');SHOTS.mkdir(exist_ok=True)
 def scenario(browser,width):
     context=browser.new_context(viewport=dict(width=width,height=900),service_workers='block')
     context.add_init_script("""
-      localStorage.setItem('amplify-mode','live');
+
       sessionStorage.setItem('toca:customer:session','synthetic-customer-session-abcdefghijklmnopqrstuvwxyz');
       sessionStorage.setItem('toca:tokens-prototype:v1',JSON.stringify({balance:99999}));
       sessionStorage.setItem('toca:request:customer-test:77777777-7777-4777-8777-777777777777:AAAAAAAAAAAAAAAAAAAAAA',JSON.stringify({commandId:'legacy-free-command'}));

@@ -20,7 +20,6 @@ try:
    for scenario in ['google','instagram','manual']:
     context=browser.new_context(viewport={'width':width,'height':1000},locale='es-UY',service_workers='block');page=context.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
     owned=[];creates=[];registrations=[];publications=[];first_failure=[scenario=='google']
-    page.add_init_script("localStorage.setItem('amplify-mode','live')")
     def api(route):
      path=urlsplit(route.request.url).path;method=route.request.method;body=route.request.post_data_json if method in ['POST','PUT','PATCH'] and route.request.post_data else None;result={};code=200
      if method=='OPTIONS':pass

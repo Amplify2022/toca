@@ -6,7 +6,7 @@ venue=dict(id=ID,name='Policy Bar',address='Center',city='Montevideo',latitude=-
 with sync_playwright() as p:
  browser=p.chromium.launch(executable_path='/usr/bin/chromium',args=['--no-sandbox'])
  page=browser.new_page();mode=['NEARBY'];saves=[]
- page.add_init_script("localStorage.setItem('amplify-mode','live');sessionStorage.setItem('amplify-token','synthetic-admin-session');sessionStorage.setItem('amplify-user',JSON.stringify({id:'owner',name:'Owner',email:'owner@example.test'}));")
+ page.add_init_script("sessionStorage.setItem('amplify-token','synthetic-admin-session');sessionStorage.setItem('amplify-user',JSON.stringify({id:'owner',name:'Owner',email:'owner@example.test'}));")
  def api(route):
   path=route.request.url.split('8080',1)[1].split('?',1)[0];data=[]
   if path=='/api/auth/me':data=dict(id='owner',name='Owner',email='owner@example.test')
