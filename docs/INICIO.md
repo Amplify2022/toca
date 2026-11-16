@@ -1,6 +1,6 @@
 # Inicio público de TOCÁ
 
-La página reúne la presentación, “La app” (beneficios y recorrido con capturas en una sola sección), el portal para bares, preguntas frecuentes, descarga y contacto. Las capturas usan el nombre de ejemplo “Bar Central”. Respeta los colores y componentes de la app.
+La página reúne la presentación, “La app” con el recorrido en cuatro pasos, el portal para bares, preguntas frecuentes y contacto. El acceso a descarga está en la cabecera y las tiendas en el pie. Las capturas usan el nombre de ejemplo “Bar Central”. Respeta los colores y componentes de la app.
 
 Los enlaces de la cabecera y el pie llevan a secciones de la misma página mediante el router existente: `/#/?section=la-app`, `/#/?section=para-bares` y `/#/?section=contacto`. Los enlaces anteriores a `section=como-funciona` siguen llevando a “La app”. Funcionan al abrir un enlace directo y al usar atrás/adelante, y conservan el formulario mientras se navega entre secciones. La cabecera permanece visible; sus enlaces se agrupan a la derecha junto a “Descargá la app”. En celular se reúnen en un menú junto al mismo botón.
 

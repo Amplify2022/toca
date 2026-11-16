@@ -31,7 +31,8 @@ try:
     page.locator(f'.toca-landing-header [data-home-anchor="{identity}"]').click()
    header=page.locator('.toca-landing-header')
    assert header.locator('nav a').count()==3
-   assert root.locator('#la-app .landing-benefits article').count()==3 and root.locator('#la-app [data-landing-stage]').count()==4
+   assert not root.locator('.landing-benefits,#descargar').count()
+   assert root.locator('#la-app [data-landing-stage]').count()==4
    assert root.locator('#como-funciona').count()==0
    if width==1440:
     nav_box=header.locator('nav').bounding_box();download_box=header.locator('[data-download-open]').bounding_box()
@@ -77,7 +78,7 @@ try:
    dialog.locator('[data-download-close]').click();expect(dialog).not_to_be_visible()
    assert page.locator('.landing-socials a[href*="instagram.com/tocamusicapp"]').count()==1
    assert page.locator('.landing-socials a[href*="facebook.com"]').count()==1
-   for id in ['la-app','para-bares','descargar','contacto']:
+   for id in ['la-app','para-bares','contacto']:
     page.locator('#'+id).scroll_into_view_if_needed();page.wait_for_timeout(100)
    page.wait_for_function("Array.from(document.querySelectorAll('.landing-expanded img')).filter(i=>!i.closest('[hidden]')).every(i=>i.complete&&i.naturalWidth>0)")
    owner_image=page.locator('#para-bares figure img')
