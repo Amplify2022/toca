@@ -21,7 +21,17 @@
   ['Recargá tus tokens si lo necesitás','Cada canción agregada usa 1 token. Las recargas de esta etapa son de prueba, sin cobros.','tokens.png'],
   ['Listo. Tu tema está en la playlist','Tu pedido se agrega automáticamente. Si el bar lo requiere, validamos que estés a 100 metros.','success.png']
  ];
- function walkthrough(){return `<div class="landing-walkthrough"><div class="landing-section-heading landing-walkthrough-heading"><div><h3>Tu próxima canción, en cuatro pasos.</h3><p>De encontrar el bar a sumar tu tema. Así se ve TOCÁ por dentro.</p></div><div class="landing-walkthrough-controls"><span data-stage-count>Paso 1 de 4</span></div></div><div class="landing-how-grid"><div class="landing-stages" role="tablist" aria-label="Cómo funciona TOCÁ" aria-orientation="vertical">${stages.map(([title,copy],i)=>`<button type="button" role="tab" id="landing-stage-${i}" aria-controls="landing-screen-${i}" aria-selected="${i===0}" tabindex="${i===0?'0':'-1'}" data-landing-stage="${i}"><span class="landing-stage-number">0${i+1}</span><span><strong>${title}</strong><small>${copy}</small></span>${iconSvg('arrow',18)}</button>`).join('')}</div><div class="landing-screen-area">${stages.map(([title,,file],i)=>`<figure id="landing-screen-${i}" role="tabpanel" aria-labelledby="landing-stage-${i}" ${i?'hidden':''}><div class="landing-screen-phone"><img src="/assets/landing/${file}" width="390" height="780" loading="lazy" alt="Pantalla de TOCÁ: ${esc(title)}"></div><figcaption>Interfaz de TOCÁ · Datos de ejemplo</figcaption></figure>`).join('')}</div></div></div>`;}
+ function walkthrough(){return `
+  <div class="landing-walkthrough">
+   <div class="landing-section-heading landing-walkthrough-heading"><div><h3>Tu próxima canción, en cuatro pasos.</h3><p>De encontrar el bar a sumar tu tema. Así se ve TOCÁ por dentro.</p></div><div class="landing-walkthrough-controls"><span data-stage-count>Paso 1 de 4</span></div></div>
+   <div class="landing-how-grid">
+    <div class="landing-stages" role="tablist" aria-label="Cómo funciona TOCÁ" aria-orientation="vertical">${stages.map(([title,copy],i)=>`<button type="button" role="tab" id="landing-stage-${i}" aria-controls="landing-screen-${i}" aria-selected="${i===0}" tabindex="${i===0?'0':'-1'}" data-landing-stage="${i}"><span class="landing-stage-number">0${i+1}</span><span><strong>${title}</strong><small>${copy}</small></span></button>`).join('')}</div>
+    <div class="landing-screen-area">
+     <div class="landing-screen-phone" aria-describedby="landing-screen-caption">${stages.map(([title,,file],i)=>`<figure id="landing-screen-${i}" class="landing-screen-panel${i===0?' is-active':''}" role="tabpanel" aria-labelledby="landing-stage-${i}" aria-hidden="${i!==0}" ${i?'inert':''}><img src="/assets/landing/${file}" width="390" height="780" loading="lazy" alt="Pantalla de TOCÁ: ${esc(title)}"></figure>`).join('')}</div>
+     <p id="landing-screen-caption" class="landing-screen-caption">Interfaz de TOCÁ · Datos de ejemplo</p>
+    </div>
+   </div>
+  </div>`;}
  const previousLanding=tocaLanding;
  tocaLanding=function(){
   previousLanding();const root=document.querySelector('.toca-landing');if(!root)return;
@@ -52,7 +62,7 @@
   requestAnimationFrame(()=>scrollSection(route().params.get('section'),false));
  };
  function scrollSection(id,smooth=true){if(id==='como-funciona')id='la-app';if(!sections.includes(id))return;const target=document.getElementById(id);if(!target)return;target.scrollIntoView({behavior:smooth&&!matchMedia('(prefers-reduced-motion:reduce)').matches?'smooth':'instant',block:'start'});}
- function activateStage(root,index){root.querySelectorAll('[data-landing-stage]').forEach(button=>{const selected=Number(button.dataset.landingStage)===index;button.setAttribute('aria-selected',String(selected));button.tabIndex=selected?0:-1;});root.querySelectorAll('[role="tabpanel"]').forEach((panel,i)=>panel.hidden=i!==index);stagePlayers.get(root)?.select(index);}
+ function activateStage(root,index){root.querySelectorAll('[data-landing-stage]').forEach(button=>{const selected=Number(button.dataset.landingStage)===index;button.setAttribute('aria-selected',String(selected));button.tabIndex=selected?0:-1;});root.querySelectorAll('[role="tabpanel"]').forEach((panel,i)=>{const selected=i===index;panel.classList.toggle('is-active',selected);panel.setAttribute('aria-hidden',String(!selected));panel.inert=!selected;});stagePlayers.get(root)?.select(index);}
  function startWalkthrough(root){
   const grid=root.querySelector('.landing-how-grid'),counter=root.querySelector('[data-stage-count]');
   const motion=matchMedia('(prefers-reduced-motion:reduce)'),duration=5000;

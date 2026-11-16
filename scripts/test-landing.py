@@ -51,8 +51,10 @@ try:
    page.evaluate("location.hash='/?section=como-funciona'");page.wait_for_timeout(200)
    assert page.locator('#la-app').bounding_box()['y']>=header.bounding_box()['height']-2,'Existing how-it-works links must reach the combined section'
    tabs=page.locator('[data-landing-stage]')
+   assert not tabs.locator('svg').count(),'Walkthrough steps must not have arrows'
    for i in range(4):
     tabs.nth(i).click();expect(tabs.nth(i)).to_have_attribute('aria-selected','true');expect(page.locator(f'#landing-screen-{i}')).to_be_visible()
+    expect(page.locator(f'#landing-screen-{i}')).to_have_attribute('aria-hidden','false')
     image=page.locator(f'#landing-screen-{i} img');page.wait_for_function('(src)=>Array.from(document.images).some(i=>i.src.endsWith(src)&&i.naturalWidth>0)',arg=image.get_attribute('src'))
    tabs.last.press('Home');expect(tabs.first).to_have_attribute('aria-selected','true')
    assert not page.locator('[data-stage-playback]').count()
@@ -83,7 +85,7 @@ try:
    ratio=owner_image.evaluate('image=>image.naturalWidth/image.naturalHeight');box=owner_image.bounding_box()
    assert abs(box['width']/box['height']-ratio)<.01,'Venue preview must retain its natural proportions'
    form.locator('.landing-form-status').evaluate('(node)=>node.hidden=true')
-   tabs.first.click();page.mouse.move(0,0)
+   tabs.first.click();page.mouse.move(0,0);page.wait_for_timeout(700)
    page.evaluate('scrollTo(0,0)');page.wait_for_timeout(150)
    assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),width
    page.screenshot(path=str(OUT/f'inicio-{width}.png'),full_page=True)
