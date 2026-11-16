@@ -10,6 +10,7 @@ El recorrido de cuatro pasos avanza automáticamente cada cinco segundos y vuelv
 
 - [Inicio en escritorio](previews/inicio-1440.png)
 - [Inicio en celular](previews/inicio-390.png)
+- [Pie de página](previews/inicio-footer.png)
 - [Teléfono de la portada](previews/inicio-celular-propuesta.png)
 
 El teléfono de inicio muestra una captura de la interfaz actual: mapa, ficha del bar, canción que está sonando, botón para pedir temas y navegación inferior. La captura usa un mapa ilustrativo, una portada del proyecto y datos de ejemplo. El fondo del mapa conserva su proporción al proyectarse; los tres marcadores de música se renderizan con los componentes de la app. La ruta `http://localhost:5173/prototypes/home-phone/` conserva una vista del mismo inicio en un iframe, sin modificaciones adicionales.
@@ -28,14 +29,14 @@ Los enlaces públicos se configuran en `web/config.js`, dentro de `TOCA_CONFIG.m
   socials: {
     instagram: 'https://www.instagram.com/tocamusicapp/',
     facebook: 'https://www.facebook.com/1465919206597325',
-    tiktok: '', x: '', linkedin: ''
+    x: '', tiktok: '', linkedin: ''
   }
 }
 ```
 
 El botón “Descargá la app” genera el QR en el navegador, sin servicios externos. El QR lleva a `/#/download`, que detecta iOS/Android y abre la tienda correspondiente si su URL oficial está configurada. En escritorio ofrece ambas tiendas. Una tienda sin URL se muestra como “Próximamente”, sin enlace ficticio; la versión web sigue disponible. En localhost el QR solo sirve como vista previa: para compartirlo con otro dispositivo debe apuntar al dominio público accesible.
 
-No se agregan redes sin una URL. Instagram y Facebook usan las cuentas identificadas durante la configuración del proyecto; el resto queda pendiente.
+Instagram y Facebook usan las cuentas identificadas durante la configuración del proyecto. X y TikTok también aparecen en el pie; sin una URL oficial se muestran como “Próximamente”. Al completar sus URLs en la configuración, pasan a ser enlaces activos. LinkedIn aparece cuando tiene una URL configurada. El inicio usa espaciado entre secciones, sin líneas divisorias horizontales.
 
 ## Contacto
 

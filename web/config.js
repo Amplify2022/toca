@@ -7,6 +7,6 @@ window.TOCA_CONFIG.marketing = Object.assign({
   socials: {
     instagram: 'https://www.instagram.com/tocamusicapp/',
     facebook: 'https://www.facebook.com/1465919206597325',
-    tiktok: '', x: '', linkedin: ''
+    x: '', tiktok: '', linkedin: '' // Official profile URLs enable the footer links.
   }
 }, window.TOCA_CONFIG.marketing || {});

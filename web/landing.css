@@ -1,7 +1,7 @@
 /* Public site: the same graphite, lime and typography as the app. */
 .landing-expanded{--landing-line:#294138;--landing-muted:#a7bcb0;background:#080e10;color:#edf5ef;overflow-x:clip}
 .landing-expanded *{box-sizing:border-box}.landing-expanded [hidden]{display:none!important}
-.landing-expanded .toca-landing-header{position:sticky;top:0;z-index:80;width:100%;max-width:none;height:82px;margin:0;padding:0 max(24px,calc((100vw - 1232px)/2));border-bottom:1px solid #2b403650;background:#080e10ed;backdrop-filter:blur(18px);gap:24px}
+.landing-expanded .toca-landing-header{position:sticky;top:0;z-index:80;width:100%;max-width:none;height:82px;margin:0;padding:0 max(24px,calc((100vw - 1232px)/2));border-bottom:0;background:#080e10ed;backdrop-filter:blur(18px);gap:24px}
 .landing-header-actions{display:flex;align-items:center;gap:28px;margin-left:auto;position:relative}
 .landing-menu-toggle{display:none}
 .landing-expanded .toca-landing-header nav{display:flex;align-items:center;gap:26px;margin:0;font-size:13px}
@@ -19,7 +19,7 @@
 .landing-section h2{font-size:clamp(33px,4vw,52px);line-height:1.12;letter-spacing:-1.7px;margin:18px 0 22px}
 .landing-section p{font-size:15px;line-height:1.85;color:var(--landing-muted);margin:0}
 .landing-section-heading{max-width:700px;margin-bottom:46px}.landing-section-heading>p{max-width:570px}
-.landing-intro{padding-top:70px;border-top:1px solid var(--landing-line)}
+.landing-intro{padding-top:70px}
 .landing-benefits{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px}
 .landing-benefits article{padding:30px 28px 32px;background:linear-gradient(140deg,#14231e,#101b1a);border:1px solid var(--landing-line);border-radius:21px}
 .landing-benefits article>span{display:grid;place-items:center;width:48px;height:48px;border-radius:14px;background:#aafa7513;color:var(--lime);margin-bottom:25px}
@@ -46,14 +46,14 @@
 .landing-screen-panel.is-active{opacity:1;visibility:visible;pointer-events:auto;z-index:1;transition-delay:0s,0s}
 .landing-screen-phone img{display:block;width:100%;height:auto;border-radius:25px}
 .landing-screen-area .landing-screen-caption{max-width:294px;margin:0;text-align:center;font-size:11px;color:#80978a;line-height:1.6}
-.landing-owners{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);gap:70px;align-items:center;border-top:1px solid var(--landing-line)}
+.landing-owners{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);gap:70px;align-items:center}
 .landing-owners h2{font-size:clamp(32px,3.5vw,46px)}.landing-owners p{max-width:440px}
 .landing-owners ul{padding:0;margin:25px 0 32px;list-style:none;display:grid;gap:15px}.landing-owners li{display:flex;gap:11px;align-items:start;font-size:13px;line-height:1.7;color:#c0d0c5}.landing-owners li svg{color:var(--lime);flex:none;margin-top:2px}
 .landing-owners figure{margin:0;min-width:0}.landing-owners figure img{display:block;width:100%;height:auto;border:1px solid #3a5947;border-radius:16px;box-shadow:0 20px 80px #0005}.landing-owners figcaption{font-size:12px;color:#8ba795;margin-top:16px;text-align:center}
 .landing-text-link{display:inline-flex;align-items:center;justify-content:center;gap:8px;color:#b7cebc;text-decoration:none;font-size:13px;line-height:1.6;padding:6px 0}
 .landing-owner-actions{display:grid;width:max-content;max-width:100%;gap:8px}.landing-owner-actions>a{display:flex;justify-content:flex-start;width:100%;padding:14px 22px;margin:0;gap:12px}.landing-owner-actions .landing-text-link{font-size:14px}.landing-text-link:hover{color:var(--lime)}
-.landing-faq{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);gap:80px;border-top:1px solid var(--landing-line)}
-.landing-faq details{border-bottom:1px solid var(--landing-line);padding:21px 0}.landing-faq details:first-child{padding-top:0}
+.landing-faq{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);gap:80px}
+.landing-faq details{padding:21px 0}.landing-faq details:first-child{padding-top:0}
 .landing-faq summary{display:flex;justify-content:space-between;align-items:center;gap:20px;font-size:16px;font-weight:650;line-height:1.6;cursor:pointer;list-style:none}.landing-faq summary::-webkit-details-marker{display:none}.landing-faq summary>span{font-size:24px;color:#85a98f;font-weight:400;transition:transform .2s}.landing-faq details[open] summary>span{transform:rotate(45deg);color:var(--lime)}.landing-faq details>p{font-size:14px;margin-top:14px;padding-right:30px}
 .landing-download{display:grid;grid-template-columns:1.15fr .85fr;gap:40px;align-items:center;max-width:1232px;margin:20px auto 60px;padding:62px;background:radial-gradient(ellipse at 90% 0,#305d2f8c,transparent 65%),#13251b;border:1px solid #426c37;border-radius:28px}
 .landing-download h2{font-size:clamp(42px,4.5vw,62px)}.landing-download p{margin-bottom:25px}.landing-download .landing-text-link{display:flex;justify-content:flex-start;margin-top:17px;font-size:12px}
@@ -69,10 +69,10 @@
 #landing-contact-form .landing-form-status{font-size:13px;padding:13px 15px;border:1px solid #3c6d36;border-radius:10px;background:#8fdf6510;color:#c2ecaf;line-height:1.8}
 #landing-contact-form .landing-form-status.is-error{color:#ffc4b4;border-color:#895444;background:#a7554012}
 #landing-contact-form :disabled{opacity:.6;cursor:wait}
-.landing-footer{padding:55px max(24px,calc((100vw - 1232px)/2)) 25px;border-top:1px solid #2b4438;background:linear-gradient(150deg,#11201a,#0b1514);scroll-margin-top:100px}
+.landing-footer{padding:55px max(24px,calc((100vw - 1232px)/2)) 25px;background:linear-gradient(150deg,#11201a,#0b1514);scroll-margin-top:100px}
 .landing-footer-top{display:flex;justify-content:space-between;align-items:start;gap:35px;padding-bottom:35px}.landing-footer .toca-brand{padding:0}.landing-footer p{color:#91ad9a;font-size:13px;line-height:1.7;margin:12px 0}.landing-footer nav{display:flex;flex-wrap:wrap;gap:25px;font-size:12px;line-height:1.7;padding-top:15px}.landing-footer nav a{color:#b8cbbf;text-decoration:none}.landing-footer nav a:hover{color:var(--lime)}
-.landing-footer-bottom{display:flex;align-items:center;justify-content:space-between;gap:25px;border-top:1px solid #294234;padding:30px 0}
-.landing-socials{display:flex;align-items:center;gap:22px}.landing-socials>a{display:grid;place-items:center;min-width:32px;min-height:40px;color:#dce9df;border-radius:8px}.landing-socials>a:hover{color:var(--lime)}
+.landing-footer-bottom{display:flex;align-items:center;justify-content:space-between;gap:25px;padding:30px 0}
+.landing-socials{display:flex;align-items:center;gap:22px}.landing-socials>:is(a,span){display:grid;place-items:center;min-width:32px;min-height:40px;color:#dce9df;border-radius:8px}.landing-socials>a:hover{color:var(--lime)}.landing-socials>.is-upcoming{opacity:.55}
 .landing-store-badges{display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap}.landing-store{display:flex;align-items:center;gap:10px;min-width:150px;min-height:54px;background:#050807;border:1px solid #718276;border-radius:9px;padding:8px 14px;color:#fff;text-decoration:none}.landing-store small{display:block;font-size:9px;line-height:1.25;font-weight:500;letter-spacing:.02em;color:#d4ddd6}.landing-store strong{display:block;font-size:18px;line-height:1.2;font-weight:650;letter-spacing:-.4px}.landing-store>svg{flex:none}.landing-store.is-upcoming{opacity:.55}.landing-store[href]:hover{border-color:var(--lime);background:#102016}
 .landing-footer-legal{display:flex;justify-content:space-between;gap:20px;color:#708a79;font-size:10px;line-height:1.6;padding-top:15px}
 .landing-download-dialog{box-sizing:border-box;position:fixed;inset:0;margin:auto;width:min(440px,calc(100% - 32px));max-height:calc(100dvh - 32px);padding:40px 28px 25px;border:1px solid #3a5846;border-radius:25px;background:#101e18;color:#edf5ef;text-align:center;overflow-y:auto;box-shadow:0 20px 80px #0008}.landing-download-dialog::backdrop{background:#020907bd;backdrop-filter:blur(5px)}.landing-dialog-close{position:absolute;right:14px;top:13px;display:grid;place-items:center;width:34px;height:34px;border:0;border-radius:50%;background:#24382c;color:#bed0c0;cursor:pointer}

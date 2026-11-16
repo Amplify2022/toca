@@ -90,6 +90,7 @@ try:
    assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),width
    page.screenshot(path=str(OUT/f'inicio-{width}.png'),full_page=True)
    if width==1440:
+    page.locator('.landing-footer').screenshot(path=str(OUT/'inicio-footer.png'))
     page.goto(BASE+'/prototypes/home-phone/');frame=page.frame_locator('iframe');expect(frame.locator('.toca-hero-phone-app img')).to_be_visible();page.wait_for_timeout(200)
     frame.locator('.toca-landing-hero').screenshot(path=str(OUT/'inicio-celular-propuesta.png'))
    assert not errors,errors
