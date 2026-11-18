@@ -58,6 +58,10 @@
 }
 
 .toca-cabina .cabina-playlist {
-  background:linear-gradient(180deg,#080b0a 0%,#080b0a 25%,#142a1d 49%,#23472e 70%,#080b0a 100%);
-  border-color:#374738;
+  background:#080808;
+  border-color:#343434;
 }
+
+.toca-cabina .cabina-playlist :is(.cabina-track.current,.cabina-track.cabina-added-row) {background:#161616}
+.toca-cabina .cabina-playlist .cabina-track.current .cabina-row-play {background:#222}
+.toca-cabina .cabina-playlist-footer details[open] p {background:#181818;border-color:#343434}
