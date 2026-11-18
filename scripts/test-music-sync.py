@@ -1,9 +1,9 @@
 """Real UI: delayed provider replies, stale snapshots, SDK clock and compact hours."""
-import copy,functools,json,threading
+import copy,functools,json,os,threading
 from pathlib import Path
 from http.server import SimpleHTTPRequestHandler,ThreadingHTTPServer
 from urllib.parse import urlsplit
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import expect,sync_playwright
 ROOT=Path(__file__).resolve().parents[1];ID='77777777-7777-4777-8777-777777777777'
 A='A'*22;B='B'*22;C='C'*22;X='X'*22
 CAT={key:dict(id=key,title=title,artist='Test band',durationMs=180000) for key,title in [(A,'Track A'),(B,'Track B'),(C,'Track C'),(X,'External Track')]}
@@ -12,7 +12,7 @@ class Quiet(SimpleHTTPRequestHandler):
 server=ThreadingHTTPServer(('127.0.0.1',0),functools.partial(Quiet,directory=str(ROOT/'web')))
 threading.Thread(target=server.serve_forever,daemon=True).start();BASE=f'http://127.0.0.1:{server.server_port}'
 with sync_playwright() as p:
- browser=p.chromium.launch(executable_path='/usr/bin/chromium',args=['--no-sandbox'])
+ browser=p.chromium.launch(executable_path=os.getenv('TOCA_CHROMIUM','/usr/bin/chromium'),args=['--no-sandbox'])
  for width in [1440,390]:
   context=browser.new_context(viewport=dict(width=width,height=1000),service_workers='block')
   page=context.new_page();page.clock.install();page.set_default_timeout(9000)
@@ -53,6 +53,8 @@ with sync_playwright() as p:
     reconciles.append(path)
     if pending_result[0]:
      result=pending_result[0];pending_result[0]=None;pending[0]=None;return reply(route,result)
+    if pending[0] and body.get('acceptSnapshot')==playlist['snapshot']:
+     pending[0]=None;return reply(route,dict(status='RELEASED'))
     return reply(route,pending[0] or dict(status='RELEASED'))
    if '/music/edits/' in path:
     edits.append((path,copy.deepcopy(body)))
@@ -60,7 +62,10 @@ with sync_playwright() as p:
     if uncertain[0]:
      uncertain[0]=False;pending[0]=dict(id=path.rsplit('/',1)[1],status='UNCERTAIN',action=body['action'],message='Resultado pendiente de verificación');data=dict(status='UNCERTAIN',result=dict(code='PLAYLIST_CHANGED',beforeWrite=False));saved[path]=data
      if recover[0]:
-      recover[0]=False;playlist['tracks'].append(CAT[body['trackId']].copy());bump();pending_result[0]=dict(status='COMPLETED',playlist=copy.deepcopy(playlist))
+      recover[0]=False
+      if body['action']=='remove':playlist['tracks'].pop(body['position'])
+      else:playlist['tracks'].append(CAT[body['trackId']].copy())
+      bump();pending_result[0]=dict(status='COMPLETED',playlist=copy.deepcopy(playlist))
      return reply(route,data)
     if reject[0]:
      reject[0]=False;data=dict(status='FAILED',message='No se pudo quitar la canción.');saved[path]=data
@@ -87,14 +92,28 @@ with sync_playwright() as p:
    else:page.goto(BASE+'/#/admin/music')
    page.locator('[data-track-index="0"]').wait_for();return page.locator('[data-admin-studio]')
   root=open_music()
+  expect(root.locator('[data-player-title]')).to_have_text('Track A')
   # Spotify Connect has no browser event stream: detect an actual remote track
   # change within one polling second, without sending any playback command.
   player.update(now=CAT[B].copy(),progressMs=0)
   page.clock.run_for(1100)
-  assert root.locator('[data-player-title]').inner_text()=='Track B' and not controls
+  expect(root.locator('[data-player-title]')).to_have_text('Track B')
+  assert not controls
   player.update(now=CAT[A].copy(),progressMs=5000)
   page.clock.run_for(1100)
-  assert root.locator('[data-player-title]').inner_text()=='Track A'
+  expect(root.locator('[data-player-title]')).to_have_text('Track A')
+  indicator=root.locator('.cabina-player .cabina-playing-indicator')
+  expect(indicator).to_be_visible()
+  active_indicator=root.locator('.cabina-track.current .cabina-playing-indicator')
+  expect(active_indicator).to_be_visible()
+  assert indicator.locator('i').first.evaluate("node=>getComputedStyle(node).animationName")=='cabina-playing-level'
+  page.emulate_media(reduced_motion='reduce')
+  assert indicator.locator('i').first.evaluate("node=>getComputedStyle(node).animationName")=='none'
+  page.emulate_media(reduced_motion='no-preference')
+  player['isPlaying']=False;page.clock.run_for(1100)
+  expect(indicator).not_to_be_visible()
+  player['isPlaying']=True;page.clock.run_for(1100)
+  expect(indicator).to_be_visible()
   hold_edit[0]=True
   root.locator('[data-cabina-open=add]').click();root.locator('[data-studio-search]').fill('Track C')
   with page.expect_request(lambda r:'/music/edits/' in r.url):root.locator('[data-studio-edit=add]').click()
@@ -137,6 +156,23 @@ with sync_playwright() as p:
   route,data=held.pop();reply(route,data)
   page.wait_for_function("!document.querySelector('[data-cabina-open=add]').disabled")
   assert root.locator('[data-track-index]:visible strong').all_text_contents()==['Track A','Track C']
+  # An unconfirmed removal uses readback only and restores the list with an error.
+  lag.clear();uncertain[0]=True;count=len(edits)
+  root.locator('[data-cabina-track="0"]').click();root.locator('[data-studio-edit=remove]').click()
+  page.clock.run_for(2200)
+  expect(root.locator('.cabina-status-error')).to_contain_text('No pudimos confirmar')
+  expect(root.locator('[data-cabina-open=add]')).to_be_enabled()
+  expect(root.locator('[data-cabina-start]')).to_be_enabled()
+  assert len(edits)==count+1 and pending[0] is None
+  assert root.locator('[data-studio-operation]').inner_text()==''
+  assert root.locator('[data-track-index]:visible strong').all_text_contents()==['Track A','Track C']
+  # A delayed removal that did apply completes without exposing a verification banner.
+  uncertain[0]=True;recover[0]=True;count=len(edits)
+  root.locator('[data-cabina-track="1"]').click();root.locator('[data-studio-edit=remove]').click()
+  expect(root.locator('[data-track-index]')).to_have_count(1)
+  expect(root.locator('[data-cabina-open=add]')).to_be_enabled()
+  assert len(edits)==count+1 and root.locator('[data-studio-operation]').inner_text()==''
+  assert root.locator('[data-studio-status]').inner_text()==''
   # Duplicate occurrences cannot be safely rebased after an external insertion.
   page.wait_for_function("!document.querySelector('[data-cabina-open=add]').disabled")
   lag.clear();playlist['tracks']=[CAT[A].copy(),CAT[B].copy(),CAT[A].copy()];bump();root=open_music();external[0]=True;count=len(edits)

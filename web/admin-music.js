@@ -4,12 +4,18 @@
  const musicPath=id=>`/api/admin/venues/${encodeURIComponent(id)}/music`;
  const time=n=>{const seconds=Math.floor(Math.max(0,Number(n)||0)/1000);return `${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`};
  const key=id=>'toca-music-edit:'+id;
+ const savedEdit=id=>{
+  try{return JSON.parse(sessionStorage.getItem(key(id))||'null')}catch{return null}
+ };
+ const removal=ctx=>ctx.operation?ctx.operation.action==='remove':savedEdit(ctx.id)?.input?.action==='remove';
+ const removalError=(ctx,reason)=>notify(ctx,reason||'No pudimos confirmar que Spotify quitara la canción. Se conserva la última lista disponible.',false,true);
  const syncChannel=typeof BroadcastChannel==='function'?new BroadcastChannel('toca-playlist-changes'):null;
  const live=ctx=>!!ctx&&ctx===current&&ctx.root.isConnected&&ctx.session===state.token&&ctx.id===state.venueId;
- const notify=(ctx,message,transient=false)=>{
+ const notify=(ctx,message,transient=false,error=false)=>{
   if(!live(ctx))return;
   clearTimeout(ctx.noticeTimer);ctx.noticeVersion=(ctx.noticeVersion||0)+1;
-  ctx.root.querySelector('[data-studio-status]').textContent=message;window.tocaCabinaNotify?.(ctx,message);
+  const status=ctx.root.querySelector('[data-studio-status]');
+  status.textContent=message;status.classList.toggle('cabina-status-error',error);window.tocaCabinaNotify?.(ctx,message);
   if(transient){const version=ctx.noticeVersion;ctx.noticeTimer=setTimeout(()=>{if(live(ctx)&&ctx.noticeVersion===version&&ctx.root.querySelector('[data-studio-status]').textContent===message){ctx.root.querySelector('[data-studio-status]').textContent='';window.tocaCabinaNotify?.(ctx,'')}},5000);}
  };
  const dispose=ctx=>{if(ctx){clearInterval(ctx.timer);clearInterval(ctx.clockTimer);clearInterval(ctx.syncTimer);clearTimeout(ctx.syncSoon);clearTimeout(ctx.noticeTimer);clearTimeout(ctx.feedbackTimer)}};
@@ -43,7 +49,7 @@
   window.tocaCabinaPlaylistUpdated?.(ctx);
   }
   const saved=sessionStorage.getItem(key(ctx.id));
-  root.querySelector('[data-studio-operation]').innerHTML=ctx.operation?`<div class="cabina-notice"><div><strong>Cambio pendiente de verificación.</strong><p>${esc(ctx.operation.message||'Consultá el resultado antes de volver a editar.')}</p></div><button type="button" class="btn small" data-studio-reconcile>Consultar resultado</button><button type="button" class="btn small" data-studio-accept>Aceptar estado actual</button></div>`:saved?'<div class="cabina-notice"><p>No se confirmó el último cambio. Consultá su resultado para continuar.</p><button type="button" class="btn small" data-studio-recover>Consultar resultado</button></div>':'';
+  root.querySelector('[data-studio-operation]').innerHTML=removal(ctx)?'':ctx.operation?`<div class="cabina-notice"><div><strong>Cambio pendiente de verificación.</strong><p>${esc(ctx.operation.message||'Consultá el resultado antes de volver a editar.')}</p></div><button type="button" class="btn small" data-studio-reconcile>Consultar resultado</button><button type="button" class="btn small" data-studio-accept>Aceptar estado actual</button></div>`:saved?'<div class="cabina-notice"><p>No se confirmó el último cambio. Consultá su resultado para continuar.</p><button type="button" class="btn small" data-studio-recover>Consultar resultado</button></div>':'';
   optimisticRemoval(ctx);updateButtons(ctx);
  }
  function optimisticRemoval(ctx){
@@ -67,7 +73,7 @@
    const revision=data.playlist,previous=ctx.playlist;
    if(ctx.playlistError||revision?.id!==previous?.id||revision?.snapshot!==previous?.snapshot||revision?.name!==previous?.name||JSON.stringify(data.operation)!==JSON.stringify(ctx.operation))await reload(ctx,true);
    if(!live(ctx))return;
-   if(ctx.operation)await recoverPendingEdit(ctx);
+   if(ctx.operation||savedEdit(ctx.id)?.input?.action==='remove')await recoverPendingEdit(ctx);
    ctx.syncFailures=0;ctx.syncRetryAt=0;syncStatus(ctx);
   }catch(error){
    if(!live(ctx)||error.name==='AbortError')return;
@@ -207,15 +213,34 @@
   notify(ctx,'');toast(message);
  }
  const terminalEdit=result=>['COMPLETED','FAILED','RELEASED'].includes(result.status);
- async function checkEdit(ctx,id,result){
+ async function checkEdit(ctx,id,result,action){
   // An ambiguous write is only read back. Never send it a second time.
   for(const delay of [0,200,450,850]){
    if(terminalEdit(result)||!live(ctx))break;
    if(delay)await new Promise(resolve=>setTimeout(resolve,delay));
    if(!live(ctx))break;
-   try{result=await api(musicPath(ctx.id)+`/edits/${id}/reconcile`,{method:'POST',body:{}})}catch(error){if([401,403,429].includes(error.status))break;}
+   try{result=await reconcileEdit(ctx,id)}catch(error){
+    if(error.status===404&&action==='remove'){result={status:'UNKNOWN',missing:true};continue;}
+    if(result.missing)result={status:'UNKNOWN'};
+    if([401,403,429].includes(error.status))return result;
+   }
+  }
+  if(result.missing)return {status:'FAILED'};
+  if(action==='remove'&&result.status==='UNCERTAIN'&&live(ctx)){
+   return await settleRemoval(ctx,id).catch(()=>result);
   }
   return result;
+ }
+ function reconcileEdit(ctx,id,body={}){
+  return api(musicPath(ctx.id)+`/edits/${id}/reconcile`,{method:'POST',body});
+ }
+ async function settleRemoval(ctx,id){
+  // Accept only a fresh snapshot. The server checks it again and confirms a
+  // removal that arrived in the meantime instead of releasing it as failed.
+  const data=await api(musicPath(ctx.id)+'/playlist');
+  if(!live(ctx))return {status:'UNKNOWN'};
+  if(data.operation?.id!==id||data.error||!data.playlist?.snapshot)return reconcileEdit(ctx,id);
+  return reconcileEdit(ctx,id,{acceptSnapshot:data.playlist.snapshot});
  }
  async function completeEdit(ctx,result,body){
   if(result.result?.playlistId){ctx.settings.playlistId=result.result.playlistId;state.spotify.playlistId=result.result.playlistId;localStorage.setItem(tocaPlaylistNameKey(ctx.id,result.result.playlistId),result.result.name);}
@@ -229,18 +254,30 @@
   window.tocaCabinaClose?.(ctx);editFeedback(ctx,body);playlistChanged(ctx);
  }
  async function recoverPendingEdit(ctx){
-  const operation=ctx.operation;
-  if(!live(ctx)||ctx.busy||ctx.verifyingEdit||!operation?.id||!['UNCERTAIN','UNKNOWN'].includes(operation.status)||Date.now()<(ctx.editRetryAt||0))return;
+  const saved=savedEdit(ctx.id);
+  const operation=ctx.operation||(saved?.input?.action==='remove'?{id:saved.id,action:'remove',status:'UNKNOWN'}:null);
+  if(!live(ctx)||ctx.busy||ctx.verifyingEdit||!operation?.id||(operation.action!=='remove'&&!['UNCERTAIN','UNKNOWN'].includes(operation.status))||Date.now()<(ctx.editRetryAt||0))return;
   ctx.verifyingEdit=true;ctx.editRetryAt=Date.now()+7000;
   try{
-   const result=await api(musicPath(ctx.id)+`/edits/${operation.id}/reconcile`,{method:'POST',body:{}});
-   if(!live(ctx)||ctx.operation?.id!==operation.id)return;
+   let result=await reconcileEdit(ctx,operation.id);
+   if(!live(ctx)||(ctx.operation?.id||savedEdit(ctx.id)?.id)!==operation.id)return;
+   if(operation.action==='remove'&&result.status==='UNCERTAIN')result=await settleRemoval(ctx,operation.id);
+   if(!live(ctx))return;
    if(terminalEdit(result)){
     sessionStorage.removeItem(key(ctx.id));
     if(result.status==='COMPLETED')await completeEdit(ctx,result,{action:result.action||operation.action});
-    else await reload(ctx);
+    else{
+     await reload(ctx);
+     if(operation.action==='remove')removalError(ctx,result.status==='FAILED'?result.message:null);
+    }
    }
-  }catch(error){if(error.status===429)ctx.editRetryAt=Date.now()+60000;}
+  }catch(error){
+   if(error.status===429)ctx.editRetryAt=Date.now()+60000;
+   if(live(ctx)&&operation.action==='remove'){
+    if(error.status===404&&!ctx.operation){sessionStorage.removeItem(key(ctx.id));updateButtons(ctx);}
+    removalError(ctx);
+   }
+  }
   finally{ctx.verifyingEdit=false;}
  }
  async function edit(ctx,body){
@@ -261,23 +298,25 @@
     if(!input){window.tocaCabinaClose?.(ctx);toast('La playlist ya refleja ese cambio.');return;}
     id=crypto.randomUUID();sessionStorage.setItem(key(ctx.id),JSON.stringify({id,input}));sent=true;terminal=false;
     let result=await api(musicPath(ctx.id)+`/edits/${id}`,{method:'POST',body:input});if(!live(ctx))return;
-    if(!terminalEdit(result))result=await checkEdit(ctx,id,result);
+    if(!terminalEdit(result))result=await checkEdit(ctx,id,result,body.action);
     if(!live(ctx))return;
     terminal=terminalEdit(result);if(terminal)sessionStorage.removeItem(key(ctx.id));
     if(attempt===0&&result.status==='FAILED'&&result.result?.code==='PLAYLIST_CHANGED'&&result.result.beforeWrite===true)continue;
     if(result.status==='COMPLETED'){await completeEdit(ctx,result,body);return;}
-    if(terminal)notify(ctx,result.message||'No se pudo guardar el cambio. Volvé a intentarlo.');
+    if(body.action==='remove')removalError(ctx,result.status==='FAILED'?result.message:null);
+    else if(terminal)notify(ctx,result.message||'No se pudo guardar el cambio. Volvé a intentarlo.');
     else notify(ctx,'');
     await reload(ctx);return;
    }
   }catch(error){
    if(!live(ctx))return;
    if(sent&&!terminal){
-    const result=await checkEdit(ctx,id,{status:'UNKNOWN'});if(!live(ctx))return;
+    const result=await checkEdit(ctx,id,{status:'UNKNOWN'},body.action);if(!live(ctx))return;
     if(terminalEdit(result)){terminal=true;sessionStorage.removeItem(key(ctx.id));if(result.status==='COMPLETED'){await completeEdit(ctx,result,body);return;}}
-    else ctx.operation={id,status:'UNKNOWN'};
+    else ctx.operation={id,status:'UNKNOWN',action:body.action};
    }
-   notify(ctx,sent&&!terminal?'':error.message);
+   if(body.action==='remove')removalError(ctx,sent&&!terminal?null:error.message);
+   else notify(ctx,sent&&!terminal?'':error.message);
    try{await reload(ctx)}catch{if(sent&&!terminal)renderPlaylist(ctx,{playlist:ctx.playlist,operation:ctx.operation});}
   }finally{ctx.busy=false;ctx.editAction=null;ctx.optimisticRemoval=null;if(live(ctx)){optimisticRemoval(ctx);updateButtons(ctx);syncSoon(ctx);}}
  }
@@ -415,8 +454,8 @@
 
   if(browser&&(browser.id!==id||browser.session!==ctx.session))stopBrowser();
   try{
-   const saved=JSON.parse(sessionStorage.getItem(key(id))||'null');
-   if(saved){const result=await api(musicPath(id)+`/edits/${saved.id}`,{method:'POST',body:saved.input});if(!live(ctx))return;if(['COMPLETED','FAILED','RELEASED'].includes(result.status))sessionStorage.removeItem(key(id));}
+   const saved=savedEdit(id);
+   if(saved&&saved.input?.action!=='remove'){const result=await api(musicPath(id)+`/edits/${saved.id}`,{method:'POST',body:saved.input});if(!live(ctx))return;if(['COMPLETED','FAILED','RELEASED'].includes(result.status))sessionStorage.removeItem(key(id));}
   }catch(error){notify(ctx,error.message)}
   if(!live(ctx))return;
   try{await reload(ctx);await recoverPendingEdit(ctx);await poll(ctx)}catch(error){notify(ctx,error.message)}

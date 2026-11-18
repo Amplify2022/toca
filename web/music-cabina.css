@@ -32,3 +32,32 @@
 .toca-cabina[data-cabina-reorder-enabled] .cabina-track .cabina-song{cursor:grab;user-select:none;-webkit-user-select:none}.toca-cabina[data-cabina-dragging=pointer] .cabina-track{cursor:grabbing}.cabina-drag-preview{position:fixed;z-index:110;pointer-events:none;width:min(310px,calc(100vw - 16px));padding:12px 14px;background:#233c23;border:1px solid var(--lime);border-radius:10px;box-shadow:0 12px 36px #0009;opacity:.96;user-select:none}.cabina-drag-preview>small{display:block;margin-top:9px;color:#c1f68d;font-size:11px}.cabina-drag-preview .cabina-song-meta{flex:1}.toca-cabina[data-cabina-dragging=pointer] .cabina-track-list{overscroll-behavior:contain}
 
 .cabina-track-head,.cabina-track-list{scrollbar-gutter:stable;scrollbar-width:thin}.cabina-track-head{overflow-y:hidden}.cabina-number-head,.cabina-track-number,.cabina-duration-head,.cabina-duration{text-align:center}.cabina-sync-note{color:#8fa682;font-size:10px;text-align:right;line-height:1.6}@media(max-width:760px){.cabina-sync-note{font-size:9px;max-width:115px}}
+
+.cabina-status.cabina-status-error {
+  background:#302021; border-color:#754443; color:#ffd3ce;
+}
+.cabina-playing-indicator {display:inline-flex; flex:none; color:var(--lime)}
+.cabina-playing-indicator[hidden] {display:none}
+.cabina-playing-indicator>span[aria-hidden] {
+  display:flex; align-items:end; gap:2px; height:14px;
+}
+.cabina-playing-indicator i {
+  width:2px; height:12px; border-radius:2px; background:currentColor;
+  transform:scaleY(.55); transform-origin:bottom;
+  animation:cabina-playing-level .85s ease-in-out infinite alternate;
+}
+.cabina-playing-indicator i:nth-child(2) {animation-duration:.64s; animation-delay:-.31s; transform:scaleY(1)}
+.cabina-playing-indicator i:nth-child(3) {animation-duration:.72s; animation-delay:-.47s; transform:scaleY(.72)}
+@keyframes cabina-playing-level {
+  0% {transform:scaleY(.32)}
+  45% {transform:scaleY(1)}
+  100% {transform:scaleY(.56)}
+}
+@media(prefers-reduced-motion:reduce) {
+  .cabina-playing-indicator i {animation:none}
+}
+
+.toca-cabina .cabina-playlist {
+  background:linear-gradient(180deg,#080b0a 0%,#080b0a 25%,#142a1d 49%,#23472e 70%,#080b0a 100%);
+  border-color:#374738;
+}
