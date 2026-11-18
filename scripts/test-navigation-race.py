@@ -1,6 +1,6 @@
 from playwright.sync_api import sync_playwright
 import json
-MOCK=r'''localStorage.setItem('amplify-mode','live');
+MOCK=r'''
 window.__auditCalls=[];window.__auditXss=false;window.__delayDetail=false;
 window.__venue={id:'77777777-7777-4777-8777-777777777777',name:'Audit Venue',city:'Montevideo',address:'Audit address',latitude:-34.9,longitude:-56.18,genre:'Rock',active:true,now:null,photos:[]};
 window.fetch=async (url,options={})=>{

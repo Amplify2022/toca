@@ -7,7 +7,7 @@ ROOT=Path(__file__).resolve().parents[1]/'web'
 VENUE={'id':'a7777777-7777-4777-8777-777777777777','name':'Bar Rock','address':'18 de Julio 1000','city':'Montevideo','description':'Local','genre':'Rock','latitude':-34.9,'longitude':-56.19,'active':True,'spotifyConnected':True,'photos':[], 'coverPhotoUrl':None}
 INIT="""(() => {const stores={};const storage = prefix => ({getItem(k){return stores[prefix+k]??null},setItem(k,v){stores[prefix+k]=String(v)},removeItem(k){delete stores[prefix+k]}});
 Object.defineProperty(window,'localStorage',{value:storage('l:')});Object.defineProperty(window,'sessionStorage',{value:storage('s:')});
-localStorage.setItem('amplify-mode','live');sessionStorage.setItem('amplify-token','test-token');sessionStorage.setItem('amplify-user',JSON.stringify({name:'Admin',email:'admin@test.com'}));
+sessionStorage.setItem('amplify-token','test-token');sessionStorage.setItem('amplify-user',JSON.stringify({name:'Admin',email:'admin@test.com'}));
 window.L={map(){return {setView(){return this},fitBounds(){},getZoom(){return 13},remove(){},invalidateSize(){},on(){return this}}},marker(){return {addTo(){return this},on(){return this}}},tileLayer(){return {addTo(){return this}}},divIcon(){return {}},control:{zoom(){return {addTo(){}}}}};
 })();"""
 FETCH="""(() => {

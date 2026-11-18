@@ -37,7 +37,6 @@ try:
   browser=p.chromium.launch(executable_path=os.getenv('TOCA_CHROMIUM','/usr/bin/chromium'),args=['--no-sandbox','--use-angle=swiftshader','--enable-unsafe-swiftshader'])
   for width in [320,390,768,1024,1440]:
    context=browser.new_context(viewport=dict(width=width,height=950),service_workers='block')
-   context.add_init_script("localStorage.setItem('amplify-mode','live')")
    authenticated=width==1440
    if authenticated:context.add_init_script("sessionStorage.setItem('toca:customer:session','synthetic-map-customer-session-abcdefghijklmnopqrstuvwxyz')")
    page=context.new_page();page.clock.install();held=[];errors=[];calls=[];art_calls=[]

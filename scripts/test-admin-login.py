@@ -29,7 +29,6 @@ try:
    for name,stats,status,valid in CASES:
     context=browser.new_context(viewport={'width':width,'height':1000},timezone_id='America/Montevideo',service_workers='block')
     page=context.new_page();errors=[];logins=[];page.on('pageerror',lambda error:errors.append(str(error)))
-    page.add_init_script("localStorage.setItem('amplify-mode','live')")
     venue=dict(id=ID,name='Login Test Bar',address='Test street 123',city='Montevideo',latitude=-34.9,longitude=-56.17,genre='Rock',active=False,spotifyConnected=False,photos=[],coverPhotoUrl=None,requestAccessMode='NEARBY')
     def api(route):
      path=route.request.url.split('8080',1)[1].split('?',1)[0];result=[];code=200

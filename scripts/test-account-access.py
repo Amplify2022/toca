@@ -19,7 +19,6 @@ try:
    context=browser.new_context(viewport=dict(width=width,height=1000),service_workers='block')
    page=context.new_page();page.set_default_timeout(6000);errors=[];calls=[];failure=[False];held=[];hold=[False]
    page.on('pageerror',lambda e:errors.append(str(e)))
-   page.add_init_script("localStorage.setItem('amplify-mode','live')")
    def reply(route,data,status=200):route.fulfill(status=status,content_type='application/json',body=json.dumps(data),headers={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'*','Access-Control-Allow-Methods':'GET,POST,OPTIONS'})
    def api(route):
     req=route.request;path=urlsplit(req.url).path

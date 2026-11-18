@@ -16,7 +16,7 @@ try:
   for width in [1440,390]:
    mobile=width<760
    context=browser.new_context(viewport=dict(width=width,height=720),is_mobile=mobile,has_touch=mobile,service_workers='block');page=context.new_page();page.set_default_timeout(12000)
-   page.add_init_script("localStorage.setItem('amplify-mode','live');sessionStorage.setItem('amplify-token','synthetic-owner');sessionStorage.setItem('amplify-user',JSON.stringify({id:'owner',name:'Owner'}))")
+   page.add_init_script("sessionStorage.setItem('amplify-token','synthetic-owner');sessionStorage.setItem('amplify-user',JSON.stringify({id:'owner',name:'Owner'}))")
    venue=dict(id=ID,name='Drag Bar',address='Test street',city='Montevideo',active=True,published=True)
    tracks=[dict(id=str(i).zfill(22),title='Song '+str(i),artist='Test band',durationMs=180000,imageUrl='/assets/venues/bar-1.webp') for i in range(40)]
    playlist=dict(id='P'*22,name='Long playlist',snapshot='s1',tracks=tracks)

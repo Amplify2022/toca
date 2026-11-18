@@ -119,7 +119,7 @@
     active.fetching = true;
     active.lastRefresh = Date.now();
     try {
-      if (typeof state !== 'undefined' && state.demo) {
+      if (typeof state !== 'undefined' && false) {
         render(venue, panel, token, asArray(state.playlist), {active:true,samePlaylist:false}, false);
         return;
       }

@@ -34,7 +34,7 @@ function renderLivePlaylist(music, isAdmin=false) {
   let busy=false;
   function stop() {if(interval) clearInterval(interval);interval=null;generation++;busy=false;}
   function currentVenue() {
-    if(state.demo) return null;
+
     const p=route().path;
     if(p.startsWith('/venue/')) return decodeURIComponent(p.split('/')[2]);
     if(p==='/admin'||p==='/admin/general') return state.venueId;

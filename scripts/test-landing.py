@@ -14,7 +14,7 @@ try:
   browser=p.chromium.launch(executable_path=os.getenv('TOCA_CHROMIUM','/usr/bin/chromium'),args=['--no-sandbox'])
   for width in [1440,1024,768,390,320]:
    context=browser.new_context(viewport=dict(width=width,height=900),service_workers='block');page=context.new_page();errors=[];posted=[];receipts=set();fail=[True]
-   page.on('pageerror',lambda e:errors.append(str(e)));page.add_init_script("localStorage.setItem('amplify-mode','live')")
+   page.on('pageerror',lambda e:errors.append(str(e)))
    def api(route):
     req=route.request;path=urlsplit(req.url).path
     if req.method=='OPTIONS':return route.fulfill(status=200,headers={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'*','Access-Control-Allow-Methods':'GET,POST,OPTIONS'})

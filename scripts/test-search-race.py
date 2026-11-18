@@ -1,5 +1,5 @@
 from playwright.sync_api import sync_playwright
-MOCK=r'''localStorage.setItem('amplify-mode','live');sessionStorage.setItem('toca:customer:session','1234567890abcdefghijklmnopqrstuvwxyz1234567890abcdef');
+MOCK=r'''sessionStorage.setItem('toca:customer:session','1234567890abcdefghijklmnopqrstuvwxyz1234567890abcdef');
 window.__auditCalls=[];
 window.__venue={id:'77777777-7777-4777-8777-777777777777',name:'Audit Venue',city:'Montevideo',address:'Audit address',latitude:-34.9,longitude:-56.18,genre:'Rock',active:true,now:null,photos:[]};
 window.fetch=async (url,options={})=>{

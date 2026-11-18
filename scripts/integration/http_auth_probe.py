@@ -113,7 +113,7 @@ def analytics_http(admin_token,customer_token):
         with sync_playwright() as p:
             browser=p.chromium.launch(executable_path='/usr/bin/chromium',args=['--no-sandbox'])
             context=browser.new_context(viewport=dict(width=1440,height=1050),service_workers='block')
-            context.add_init_script("localStorage.setItem('amplify-mode','live');localStorage.setItem('amplify-api',"+json.dumps(f'http://{host}:{port}')+");sessionStorage.setItem('amplify-token',"+json.dumps(admin_token)+");sessionStorage.setItem('amplify-user',"+json.dumps(json.dumps(owner))+");")
+            context.add_init_script("localStorage.setItem('amplify-api',"+json.dumps(f'http://{host}:{port}')+");sessionStorage.setItem('amplify-token',"+json.dumps(admin_token)+");sessionStorage.setItem('amplify-user',"+json.dumps(json.dumps(owner))+");")
             page=context.new_page();errors=[];provider_calls=[]
             page.on('pageerror',lambda e:errors.append(str(e)))
             page.on('request',lambda r:provider_calls.append(r.url) if any(s in r.url for s in ('/spotify','/music-status','/request-commands')) else None)
@@ -173,7 +173,7 @@ def presence_http(token,other_token):
     with sync_playwright() as p:
         browser=p.chromium.launch(executable_path='/usr/bin/chromium',args=['--no-sandbox'])
         context=browser.new_context(viewport=dict(width=390,height=900),service_workers='block')
-        context.add_init_script("localStorage.setItem('amplify-mode','live');localStorage.setItem('amplify-api',"+json.dumps(f'http://{host}:{port}')+");sessionStorage.setItem('toca:customer:session',"+json.dumps(token)+");"+"""
+        context.add_init_script("localStorage.setItem('amplify-api',"+json.dumps(f'http://{host}:{port}')+");sessionStorage.setItem('toca:customer:session',"+json.dumps(token)+");"+"""
           window.__gpsCalls=0;window.__gpsSequence=[{code:2},{accuracy:15}];
           navigator.geolocation.getCurrentPosition=(success,failure)=>{
             window.__gpsCalls++;
@@ -225,7 +225,7 @@ def unfunded_request_http(token):
             browser=p.chromium.launch(executable_path='/usr/bin/chromium',args=['--no-sandbox'])
             context=browser.new_context(viewport=dict(width=390,height=900),service_workers='block')
             pending_key=f'toca:request:credits-v1:{customer}:{venue}:{track}'
-            script="localStorage.setItem('amplify-mode','live');localStorage.setItem('amplify-api',"+json.dumps(f'http://{host}:{port}')+");sessionStorage.setItem('toca:customer:session',"+json.dumps(token)+");sessionStorage.setItem("+json.dumps(pending_key)+","+json.dumps(json.dumps({'idempotencyKey':str(uuid.uuid4())}))+ ");"
+            script="localStorage.setItem('amplify-api',"+json.dumps(f'http://{host}:{port}')+");sessionStorage.setItem('toca:customer:session',"+json.dumps(token)+");sessionStorage.setItem("+json.dumps(pending_key)+","+json.dumps(json.dumps({'idempotencyKey':str(uuid.uuid4())}))+ ");"
             context.add_init_script(script)
             page=context.new_page();errors=[];posts=[];page.on('pageerror',lambda e:errors.append(str(e)))
             page.on('request',lambda r:posts.append(r.url) if r.method=='POST' and r.url.endswith('/requests') else None)
@@ -277,7 +277,7 @@ def wallet_http(customer_token, admin_token, other_token):
         with sync_playwright() as p:
             browser=p.chromium.launch(executable_path='/usr/bin/chromium',args=['--no-sandbox'])
             context=browser.new_context(viewport=dict(width=390,height=900),service_workers='block')
-            context.add_init_script("localStorage.setItem('amplify-mode','live');localStorage.setItem('amplify-api',"+json.dumps(f'http://{host}:{port}')+");sessionStorage.setItem('toca:customer:session',"+json.dumps(other_token)+");")
+            context.add_init_script("localStorage.setItem('amplify-api',"+json.dumps(f'http://{host}:{port}')+");sessionStorage.setItem('toca:customer:session',"+json.dumps(other_token)+");")
             page=context.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
             page.route('https://**/*',lambda route:route.abort())
             page.goto(web+'/#/profile')

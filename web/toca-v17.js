@@ -24,8 +24,7 @@
     output.innerHTML='<p class="toca-muted">Buscando canciones en Spotify…</p>';
     const timer=setTimeout(async()=>{
       try{
-        const found=state.demo ? demoCatalog.filter(t=>`${t.title} ${t.artist}`.toLowerCase().includes(search.toLowerCase())) :
-          await api(`/api/admin/venues/${encodeURIComponent(venue)}/tracks?q=${encodeURIComponent(search)}`);
+        const found=(await api(`/api/admin/venues/${encodeURIComponent(venue)}/tracks?q=${encodeURIComponent(search)}`));
         if(!output.isConnected || input.value.trim()!==search || state.venueId!==venue)return;
         output.innerHTML=found.length?makeRules(found,mode):'<p class="toca-muted">No encontramos canciones con ese texto.</p>';
       }catch(err){if(output.isConnected)output.innerHTML=`<p class="toca-rule-error">${describe(err.message)}</p>`;}
@@ -43,14 +42,7 @@
     if(!trackId || !['BLOCK','ALLOW'].includes(mode))return;
     b.disabled=true;
     try {
-      if(state.demo){
-        const demo=db(), field=mode==='BLOCK'?'blocks':'allows';
-        if(!demo[field].some(x=>x.trackId===trackId&&x.venueId===state.venueId))
-          demo[field].push({venueId:state.venueId,trackId,
-            title:demoCatalog.find(t=>t.id===trackId)?.title||'',
-            artist:demoCatalog.find(t=>t.id===trackId)?.artist||''});
-        saveDemo(demo);
-      } else {
+      {
         await api(`/api/admin/venues/${encodeURIComponent(state.venueId)}/${mode==='BLOCK'?'blocked':'allowed'}`,
           {method:'POST',body:{trackId}});
       }

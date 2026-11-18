@@ -22,7 +22,7 @@ try:
   browser=p.chromium.launch(executable_path='/usr/bin/chromium',args=['--no-sandbox'])
   for width in (390,1440):
    context=browser.new_context(viewport=dict(width=width,height=1050),service_workers='block')
-   context.add_init_script("localStorage.setItem('amplify-mode','live');sessionStorage.setItem('amplify-token','synthetic-owner');sessionStorage.setItem('amplify-user',JSON.stringify({id:'owner',name:'Owner'}))")
+   context.add_init_script("sessionStorage.setItem('amplify-token','synthetic-owner');sessionStorage.setItem('amplify-user',JSON.stringify({id:'owner',name:'Owner'}))")
    page=context.new_page();errors=[];calls=[];held=[];model=dict(hold=False,error=False)
    page.on('pageerror',lambda e:errors.append(str(e)))
    venues=[dict(id=identity,name=name,published=True,active=False,photos=[]) for identity,name in [(ID,'Bluzz Bar'),(OTHER,'Other Bar')]]

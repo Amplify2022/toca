@@ -13,7 +13,7 @@ INIT=r'''(() => {
 const stores={};const storage = prefix => ({getItem(k){return stores[prefix+k]??null},setItem(k,v){stores[prefix+k]=String(v)},removeItem(k){delete stores[prefix+k]}});
 Object.defineProperty(window,'localStorage',{value:storage('l:')});
 Object.defineProperty(window,'sessionStorage',{value:storage('s:')});
-localStorage.setItem('amplify-mode','live');
+
 sessionStorage.setItem('amplify-token','test-token');
 sessionStorage.setItem('amplify-user',JSON.stringify({name:'Admin',email:'admin@test.com'}));
 window.__markers=[];

@@ -1,5 +1,7 @@
 # TOCÁ — desarrollo y despliegue
 
+**Ejecución actual:** solo API real, también en localhost. Se retiraron el selector de modo y los datos de demo del navegador. La API local se espera en `http://localhost:8080`; si usás otro host, configurá `apiUrl` en `web/config.js`.
+
 **Nuevo:** [Precarga de datos del bar y reproductor del administrador](docs/ADMIN_STUDIO.md).
 
 **Mapa y acceso vigentes:** [100 metros o cualquier ubicación, sin QR](docs/MAP_DISTANCE_FIX.md).
@@ -26,35 +28,26 @@ Primera versión ejecutable del producto **TOCÁ** (anteriormente Amplify). Cont
 
 La marca es TOCÁ y el logo elegido es **vinilo negro + nota musical verde**. Los 3 entornos comparten el mismo diseño dark / lime y el mismo proyecto web. El backend conserva internamente el paquete `com.amplify.api` y algunos nombres de almacenamiento de Amplify para evitar una migración destructiva; no aparecen como marca principal para el usuario.
 
-## 1. Probá la app en 30 segundos (solo demo)
+## 1. Abrir la app con la API real
 
-**Requisitos:** Python 3 y un navegador reciente. No hace falta instalar npm, Gradle, PostgreSQL, Docker ni crear una cuenta de Spotify.
+La app utiliza exclusivamente la API y PostgreSQL. No hay modo demo ni datos ficticios guardados en el navegador. Seguí la configuración de Docker de la sección siguiente para iniciar los servicios.
 
-En una terminal:
+Si ya tenés la API en `http://localhost:8080`, podés servir el frontend por separado:
 
 ```bash
-cd toca
-python3 -m http.server 5173 --directory web
+./scripts/run-web.sh
 ```
 
-Abrí estos enlaces:
-
-| Entorno | URL |
+| Pantalla | URL |
 | --- | --- |
 | Web pública | http://localhost:5173/#/ |
-| App / explorar bares | http://localhost:5173/#/explore |
-| Mapa | http://localhost:5173/#/map |
-| Ficha de un bar | http://localhost:5173/#/venue/demo-1 |
-| Pedir una canción | http://localhost:5173/#/request/demo-1 |
-| Panel del bar | http://localhost:5173/#/admin |
-| Solicitudes del bar | http://localhost:5173/#/admin/requests |
-| Reglas / listas | http://localhost:5173/#/admin/music |
-| Spotify | http://localhost:5173/#/admin/spotify |
-| QR | http://localhost:5173/#/admin/qr |
+| Explorar bares / mapa | http://localhost:5173/#/explore |
+| Registrar un bar | http://localhost:5173/#/register |
+| Portal del bar | http://localhost:5173/#/admin |
+| Música y Spotify | http://localhost:5173/#/admin/music |
+| Perfil y tokens del cliente | http://localhost:5173/#/profile |
 
-**Recorrido de prueba**: explorá La Ronda → «Pedí una canción» → buscá un tema → presioná «+» → confirmá → comprobá la pantalla «Tu pedido fue enviado» → entrá a Portal admin → Solicitudes → Aprobar → comprobá la cola del bar. Se persiste en `localStorage`; en Configuración tenés «Restablecer datos demo».
-
-Los seis bares, las imágenes ambientales y las canciones del demo son **datos ilustrativos**. No hay reproducción ni pagos reales en modo demo. El mapa tiene una representación local sin conexión y las coordenadas son ficticias de demostración. La vista `/map` puede operar sin servicios de terceros; cuando hay conexión intenta cargar cartografía OpenStreetMap mediante Leaflet, conservando la ilustración como fallback.
+Creá tu cuenta, registrá el bar y conectá Spotify para reproducir música y recibir pedidos. Los bares, playlists, cambios y cuentas se consultan y guardan mediante la API. Si la API no responde, se muestra un error con la opción de reintentar; no se reemplazan los datos por ejemplos locales.
 
 **Prototipo de tokens J + H:** abrí http://localhost:5173/prototypes/tokens/ para probar el perfil, las recargas simuladas y los pedidos con saldo. Es independiente de las cuentas y los pedidos reales. [Recorrido, controles de prueba y alcance](docs/token-wallet-prototype.md).
 
@@ -111,13 +104,11 @@ El `curl` debería devolver `{"status":"ok","service":"amplify-api"}` (el identi
 - **API:** http://localhost:8080/api/health
 - **PostgreSQL:** `localhost:5432`, solo expuesto en loopback.
 
-Luego: **App → Configuración → Modo API real**. La dirección de la API debe ser `http://localhost:8080` cuando navegás en la misma computadora. Para acceder desde un celular a una API en tu ordenador, debés configurar una dirección HTTPS alcanzable y CORS adecuado; este Compose se restringe deliberadamente a `127.0.0.1` por seguridad.
+La API se utiliza automáticamente: `http://localhost:8080` en localhost y el mismo origen de la web en producción. Si está en otro host, configurá `window.TOCA_CONFIG.apiUrl` en `web/config.js`. Para acceder desde un celular a una API en tu ordenador, debés configurar una dirección HTTPS alcanzable y CORS adecuado; este Compose se restringe deliberadamente a `127.0.0.1` por seguridad.
 
-En el modo API real no hay bares ficticios: hacé **Portal admin → Crear cuenta → Registrar bar**. Para probar solicitudes reales necesitás conectar Spotify Premium, una sesión activa y un acceso por QR válido. Si no tenés Spotify configurado, usá el modo demo para probar el flujo completo.
+Registrá el bar desde **Portal de bares → Registrar mi bar**. Los pedidos requieren Spotify conectado, reproducción disponible y saldo de tokens. En **Mi Bar**, el administrador elige si se exige estar a menos de 100 metros o si cualquiera puede pedir. No se utiliza QR para autorizar pedidos.
 
 Detener sin borrar datos: `docker compose down`. Borrar la base de desarrollo **irreversiblemente**: `docker compose down -v`.
-
-> **Limitación de verificación:** el diseño, scripts JS y flujos demo se probaron; la imagen Docker y el backend Kotlin no pudieron compilarse/verificarse con Gradle en este entorno sin dependencias externas. Si el build falla, compartí la primera traza de error para corregirla antes de desplegar.
 
 ## 3. Ejecutar manualmente el backend (sin Docker)
 
@@ -144,7 +135,7 @@ La aplicación aplica las migraciones Flyway `V1` y `V2` automáticamente. No in
 3. Copiá el Client ID a `SPOTIFY_CLIENT_ID` de `.env`. El backend implementa OAuth Authorization Code con PKCE; **no guardes un Client Secret en el frontend**.
 4. Generá `SPOTIFY_TOKEN_ENCRYPTION_KEY_BASE64` mediante `openssl rand -base64 32`, reiniciá el backend y conservá esa clave segura.
 5. Incorporá en Spotify Dashboard los usuarios de pruebas permitidos por tu modo de aplicación, teniendo en cuenta los límites y la aprobación de Spotify.
-6. En modo API, creá tu usuario administrador, registrá un bar, entrá a **Spotify Premium → Conectar**, autorizá la cuenta y seleccioná playlist y dispositivo, si están disponibles.
+6. Creá tu usuario administrador, registrá un bar, entrá a **Spotify Premium → Conectar**, autorizá la cuenta y seleccioná playlist y dispositivo, si están disponibles.
 7. Los pedidos se sincronizan automáticamente con la playlist, sin aprobación del bar. Ante una respuesta perdida, TOCÁ comprueba y recupera el mismo pedido sin duplicarlo. `SPOTIFY_PRIVATE_TEST_PLAYLIST_WRITES` habilita esas escrituras; `SPOTIFY_PRIVATE_TEST_CONTROL` regula por separado los controles reales del reproductor.
 
 **Legal:** Spotify Premium es un requisito funcional del prototipo pero **no otorga licencia para reproducir música públicamente en bares**. Spotify también restringe apps comerciales dirigidas a negocios. Para un lanzamiento real será imprescindible autorización explícita del proveedor y los derechos musicales pertinentes. Por eso no hay pagos ni reproducción comercial habilitados.
@@ -168,7 +159,7 @@ Si al activar **Usar audio de este navegador** aparece `Invalid token scopes`, e
 | QR | Acceso privado a la sesión de cada bar y rotación del token |
 | Autenticación de admin | BCrypt, sesiones con token hasheado y autorización por propietario |
 | PostgreSQL | Migraciones Flyway y aislamiento de datos por bar |
-| Imágenes del demo | Artes ambientales adaptadas de las propuestas visuales, no fotos verificadas de locales |
+| Imágenes de presentación | Artes ambientales adaptadas de las propuestas visuales, no fotos verificadas de locales |
 
 **No implementado ni declarado como terminado:** APK/iOS nativos, pagos, recaudación, ratings verificadas, notificaciones push, métricas de vistas/usuarios únicas, presencia real por GPS, catálogo musical comercial licenciado, sincronización infalible de reproducción, despliegue público AWS, monitoreo productivo y pruebas de integración del servidor contra Spotify.
 

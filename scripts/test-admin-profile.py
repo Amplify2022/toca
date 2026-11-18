@@ -14,7 +14,7 @@ with sync_playwright() as p:
  for width in [1440,390]:
   context=browser.new_context(viewport=dict(width=width,height=1000),service_workers='block');page=context.new_page();errors=[]
   page.on('pageerror',lambda e:errors.append(str(e)))
-  page.add_init_script("localStorage.setItem('amplify-mode','live');sessionStorage.setItem('amplify-token','synthetic-owner');sessionStorage.setItem('amplify-user',JSON.stringify({id:'owner',name:'Owner',email:'owner@example.test'}))")
+  page.add_init_script("sessionStorage.setItem('amplify-token','synthetic-owner');sessionStorage.setItem('amplify-user',JSON.stringify({id:'owner',name:'Owner',email:'owner@example.test'}))")
   user=dict(id='owner',name='Owner',email='owner@example.test');avatar=[None];writes=[];reads=[];held=[];hold=[False]
   venue=dict(id=ID,name='Profile Bar',address='Test 123',city='Montevideo',active=False,published=True)
   def reply(route,data,status=200):route.fulfill(status=status,content_type='application/json',body=json.dumps(data),headers={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'*','Access-Control-Allow-Methods':'GET,PUT,POST,DELETE,OPTIONS'})

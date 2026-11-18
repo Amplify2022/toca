@@ -19,7 +19,6 @@ try:
   for width in (390,1440):
    venue=dict(id=ID,name='Bluzz Bar',address='Centro',city='Montevideo',genre='Rock',active=True,description='El bar y su música',photos=[dict(url=PHOTO+'b'),dict(url=PHOTO+'a',isPrimary=True),dict(url=PHOTO+'c')],coverPhotoUrl=PHOTO+'a')
    context=browser.new_context(viewport=dict(width=width,height=1000),service_workers='block',reduced_motion='reduce')
-   context.add_init_script("localStorage.setItem('amplify-mode','live')")
    page=context.new_page();errors=[];page.on('pageerror',lambda error:errors.append(str(error)))
    def api(route):
     path=urlsplit(route.request.url).path;data=[]

@@ -20,7 +20,7 @@ TRACK = dict(id=TRACK_ID, title='Request Test Song', artist='Test Artist', durat
 def scenario(browser, outcome):
     context = browser.new_context()
     context.add_init_script("""
-      localStorage.setItem('amplify-mode','live');
+
       sessionStorage.setItem('toca:customer:session','synthetic-customer-session-abcdefghijklmnopqrstuvwxyz');
     """)
     page = context.new_page()
@@ -90,7 +90,7 @@ def scenario(browser, outcome):
 def admin_activity(browser):
     context=browser.new_context()
     context.add_init_script("""
-      localStorage.setItem('amplify-mode','live');
+
       sessionStorage.setItem('amplify-token','synthetic-admin-session-abcdefghijklmnopqrstuvwxyz');
       sessionStorage.setItem('amplify-user',JSON.stringify({id:'owner-test',name:'Owner',email:'owner@example.test'}));
     """)

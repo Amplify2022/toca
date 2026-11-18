@@ -36,7 +36,7 @@
     const instagram=/^[A-Za-z0-9._]{1,30}$/.test(username)?`<div class="place-social"><a class="place-social-handle" href="https://www.instagram.com/${encodeURIComponent(username)}/" target="_blank" rel="noopener noreferrer" aria-label="Instagram de ${esc(v.name)} (se abre en otra pestaña)">${icon('instagram')}<span>@${esc(username)}</span></a></div>`:'';
     const genres=String(v.genre||'').split(/[,•·]/).map(s=>s.trim()).filter(Boolean).join(' · ');
     return `<button type="button" class="place-handle" data-place-expand aria-expanded="false" aria-label="Ampliar ficha del bar"><span></span></button><div class="place-scroll">
-      <header class="place-heading"><div><span class="place-status ${v.active?'':'inactive'}"><i></i>${v.active?'Música activa':'Música inactiva'}${state.demo?' · Demo':''}</span><h2 id="toca-place-name">${esc(v.name||'Bar')}</h2>${genres?`<p>${esc(genres)}</p>`:''}</div><div class="place-heading-actions">${favButton(v)}<button type="button" class="place-close" data-place-close aria-label="Cerrar ficha del bar">${icon('close')}</button></div></header>
+      <header class="place-heading"><div><span class="place-status ${v.active?'':'inactive'}"><i></i>${v.active?'Música activa':'Música inactiva'}</span><h2 id="toca-place-name">${esc(v.name||'Bar')}</h2>${genres?`<p>${esc(genres)}</p>`:''}</div><div class="place-heading-actions">${favButton(v)}<button type="button" class="place-close" data-place-close aria-label="Cerrar ficha del bar">${icon('close')}</button></div></header>
       <section class="place-request-block is-unavailable" aria-label="Qué suena y cómo pedir tu canción">
         <div class="place-music" aria-live="polite"><p>Consultando canción actual…</p></div>
         <div class="place-request-controls"></div>
@@ -45,16 +45,15 @@
       ${v.address||v.city||instagram?`<div class="place-details ${instagram?'has-instagram':''}">${v.address||v.city?`<div class="place-address">${icon('pin')}<div>${v.address?`<strong>${esc(v.address)}</strong>`:''}${v.city?`<span>${esc(v.city)}</span>`:''}</div></div>`:''}${instagram}</div>`:''}
       ${String(v.description||'').trim()?`<section class="place-about"><h3>Un poco del bar</h3><p>${esc(v.description)}</p></section>`:''}
       <a class="place-full-details" href="#/venue/${encodeURIComponent(v.id)}">Ver ficha completa</a>
-      ${state.demo?'<p class="place-demo">Demostración: bares y canciones ilustrativos.</p>':''}
       </div><dialog class="place-photo-dialog" aria-label="Foto del bar"><button type="button" data-place-photo-close aria-label="Cerrar foto">${icon('close')}</button><img alt=""></dialog>`;
   }
   function photos(ctx){
     const v=ctx.venue,paths=[v.coverPhotoUrl,...(Array.isArray(v.photos)?v.photos.map(p=>p?.url):[])];
     const urls=[...new Set(paths.filter(p=>typeof p==='string'&&p.startsWith('/api/venues/')).map(mediaUrl))];
-    if(!urls.length&&state.demo)urls.push(photoFor(v));
+    if(!urls.length&&false)urls.push(photoFor(v));
     const gallery=ctx.root.querySelector('.place-photos');
     function count(){gallery.querySelector('[data-place-photo-count]')?.remove();if(gallery.children.length){const badge=document.createElement('span');badge.dataset.placePhotoCount='';badge.innerHTML=icon('photo')+`${gallery.children.length} ${gallery.children.length===1?'foto':'fotos'}`;gallery.firstElementChild.append(badge);}else{gallery.innerHTML=`<div class="place-no-photo">${icon('photo')}<span>Este bar todavía no tiene fotos.</span></div>`;}}
-    urls.forEach((url,index)=>{const button=document.createElement('button');button.type='button';button.setAttribute('aria-label',`Abrir foto ${index+1} de ${v.name||'este bar'}`);const image=document.createElement('img');image.src=url;image.alt=state.demo?'Ambiente ilustrativo del bar':`Foto ${index+1} de ${v.name||'este bar'}`;image.loading=index?'lazy':'eager';image.onerror=()=>{button.remove();count();};button.append(image);button.onclick=()=>{const dialog=ctx.root.querySelector('dialog'),full=dialog.querySelector('img');full.src=image.src;full.alt=image.alt;dialog.showModal();};gallery.append(button);});count();
+    urls.forEach((url,index)=>{const button=document.createElement('button');button.type='button';button.setAttribute('aria-label',`Abrir foto ${index+1} de ${v.name||'este bar'}`);const image=document.createElement('img');image.src=url;image.alt=(`Foto ${index+1} de ${v.name||'este bar'}`);image.loading=index?'lazy':'eager';image.onerror=()=>{button.remove();count();};button.append(image);button.onclick=()=>{const dialog=ctx.root.querySelector('dialog'),full=dialog.querySelector('img');full.src=image.src;full.alt=image.alt;dialog.showModal();};gallery.append(button);});count();
   }
   function music(ctx,snapshot,error=false){
     const box=ctx.root.querySelector('.place-music'),block=ctx.root.querySelector('.place-request-block'),controls=ctx.root.querySelector('.place-request-controls');
@@ -75,9 +74,9 @@
   async function refresh(ctx){
     if(!valid(ctx)||ctx.busy||document.hidden)return;ctx.busy=true;clearTimeout(ctx.timer);
     let delay=1000;
-    try{const result=state.demo?{active:ctx.venue.active,isPlaying:!!ctx.venue.now,now:ctx.venue.now}:await api(`/api/venues/${encodeURIComponent(ctx.venue.id)}/playback`,{signal:ctx.abort.signal,cache:'no-store'});if(valid(ctx)){ctx.failures=0;music(ctx,result);}}
+    try{const result=(await api(`/api/venues/${encodeURIComponent(ctx.venue.id)}/playback`,{signal:ctx.abort.signal,cache:'no-store'}));if(valid(ctx)){ctx.failures=0;music(ctx,result);}}
     catch(error){if(valid(ctx)&&error.name!=='AbortError'){ctx.failures=(ctx.failures||0)+1;delay=error.status===429?30000:Math.min(15000,1000*2**Math.min(ctx.failures-1,4));music(ctx,null,true);}}
-    finally{ctx.busy=false;if(valid(ctx)&&!state.demo)ctx.timer=setTimeout(()=>void refresh(ctx),delay);}
+    finally{ctx.busy=false;if(valid(ctx))ctx.timer=setTimeout(()=>void refresh(ctx),delay);}
   }
   window.tocaOpenMapVenue=(venue,marker=null,map=null,opener=null)=>{
     const parent=map?.getContainer()?.closest('.toca-map-art')||document.querySelector('.toca-primary-map .toca-map-art');if(!parent)return;

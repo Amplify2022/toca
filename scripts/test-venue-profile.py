@@ -19,7 +19,7 @@ try:
    context=browser.new_context(viewport=dict(width=width,height=1000),locale='es-UY',service_workers='block');page=context.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
    venue=dict(id=ID,name='Original Bar',address='Test street 123',city='Montevideo',latitude=-34.9,longitude=-56.17,description='',genre='Jazz',instagramHandle='bar.ig',openingHours='W2|-|19:00-23:00|-|-|-|-|-',requestAccessMode='NEARBY',photos=[],coverPhotoUrl=None,published=False,active=False)
    owned=[venue];patches=[];writes=[];conflict=[False]
-   page.add_init_script("localStorage.setItem('amplify-mode','live');sessionStorage.setItem('amplify-token','synthetic-owner-session');sessionStorage.setItem('amplify-user',JSON.stringify({id:'owner',name:'Owner'}))")
+   page.add_init_script("sessionStorage.setItem('amplify-token','synthetic-owner-session');sessionStorage.setItem('amplify-user',JSON.stringify({id:'owner',name:'Owner'}))")
    def api(route):
     path=urlsplit(route.request.url).path;method=route.request.method;body=route.request.post_data_json if method in ['POST','PUT','PATCH'] and route.request.post_data else None;data={};status=200
     if method=='OPTIONS':pass
