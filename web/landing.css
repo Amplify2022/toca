@@ -76,3 +76,38 @@
 @media(max-width:760px){.landing-expanded .toca-landing-header{height:76px;padding:0 16px;gap:10px}.landing-expanded .toca-landing-header>.toca-brand{font-size:22px;padding:0;gap:8px}.landing-expanded .toca-landing-header .toca-brand img{width:30px;height:30px}.landing-expanded .toca-landing-header .toca-brand strong{font-size:22px}.landing-header-actions{gap:8px}.landing-menu-toggle{display:grid;place-items:center;flex:none;width:34px;height:38px;padding:0;border:1px solid #294138;border-radius:9px;background:#13221b;color:#d2e3d6;cursor:pointer}.landing-expanded .toca-landing-header .toca-btn{font-size:11px;padding:10px 11px;min-height:39px;gap:6px}.landing-expanded .toca-landing-header nav{display:none;position:absolute;top:calc(100% + 14px);right:0;width:min(250px,calc(100vw - 32px));padding:9px;border:1px solid #34503e;border-radius:14px;background:#101e18;box-shadow:0 16px 40px #0008;font-size:14px}.landing-expanded .toca-landing-header.is-menu-open nav{display:grid;gap:3px}.landing-expanded .toca-landing-header nav a{display:block;padding:12px 14px;border-radius:9px}.landing-expanded .toca-landing-header nav a:hover{background:#1c3021}.landing-walkthrough{margin-top:0}.landing-walkthrough h3{font-size:26px}.landing-expanded .toca-landing-hero{padding:46px 22px 55px;min-height:0;grid-template-columns:minmax(0,1fr);gap:35px}.landing-expanded .toca-hero-copy h1{font-size:49px;letter-spacing:-2px}.landing-expanded .toca-hero-copy>p{font-size:15px}.landing-expanded .toca-trust{gap:13px;font-size:10px}.landing-section{padding:65px 22px;scroll-margin-top:96px}.landing-section h2{font-size:35px;letter-spacing:-1.1px}.landing-section-heading{margin-bottom:32px}.landing-how-grid,.landing-owners,.landing-contact,.landing-faq{grid-template-columns:minmax(0,1fr);gap:36px}.landing-stages>button{gap:14px;padding:20px 17px}.landing-stages strong{font-size:16px}.landing-stages small{font-size:12px}.landing-screen-area .landing-screen-phone{width:min(100%,270px)}.landing-owners figure{margin-top:5px}.landing-contact{padding-top:65px;padding-bottom:65px}#landing-contact-form{padding:23px;gap:19px}.landing-form-row{grid-template-columns:minmax(0,1fr);gap:19px}.landing-form-end{flex-direction:column;align-items:stretch;gap:15px}.landing-form-end small{max-width:none}.landing-form-end .toca-btn{justify-content:center}.landing-contact-note{margin-top:25px}.landing-faq .landing-section-heading{margin:0}.landing-footer{padding:24px 22px 18px}.landing-footer-top{display:block;padding-bottom:14px}.landing-footer nav{gap:12px 18px;margin-top:12px;padding-top:8px}.landing-footer-bottom{align-items:flex-start;flex-direction:column;gap:16px}.landing-footer-bottom .landing-store-badges{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%;max-width:330px;gap:8px}.landing-store{min-width:142px;padding:8px 11px}.landing-store strong{font-size:17px}.landing-footer .landing-store{min-width:0;gap:8px;padding:8px 10px}.landing-footer .landing-store>svg{width:22px;height:24px}.landing-footer .landing-store strong{font-size:15px}.landing-footer-legal{flex-direction:column;gap:5px}.landing-download-dialog{padding-left:22px;padding-right:22px}.landing-download-dialog .landing-store{min-width:130px}.landing-download-dialog .landing-store strong{font-size:16px}.landing-download-dialog .landing-store-badges{gap:8px}.landing-download-dialog .landing-store>svg{width:24px}}
 @media(max-width:760px){.landing-walkthrough>.landing-walkthrough-heading{align-items:flex-start;flex-direction:column;gap:18px}.landing-how-grid{grid-template-areas:"steps" "phone"}}
 @media(prefers-reduced-motion:reduce){.landing-stages>button,.landing-stage-number,.landing-screen-panel,.landing-faq summary>span{transition:none}}
+
+.landing-qr-button {
+  display:grid; place-items:center; flex:none; width:40px; height:40px;
+  padding:0; border:1px solid #294138; border-radius:9px;
+  background:#13221b; color:#d2e3d6; cursor:pointer;
+}
+.landing-qr-button:hover {color:var(--lime)}
+.landing-mobile-copy {display:none}
+.landing-expanded .toca-hero-phone-app {
+  width:min(264px,75%); height:auto; top:50%; left:50%;
+  transform:translate(-50%,-50%) rotate(6deg);
+}
+.toca-hero-phone-app>img {height:auto}
+@media (761px <= width <= 1024px) {
+  .landing-expanded .toca-landing-hero {
+    grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);
+    min-height:0; padding-block:52px 64px;
+  }
+  .landing-expanded .toca-hero-copy h1 {font-size:clamp(39px,5.25vw,54px)}
+  .landing-expanded .toca-hero-visual {height:clamp(410px,57vw,545px)}
+  .landing-expanded .toca-hero-phone-app {width:min(225px,26vw,72%)}
+}
+@media (max-width:760px) {
+  .landing-expanded .toca-hero-phone-app {width:min(180px,65%)}
+  .landing-how-grid {gap:16px}
+  .landing-stages {grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px}
+  .landing-stages>button {justify-content:center; padding:9px 4px; min-height:44px; border-radius:10px; border-color:#294138}
+  .landing-stage-number {padding:0; align-self:center; font-size:18px}
+  .landing-stages>button>span:nth-child(2) {display:none}
+  .landing-mobile-copy {display:grid; width:100%; text-align:left}
+  .landing-mobile-copy strong {font-size:17px; color:#eef6ed}
+  .landing-mobile-copy p {font-size:14px; line-height:1.55; margin-top:5px}
+  .landing-screen-area {gap:13px}
+  #landing-contact-form .input {font-size:16px}
+}

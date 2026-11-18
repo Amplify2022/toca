@@ -1,11 +1,11 @@
 # Ficha del bar desde el mapa
 
-En `/#/explore`, seleccionar un pin abre la ficha del establecimiento en lugar del popup anterior:
+En `/#/explore`, el mapa es la vista principal. La búsqueda y los filtros Todos, Con música y Favoritos se aplican al mapa y al listado. Seleccionar un marcador o una tarjeta abre la misma ficha del establecimiento.
 
-- En celular: panel inferior de aproximadamente media pantalla, ampliable con el tirador o arrastrándolo hacia arriba. Se puede reducir con el mismo control.
-- En web: panel lateral izquierdo, con el mapa visible a la derecha.
+- En celular, la ficha es un panel inferior ampliable con el tirador. El mapa sigue visible en ambos tamaños.
+- En escritorio, la ficha se abre a la izquierda del mapa. «Ver ficha completa» conserva el acceso a la página del establecimiento.
 - El punto seleccionado queda destacado y centrado en la parte visible del mapa.
-- La X y la tecla Escape cierran la ficha y recuperan el mapa original. Los pines funcionan con Enter y espacio.
+- La X y la tecla Escape cierran la ficha y recuperan el centro anterior respetando el zoom actual. Los pines funcionan con Enter y espacio.
 - La canción actual y el botón compacto «Pedir una canción» están juntos al comienzo de la ficha, con el texto «Elegí tu tema y sumalo a la playlist del bar».
 - La portada corresponde a `now.imageUrl` del estado actual, sin buscar otra grabación por título. Si la imagen falta o no carga, se conserva un ícono musical.
 - El botón aparece únicamente cuando la API confirma una sesión activa y una canción reproduciéndose. Sin reproducción, en pausa, con la música deshabilitada o si no se puede consultar el estado, sólo se muestra «Por el momento no podés pedir canciones en este bar». No se muestra el botón durante la carga inicial.
@@ -32,4 +32,9 @@ python scripts/test-map-layout.py
 python scripts/test-map-panel-live.py
 ```
 
-La primera prueba utiliza los SDK oficiales de mapas (guardados en `/tmp/toca-map-assets` o `TOCA_MAP_TEST_ASSETS`) con una capa simulada. La segunda usa respuestas controladas de la API. Comprueban geometría en móvil/escritorio, fotos, fallos de carga, navegación, gestos, teclado, estados de reproducción y aislamiento entre bares. No validan disponibilidad de proveedores externos ni usan cuentas reales.
+Ambas pruebas usan los SDK cartográficos y respuestas controladas de la API. Los SDK se guardan en `/tmp/toca-map-assets` o `TOCA_MAP_TEST_ASSETS`. Comprueban geometría en móvil/escritorio, fotos, fallos de carga, navegación, gestos, teclado, estados de reproducción y aislamiento entre bares. No validan disponibilidad de proveedores externos ni usan cuentas reales.
+
+
+La selección antes cambiaba el contenedor del mapa a `position: fixed`, ocultaba el desplazamiento de la página y extendía el mapa por casi toda la vista. Ahora el panel queda contenido en el mapa. En Chromium se compararon las dimensiones internas y externas de la ventana, la escala de la vista, el estado de pantalla completa, el tamaño CSS y el zoom cartográfico antes y después de seleccionar. No se reprodujo una maximización de la ventana del sistema.
+
+Capturas con respuestas HTTP controladas y una base cartográfica de prueba. [Móvil](previews/explore-390.png) · [Escritorio](previews/explore-1440.png)

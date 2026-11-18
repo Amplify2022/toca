@@ -20,10 +20,22 @@ ONE='77777777-7777-4777-8777-777777777777';TWO='88888888-8888-4888-8888-88888888
 ART_ONE='https://i.scdn.co/image/toca-test-cover-one';ART_TWO='https://i.scdn.co/image/toca-test-cover-two';ART_BROKEN='https://i.scdn.co/image/toca-test-cover-broken'
 UNAVAILABLE='Por el momento no podés pedir canciones en este bar.'
 venues=[dict(id=id,name=name,city='Montevideo',address='Test 123',description='Descripción real del endpoint.',genre='Rock',latitude=-34.9,longitude=lon,active=True,coverPhotoUrl=f'/api/venues/{id}/photos/cover',photos=[dict(url=f'/api/venues/{id}/photos/cover')],instagramHandle='bluzzbar') for id,name,lon in [(ONE,'Bar Uno',-56.17),(TWO,'Bar Dos',-56.167)]]
+# A small deterministic street network gives the SDK a basemap without remote tiles.
+streets=[]
+for step in range(-12,13):
+ for start,end in [
+  ([-56.205,-34.9+step*.0011],[-56.135,-34.885+step*.0011]),
+  ([-56.17+step*.0015,-34.93],[-56.15+step*.0015,-34.87]),
+ ]:
+  streets.append(dict(type='Feature',properties={},geometry=dict(type='LineString',coordinates=[start,end])))
+style=dict(version=8,sources={'streets':dict(type='geojson',data=dict(type='FeatureCollection',features=streets))},layers=[
+ dict(id='bg',type='background',paint={'background-color':'#131c20'}),
+ {'id':'streets','type':'line','source':'streets','paint':{'line-color':'#2b3b41','line-width':2}},
+])
 try:
  with sync_playwright() as p:
-  browser=p.chromium.launch(executable_path='/usr/bin/chromium',args=['--no-sandbox','--use-angle=swiftshader','--enable-unsafe-swiftshader'])
-  for width in [390,1440]:
+  browser=p.chromium.launch(executable_path=os.getenv('TOCA_CHROMIUM','/usr/bin/chromium'),args=['--no-sandbox','--use-angle=swiftshader','--enable-unsafe-swiftshader'])
+  for width in [320,390,768,1024,1440]:
    context=browser.new_context(viewport=dict(width=width,height=950),service_workers='block')
    context.add_init_script("localStorage.setItem('amplify-mode','live')")
    authenticated=width==1440
@@ -37,7 +49,7 @@ try:
     if url.startswith(base):return route.continue_()
     if url in sdk:return route.fulfill(body=sdk[url].read_bytes(),content_type='text/css' if url.endswith('.css') else 'text/javascript')
     if url.startswith('https://tiles.versatiles.org/'):
-     return reply(route,dict(version=8,sources={},layers=[dict(id='bg',type='background',paint={'background-color':'#10191b'})]))
+     return reply(route,style)
     if url in [ART_ONE,ART_TWO,ART_BROKEN]:
      art_calls.append(url)
      if url==ART_BROKEN:return route.fulfill(status=404,body='Not found')
@@ -48,6 +60,7 @@ try:
     if path=='/api/customers/me':return reply(route,dict(id='test-customer',name='Test Customer',email='customer@example.test',roles=['CUSTOMER']) if authenticated else dict(message='Sesión requerida'),200 if authenticated else 401)
     if path=='/api/customers/me/wallet':return reply(route,dict(balance=0,reserved=0,requestCost=1,packs=[],movements=[],simulationEnabled=True))
     if '/photos/' in path:return route.fulfill(body=(ROOT/'web/assets/venues/bar-1.webp').read_bytes(),content_type='image/webp')
+    if path=='/api/customers/me/favorites':return reply(route,[TWO])
     if path=='/api/venues':return reply(route,venues)
     if path.endswith('/playback'):
      if model['mode']=='fail':return reply(route,dict(message='Provider unavailable'),503)
@@ -57,8 +70,24 @@ try:
     if path.endswith('/tracks'):return reply(route,[dict(id='A'*22,title='Canción de prueba para pedir',artist='Artista de prueba',durationMs=180000)])
     return reply(route,[])
    page.route('**/*',intercept);page.goto(base+'/#/explore')
+   search=page.get_by_role('searchbox',name='Buscar bares')
+   search.fill('Bar Dos');expect(page.locator('#venue-grid .toca-venue')).to_have_count(1)
+   search.fill('');expect(page.locator('#venue-grid .toca-venue')).to_have_count(2)
+   page.get_by_role('button',name='Con música',exact=True).click()
+   expect(page.get_by_role('button',name='Con música',exact=True)).to_have_attribute('aria-pressed','true')
+   page.get_by_role('button',name='Favoritos',exact=True).click()
+   expect(page.locator('#venue-grid .toca-venue')).to_have_count(1 if authenticated else 0)
+   page.get_by_role('button',name='Todos',exact=True).click()
    page.wait_for_function("document.getElementById('leaflet-map')?.style.visibility==='' && !!state.map")
+   map_box=page.locator('.toca-map-art')
+   viewport="() => [outerWidth,outerHeight,innerWidth,innerHeight,devicePixelRatio,visualViewport.scale,!!document.fullscreenElement,state.map.getZoom()]"
+   before=page.evaluate(viewport)
+   dimensions=map_box.evaluate("node=>[node.offsetWidth,node.offsetHeight,getComputedStyle(node).position]")
    page.get_by_role('button',name='Ver detalles de Bar Uno',exact=True).click()
+   assert page.evaluate(viewport)==before
+   assert map_box.evaluate("node=>[node.offsetWidth,node.offsetHeight,getComputedStyle(node).position]")==dimensions
+   assert page.evaluate("document.documentElement.scrollWidth<=innerWidth")
+   assert page.get_by_role('link',name='¿Cómo pido una canción?').get_attribute('href')=='#/?section=la-app'
    panel=page.locator('.toca-place-panel');expect(panel.locator('#toca-place-name')).to_have_text('Bar Uno')
    expect(panel.locator('.place-music')).to_contain_text('Consultando')
    expect(panel.locator('.place-primary')).to_have_count(0)
@@ -86,7 +115,20 @@ try:
    expect(cover).to_have_attribute('src',ART_TWO)
    page.wait_for_function("document.querySelector('.place-song-cover img')?.naturalWidth>0")
    assert cover.evaluate("img=>Math.abs(img.getBoundingClientRect().width-img.parentElement.getBoundingClientRect().width)<=2")
-   page.screenshot(path=f'/tmp/toca-map-current-cover-{width}.png')
+   page.clock.run_for(32)
+   page.wait_for_function("""mobile=>{
+    const marker=document.querySelector('.toca-place-selected').getBoundingClientRect();
+    const panel=document.querySelector('.toca-place-panel').getBoundingClientRect();
+    return mobile?marker.bottom<panel.top:marker.left>panel.right;
+   }""",arg=width<=760,timeout=5000)
+   panel_box=panel.bounding_box();map_size=map_box.bounding_box()
+   if width<=760:
+    assert abs(panel_box['width']-map_size['width'])<=2 and panel_box['height']<map_size['height']*.65
+   else:
+    assert panel_box['x']<map_size['x']+30 and panel_box['width']<map_size['width']*.6
+   if width in [390,1440]:
+    page.evaluate('scrollTo(0,0)')
+    page.screenshot(path=str(ROOT/f'docs/previews/explore-{width}.png'))
    page.evaluate("window.__songNodes=[document.querySelector('.place-song-cover img'),document.querySelector('.place-equalizer'),document.querySelector('.place-primary')]")
    with page.expect_response(lambda response:response.url.endswith('/playback')):page.clock.run_for(1100)
    assert page.evaluate("window.__songNodes.every((node,i)=>node===document.querySelector(['.place-song-cover img','.place-equalizer','.place-primary'][i]))"),'Polling must not restart the artwork, animation or focused request link'
@@ -113,7 +155,10 @@ try:
     expect(cover).to_have_count(0)
    assert 'javascript:alert(1)' not in art_calls
    model['mode']='playing'
-   page.evaluate("()=>Object.values(state.map._layers).find(l=>l instanceof L.Marker&&l.options.title==='Bar Uno').fire('click')")
+   page.locator('#venue-grid').get_by_role('link',name='Bar Uno',exact=False).click()
+   assert page.evaluate(viewport)==before
+   assert map_box.evaluate("node=>[node.offsetWidth,node.offsetHeight,getComputedStyle(node).position]")==dimensions
+   assert page.evaluate("document.documentElement.scrollWidth<=innerWidth")
    expect(panel.locator('.place-primary')).to_be_visible()
    assert panel.locator('.place-primary').get_attribute('href')=='#/request/'+ONE
    expect(panel.locator('.place-photos img')).to_be_visible()
@@ -130,7 +175,6 @@ try:
     expect(page.locator('#toca-customer-auth-form')).to_be_visible()
     assert page.evaluate("sessionStorage.getItem('toca:customer:after-login')")=='#/request/'+ONE
    expect(panel).to_have_count(0)
-   page.wait_for_function("!document.body.classList.contains('toca-place-map-open')")
    assert not errors,errors
    assert all(method in ['GET','OPTIONS'] for method,path in calls),calls
    assert not any('/requests' in path for method,path in calls if method!='GET')

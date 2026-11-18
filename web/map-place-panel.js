@@ -11,34 +11,32 @@
     if(typeof value!=='string'||!value.trim())return '';
     try{const url=new URL(value,location.origin);return !url.username&&!url.password&&(url.protocol==='https:'||(url.protocol==='http:'&&url.origin===location.origin))?url.href:'';}catch(_){return '';}
   }
-  function dimensions(ctx){
-    const header=document.querySelector('.toca-app-header')?.getBoundingClientRect().height||0;
-    const nav=document.querySelector('.toca-bottom-nav')?.getBoundingClientRect().height||0;
-    ctx.parent.style.setProperty('--place-header',header+'px');ctx.parent.style.setProperty('--place-nav',nav+'px');
-  }
   function center(ctx){
     if(!ctx.map||!valid(ctx))return;
-    const point=[Number(ctx.venue.latitude),Number(ctx.venue.longitude)];if(!point.every(Number.isFinite))return;
+    const point=ctx.marker?.getLatLng();
+    if(!point)return;
     ctx.map.invalidateSize({pan:false});
     const size=ctx.map.getSize(),visible=size.y-ctx.root.getBoundingClientRect().height;
-    const offset=mobile()?L.point(0,Math.max(90,visible*.55)-size.y/2):L.point(Math.min(190,size.x*.2),0);
+    const panelWidth=ctx.root.getBoundingClientRect().width+ctx.root.offsetLeft;
+    const offset=mobile()?L.point(0,(visible-size.y)/2):L.point(panelWidth/2,0);
     const target=ctx.map.unproject(ctx.map.project(point,ctx.map.getZoom()).subtract(offset),ctx.map.getZoom());
     ctx.map.setView(target,ctx.map.getZoom(),{animate:false});
   }
-  function expanded(ctx,value){ctx.root.classList.toggle('is-expanded',value);ctx.parent.classList.toggle('place-expanded',value);const b=ctx.root.querySelector('[data-place-expand]');b.setAttribute('aria-expanded',String(value));b.setAttribute('aria-label',value?'Reducir ficha del bar':'Ampliar ficha del bar');}
+  function expanded(ctx,value){ctx.root.classList.toggle('is-expanded',value);ctx.parent.classList.toggle('place-expanded',value);const b=ctx.root.querySelector('[data-place-expand]');b.setAttribute('aria-expanded',String(value));b.setAttribute('aria-label',value?'Reducir ficha del bar':'Ampliar ficha del bar');if(matchMedia('(prefers-reduced-motion:reduce)').matches)center(ctx);}
   function close(restore=true,focus=false){
     const ctx=current;if(!ctx)return;current=null;clearTimeout(ctx.timer);ctx.abort.abort();ctx.map?.off('unload',ctx.unload);
-    const dialog=ctx.root.querySelector('dialog');if(dialog?.open)dialog.close();ctx.root.remove();ctx.parent.classList.remove('toca-place-map','place-expanded');document.body.classList.remove('toca-place-map-open');
+    const dialog=ctx.root.querySelector('dialog');if(dialog?.open)dialog.close();ctx.root.remove();ctx.parent.classList.remove('toca-place-map','place-expanded');
     const marker=ctx.marker?.getElement();marker?.classList.remove('toca-place-selected');marker?.setAttribute('aria-expanded','false');
-    if(restore&&ctx.map&&ctx.parent.isConnected){requestAnimationFrame(()=>{if(!current&&ctx.parent.isConnected&&state.map===ctx.map){ctx.map.invalidateSize({pan:false});ctx.map.setView(ctx.before.center,ctx.before.zoom,{animate:false});}});}
-    if(focus&&marker?.isConnected)marker.focus({preventScroll:true});
+    if(restore&&ctx.map&&ctx.parent.isConnected){requestAnimationFrame(()=>{if(!current&&ctx.parent.isConnected&&state.map===ctx.map){ctx.map.invalidateSize({pan:false});ctx.map.setView(ctx.before,ctx.map.getZoom(),{animate:false});}});}
+    const opener=ctx.opener||marker;
+    if(focus&&opener?.isConnected)opener.focus({preventScroll:true});
   }
   function markup(v){
     const username=String(v.instagramHandle||'').trim().replace(/^@/,'');
     const instagram=/^[A-Za-z0-9._]{1,30}$/.test(username)?`<div class="place-social"><a class="place-social-handle" href="https://www.instagram.com/${encodeURIComponent(username)}/" target="_blank" rel="noopener noreferrer" aria-label="Instagram de ${esc(v.name)} (se abre en otra pestaña)">${icon('instagram')}<span>@${esc(username)}</span></a></div>`:'';
     const genres=String(v.genre||'').split(/[,•·]/).map(s=>s.trim()).filter(Boolean).join(' · ');
     return `<button type="button" class="place-handle" data-place-expand aria-expanded="false" aria-label="Ampliar ficha del bar"><span></span></button><div class="place-scroll">
-      <header class="place-heading"><div><span class="place-status ${v.active?'':'inactive'}"><i></i>${v.active?'Música activa':'Música inactiva'}${state.demo?' · Demo':''}</span><h2 id="toca-place-name">${esc(v.name||'Bar')}</h2>${genres?`<p>${esc(genres)}</p>`:''}</div><button type="button" class="place-close" data-place-close aria-label="Cerrar ficha del bar">${icon('close')}</button></header>
+      <header class="place-heading"><div><span class="place-status ${v.active?'':'inactive'}"><i></i>${v.active?'Música activa':'Música inactiva'}${state.demo?' · Demo':''}</span><h2 id="toca-place-name">${esc(v.name||'Bar')}</h2>${genres?`<p>${esc(genres)}</p>`:''}</div><div class="place-heading-actions">${favButton(v)}<button type="button" class="place-close" data-place-close aria-label="Cerrar ficha del bar">${icon('close')}</button></div></header>
       <section class="place-request-block is-unavailable" aria-label="Qué suena y cómo pedir tu canción">
         <div class="place-music" aria-live="polite"><p>Consultando canción actual…</p></div>
         <div class="place-request-controls"></div>
@@ -46,6 +44,7 @@
       <div class="place-photos" aria-label="Fotos del bar"></div>
       ${v.address||v.city||instagram?`<div class="place-details ${instagram?'has-instagram':''}">${v.address||v.city?`<div class="place-address">${icon('pin')}<div>${v.address?`<strong>${esc(v.address)}</strong>`:''}${v.city?`<span>${esc(v.city)}</span>`:''}</div></div>`:''}${instagram}</div>`:''}
       ${String(v.description||'').trim()?`<section class="place-about"><h3>Un poco del bar</h3><p>${esc(v.description)}</p></section>`:''}
+      <a class="place-full-details" href="#/venue/${encodeURIComponent(v.id)}">Ver ficha completa</a>
       ${state.demo?'<p class="place-demo">Demostración: bares y canciones ilustrativos.</p>':''}
       </div><dialog class="place-photo-dialog" aria-label="Foto del bar"><button type="button" data-place-photo-close aria-label="Cerrar foto">${icon('close')}</button><img alt=""></dialog>`;
   }
@@ -80,24 +79,38 @@
     catch(error){if(valid(ctx)&&error.name!=='AbortError'){ctx.failures=(ctx.failures||0)+1;delay=error.status===429?30000:Math.min(15000,1000*2**Math.min(ctx.failures-1,4));music(ctx,null,true);}}
     finally{ctx.busy=false;if(valid(ctx)&&!state.demo)ctx.timer=setTimeout(()=>void refresh(ctx),delay);}
   }
-  window.tocaOpenMapVenue=(venue,marker=null,map=null)=>{
+  window.tocaOpenMapVenue=(venue,marker=null,map=null,opener=null)=>{
     const parent=map?.getContainer()?.closest('.toca-map-art')||document.querySelector('.toca-primary-map .toca-map-art');if(!parent)return;
-    const before=current?.map===map?current.before:(map?{center:map.getCenter(),zoom:map.getZoom()}:null);close(false);
+    const before=map&&(current?.map===map?current.before:map.getCenter());close(false);
     const root=document.createElement('section');root.className='toca-place-panel';root.setAttribute('role','region');root.setAttribute('aria-labelledby','toca-place-name');root.innerHTML=markup(venue);
-    const ctx={venue,marker,map,before,parent,root,abort:new AbortController(),busy:false};current=ctx;
-    parent.classList.add('toca-place-map');document.body.classList.add('toca-place-map-open');parent.append(root);dimensions(ctx);photos(ctx);
+    const ctx={venue,marker,map,before,parent,root,opener,abort:new AbortController(),busy:false};current=ctx;
+    parent.classList.add('toca-place-map');parent.append(root);photos(ctx);
+    if(opener?.matches('[data-discovery-venue]'))parent.scrollIntoView({block:'start'});
+    root.querySelector('[data-place-close]').focus({preventScroll:true});
     const selected=marker?.getElement();selected?.classList.add('toca-place-selected');selected?.setAttribute('aria-expanded','true');
     ctx.unload=()=>{if(current===ctx)close(false);};map?.on('unload',ctx.unload);
     requestAnimationFrame(()=>center(ctx));void refresh(ctx);
     let start=null,dragged=false;const handle=root.querySelector('[data-place-expand]');
     handle.onclick=()=>{if(dragged){dragged=false;return;}expanded(ctx,!root.classList.contains('is-expanded'));};
     handle.onpointerdown=e=>{start=e.clientY;dragged=false;handle.setPointerCapture(e.pointerId);};handle.onpointerup=e=>{if(start===null)return;const delta=e.clientY-start;start=null;if(Math.abs(delta)>25){dragged=true;expanded(ctx,delta<0);e.preventDefault();}};handle.onpointercancel=()=>{start=null;dragged=false;};
+    root.addEventListener('transitionend',event=>{if(event.target===root&&event.propertyName==='height')center(ctx);});
     root.querySelector('[data-place-close]').onclick=()=>close(true,true);
     const dialog=root.querySelector('dialog');root.querySelector('[data-place-photo-close]').onclick=()=>dialog.close();dialog.onclick=e=>{if(e.target===dialog)dialog.close();};
   };
-  document.addEventListener('click',event=>{const link=event.target.closest('.toca-map-art .toca-map-pin');if(!link)return;const id=decodeURIComponent(link.getAttribute('href')?.split('/venue/')[1]||''),v=state.venues.find(v=>v.id===id);if(v){event.preventDefault();window.tocaOpenMapVenue(v);}});
+  document.addEventListener('click',event=>{
+    const link=event.target.closest('.toca-explore [data-discovery-venue], .toca-explore .toca-map-pin');
+    if(!link||event.button!==0||event.ctrlKey||event.metaKey||event.shiftKey||event.altKey)return;
+    const id=link.dataset.discoveryVenue||decodeURIComponent(link.hash.split('/venue/')[1]||'');
+    const venue=state.venues.find(v=>v.id===id);
+    if(!venue)return;
+    event.preventDefault();
+    const map=state.map;
+    let marker=null;
+    map?.eachLayer(layer=>{if(layer.options?.tocaVenueId===id)marker=layer;});
+    window.tocaOpenMapVenue(venue,marker,map,link);
+  });
   document.addEventListener('keydown',event=>{if(event.key==='Escape'&&current&&!current.root.querySelector('dialog').open)close(true,true);});
   window.addEventListener('hashchange',()=>close(false));window.addEventListener('pagehide',()=>close(false));
-  window.addEventListener('resize',()=>{if(current&&valid(current)){dimensions(current);center(current);}});
+  window.addEventListener('resize',()=>{if(current&&valid(current))center(current);});
   document.addEventListener('visibilitychange',()=>{if(!document.hidden&&current)void refresh(current);});
 })();

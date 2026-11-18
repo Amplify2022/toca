@@ -91,14 +91,15 @@ function mapView(){const all=state.venues;return `<div class="eyebrow">EXPLORÁ 
 // A single filter predicate drives both venue cards and map markers.
 function filteredVenues(){
   const query=(state.search||'').trim().toLocaleLowerCase('es');
+  const favorites=state.filter==='Favoritos'?new Set(myFavorites()):null;
   return state.venues.filter(v => {
     const matchesFilter = state.filter==='Todos' ||
-      (state.filter==='Activos' ? !!v.active : (v.genre||'').toLocaleLowerCase('es').includes(state.filter.toLocaleLowerCase('es')));
+      (favorites ? favorites.has(v.id) : state.filter==='Activos' ? !!v.active : (v.genre||'').toLocaleLowerCase('es').includes(state.filter.toLocaleLowerCase('es')));
     const haystack=[v.name,v.address,v.city,v.genre].join(' ').toLocaleLowerCase('es');
     return matchesFilter && haystack.includes(query);
   });
 }
-function refreshDiscoveryResults(){
+function refreshDiscoveryResults({rebuildMap=true}={}){
   const grid=document.getElementById('venue-grid');
   if(!grid)return;
   const visible=filteredVenues();
@@ -109,6 +110,12 @@ function refreshDiscoveryResults(){
   }
   const count=document.getElementById('toca-results-count');
   if(count)count.textContent=`${visible.length} ${visible.length===1?'lugar':'lugares'}`;
+  document.querySelectorAll('.toca-explore [data-action="filter"]').forEach(button=>{
+    const selected=button.dataset.value===state.filter;
+    button.classList.toggle('active',selected);
+    button.setAttribute('aria-pressed',String(selected));
+  });
+  if(!rebuildMap)return;
   const oldMap=document.querySelector('.toca-primary-map .toca-map-art');
   if(oldMap && typeof tocaMap==='function'){
     if(state.map){try{state.map.remove()}catch(e){console.warn('Removing previous map:',e)}state.map=null;}
@@ -181,7 +188,7 @@ function initMap(){
    const lat=Number(v.latitude),lon=Number(v.longitude);if(!Number.isFinite(lat)||!Number.isFinite(lon)||Math.abs(lat)>90||Math.abs(lon)>180)return;
    const pt=[lat,lon];bounds.push(pt);
    const pin=L.divIcon({html:`<div class="toca-map-venue-pin-v1845" style="width:32px;height:32px;background:${v.active?'#b9fc89':'#b6b7c3'};border:3px solid #fff;border-radius:50%;display:grid;place-items:center;font-size:17px;color:#13271b;box-shadow:0 3px 9px #0006">♫</div>`,className:'',iconSize:[34,34]});
-   const marker=L.marker(pt,{icon:pin,title:String(v.name||'Establecimiento')}).addTo(map);
+   const marker=L.marker(pt,{icon:pin,tocaVenueId:v.id,autoPanOnFocus:false,title:String(v.name||'Establecimiento')}).addTo(map);
    marker.getElement()?.setAttribute('aria-label',`Ver detalles de ${v.name||'este bar'}`);
    marker.getElement()?.setAttribute('aria-expanded','false');
    marker.getElement()?.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();event.stopPropagation();window.tocaOpenMapVenue(v,marker,map);}});
@@ -473,7 +480,7 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-acti
     modal.querySelector('#toca-delete-progress').hidden=true;
   }
   return;
- }if(action==='filter'){state.filter=b.dataset.value;render();return}if(action==='share'){await navigator.clipboard.writeText(location.href);toast('Enlace copiado');return}if(action==='request'){
+ }if(action==='filter'){state.filter=b.dataset.value;refreshDiscoveryResults();return}if(action==='share'){await navigator.clipboard.writeText(location.href);toast('Enlace copiado');return}if(action==='request'){
   if(b.disabled)return;
   const track=state.catalog.find(t=>t.id===b.dataset.track);if(!track)return;
   const venueId=state.venueId;

@@ -1,5 +1,6 @@
 """Real five-second rotation, including hover/focus and manual selections."""
 import argparse
+import os
 import functools
 import threading
 from pathlib import Path
@@ -18,7 +19,7 @@ BASE=f'http://127.0.0.1:{server.server_port}'
 
 try:
  with sync_playwright() as p:
-  browser=p.chromium.launch(executable_path='/usr/bin/chromium',args=['--no-sandbox'])
+  browser=p.chromium.launch(executable_path=os.getenv('TOCA_CHROMIUM','/usr/bin/chromium'),args=['--no-sandbox'])
   def setup(**options):
    context=browser.new_context(service_workers='block',**options)
    page=context.new_page();errors=[];page.on('pageerror',lambda error:errors.append(str(error)))
@@ -70,7 +71,7 @@ try:
    print('PASS synchronized photo/border crossfade, stable frame, accessible panel selection and five-second advance',flush=True)
    for index in [1,2,0]:active(page,index).click();page.wait_for_timeout(80)
    page.wait_for_timeout(800)
-   assert page.locator('.landing-screen-panel').evaluate_all("nodes=>nodes.every((node,index)=>Number(getComputedStyle(node).opacity)===(index===0?1:0)&&node.inert===(index!==0)&&node.getAttribute('aria-hidden')===String(index!==0))"),'Rapid selections must settle on the last chosen photo'
+   assert page.locator('.landing-screen-phone .landing-screen-panel').evaluate_all("nodes=>nodes.every((node,index)=>Number(getComputedStyle(node).opacity)===(index===0?1:0)&&node.inert===(index!==0)&&node.getAttribute('aria-hidden')===String(index!==0))"),'Rapid selections must settle on the last chosen photo'
    print('PASS rapid manual selections do not leave overlapping or stale photos',flush=True)
    page.evaluate("Object.defineProperty(document,'hidden',{configurable:true,get:()=>true});document.dispatchEvent(new Event('visibilitychange'))")
    page.wait_for_timeout(5300);expect_step(page,0)

@@ -1,4 +1,5 @@
 """Real landing UI: anchors, walkthrough, honest store availability, QR and contact retry."""
+import os
 import functools,json,threading
 from pathlib import Path
 from http.server import SimpleHTTPRequestHandler,ThreadingHTTPServer
@@ -10,8 +11,8 @@ class Quiet(SimpleHTTPRequestHandler):
 server=ThreadingHTTPServer(('127.0.0.1',0),functools.partial(Quiet,directory=str(ROOT/'web')));threading.Thread(target=server.serve_forever,daemon=True).start();BASE=f'http://127.0.0.1:{server.server_port}'
 try:
  with sync_playwright() as p:
-  browser=p.chromium.launch(executable_path='/usr/bin/chromium',args=['--no-sandbox'])
-  for width in [1440,390,320]:
+  browser=p.chromium.launch(executable_path=os.getenv('TOCA_CHROMIUM','/usr/bin/chromium'),args=['--no-sandbox'])
+  for width in [1440,1024,768,390,320]:
    context=browser.new_context(viewport=dict(width=width,height=900),service_workers='block');page=context.new_page();errors=[];posted=[];receipts=set();fail=[True]
    page.on('pageerror',lambda e:errors.append(str(e)));page.add_init_script("localStorage.setItem('amplify-mode','live')")
    def api(route):
@@ -34,16 +35,25 @@ try:
    assert not root.locator('.landing-benefits,#descargar').count()
    assert root.locator('#la-app [data-landing-stage]').count()==4
    assert root.locator('#como-funciona').count()==0
-   if width==1440:
+   if width>760:
     nav_box=header.locator('nav').bounding_box();download_box=header.locator('[data-download-open]').bounding_box()
-    assert 0<download_box['x']-(nav_box['x']+nav_box['width'])<=32,'Header links must sit beside download'
+    assert 0<download_box['x']-(nav_box['x']+nav_box['width'])<=32,'Header links must sit beside the QR access'
    else:
     toggle=page.locator('.landing-menu-toggle');toggle.click();expect(toggle).to_have_attribute('aria-expanded','true')
     page.keyboard.press('Escape');expect(toggle).to_have_attribute('aria-expanded','false')
    assert root.locator('main').count()==1 and root.locator('.toca-hero-phone .toca-mini-map').count()==0
    phone=root.locator('.toca-hero-phone-app img');expect(phone).to_have_attribute('src','/assets/landing/explore.png')
    page.wait_for_function("document.querySelector('.toca-hero-phone-app img').naturalWidth===390")
-   assert page.evaluate('document.documentElement.scrollHeight>3500')
+   assert header.get_by_role('link',name='Abrir TOCÁ',exact=True).get_attribute('href')=='#/explore'
+   assert not header.get_by_role('link',name='Abrir TOCÁ',exact=True).locator('svg').count()
+   assert not root.get_by_role('link',name='Explorar bares',exact=True).locator('svg').count()
+   assert root.locator('#la-app h2').inner_text()=='Tu próxima canción, en cuatro pasos.'
+   assert page.evaluate('document.documentElement.scrollHeight>2900')
+   visual=page.locator('.toca-hero-visual').bounding_box()
+   frame_box=phone.bounding_box()
+   assert visual['x']<=frame_box['x'] and frame_box['x']+frame_box['width']<=visual['x']+visual['width']
+   assert visual['y']<=frame_box['y'] and frame_box['y']+frame_box['height']<=visual['y']+visual['height']
+   assert phone.evaluate("el=>Math.abs(el.clientWidth/el.clientHeight-.5)<.01")
    root.evaluate('(node)=>node.__kept=true')
    header_anchor('la-app');expect(page).to_have_url(BASE+'/#/?section=la-app')
    page.wait_for_timeout(600)
@@ -57,6 +67,13 @@ try:
     tabs.nth(i).click();expect(tabs.nth(i)).to_have_attribute('aria-selected','true');expect(page.locator(f'#landing-screen-{i}')).to_be_visible()
     expect(page.locator(f'#landing-screen-{i}')).to_have_attribute('aria-hidden','false')
     image=page.locator(f'#landing-screen-{i} img');page.wait_for_function('(src)=>Array.from(document.images).some(i=>i.src.endsWith(src)&&i.naturalWidth>0)',arg=image.get_attribute('src'))
+   if width<=760:
+    assert tabs.first.locator('strong').is_hidden()
+    expect(root.locator('.landing-mobile-copy .is-active')).to_contain_text('Tu tema está')
+    assert tabs.last.bounding_box()['y']<root.locator('.landing-mobile-copy').bounding_box()['y']<root.locator('.landing-screen-phone').bounding_box()['y']
+    assert root.locator('#landing-contact-form .input').evaluate_all("nodes=>nodes.every(node=>parseInt(getComputedStyle(node).fontSize)>=16)")
+   else:
+    assert tabs.first.bounding_box()['x']>root.locator('.landing-screen-phone').bounding_box()['x']
    tabs.last.press('Home');expect(tabs.first).to_have_attribute('aria-selected','true')
    assert not page.locator('[data-stage-playback]').count()
    assert not root.locator('.landing-stage-progress,[role=progressbar]').count()
@@ -73,11 +90,13 @@ try:
    # The locally generated QR contains only the download URL, never an auth token.
    page.evaluate("""()=>{const QR=AmplifyQR;window.AmplifyQR=function(...args){const qr=new QR(...args),add=qr.addData.bind(qr);qr.addData=value=>{window.__qr=value;return add(value)};return qr;}}""")
    page.locator('.toca-landing-header [data-download-open]').click();dialog=page.locator('#landing-download-dialog');expect(dialog).to_be_visible();assert dialog.locator('canvas').count()==1
-   assert page.evaluate('window.__qr')==BASE+'/#/download'
-   expect(dialog.locator('.landing-store.is-upcoming')).to_have_count(2)
+   assert page.evaluate('window.__qr')==BASE+'/#/explore'
+   expect(dialog.locator('.landing-store')).to_have_count(0)
+   assert not dialog.get_by_role('link',name='Abrir versión web').locator('svg').count()
    dialog.locator('[data-download-close]').click();expect(dialog).not_to_be_visible()
    assert page.locator('.landing-socials a[href*="instagram.com/tocamusicapp"]').count()==1
    assert page.locator('.landing-socials a[href*="facebook.com"]').count()==1
+   assert page.locator('.landing-socials > *').count()==2
    for id in ['la-app','para-bares','contacto']:
     page.locator('#'+id).scroll_into_view_if_needed();page.wait_for_timeout(100)
    page.wait_for_function("Array.from(document.querySelectorAll('.landing-expanded img')).filter(i=>!i.closest('[hidden]')).every(i=>i.complete&&i.naturalWidth>0)")
@@ -89,7 +108,7 @@ try:
    tabs.first.click();page.mouse.move(0,0);page.wait_for_timeout(700)
    page.evaluate('scrollTo(0,0)');page.wait_for_timeout(150)
    assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),width
-   page.screenshot(path=str(OUT/f'inicio-{width}.png'),full_page=True)
+   if width in [1440,390,320]:page.screenshot(path=str(OUT/f'inicio-{width}.png'),full_page=True)
    if width==1440:
     page.locator('.landing-footer').screenshot(path=str(OUT/'inicio-footer.png'))
     page.goto(BASE+'/prototypes/home-phone/');frame=page.frame_locator('iframe');expect(frame.locator('.toca-hero-phone-app img')).to_be_visible();page.wait_for_timeout(200)
