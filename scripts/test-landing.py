@@ -37,15 +37,16 @@ try:
    assert root.locator('#como-funciona').count()==0
    if width>760:
     nav_box=header.locator('nav').bounding_box();download_box=header.locator('[data-download-open]').bounding_box()
-    assert 0<download_box['x']-(nav_box['x']+nav_box['width'])<=32,'Header links must sit beside the QR access'
+    assert 0<download_box['x']-(nav_box['x']+nav_box['width'])<=32,'Header links must sit beside the download button'
    else:
     toggle=page.locator('.landing-menu-toggle');toggle.click();expect(toggle).to_have_attribute('aria-expanded','true')
     page.keyboard.press('Escape');expect(toggle).to_have_attribute('aria-expanded','false')
    assert root.locator('main').count()==1 and root.locator('.toca-hero-phone .toca-mini-map').count()==0
-   phone=root.locator('.toca-hero-phone-app img');expect(phone).to_have_attribute('src','/assets/landing/explore.png')
+   phone=root.locator('.toca-hero-phone-app img');expect(phone).to_have_attribute('src','/assets/landing/explore.png?v=discovery-4')
    page.wait_for_function("document.querySelector('.toca-hero-phone-app img').naturalWidth===390")
-   assert header.get_by_role('link',name='Abrir TOCÁ',exact=True).get_attribute('href')=='#/explore'
-   assert not header.get_by_role('link',name='Abrir TOCÁ',exact=True).locator('svg').count()
+   download_button=header.get_by_role('button',name='Bajá la app',exact=True)
+   expect(download_button).to_have_attribute('aria-haspopup','dialog')
+   assert download_button.locator('svg').count()==0
    assert not root.get_by_role('link',name='Explorar bares',exact=True).locator('svg').count()
    assert root.locator('#la-app h2').inner_text()=='Tu próxima canción, en cuatro pasos.'
    assert page.evaluate('document.documentElement.scrollHeight>2900')
@@ -53,7 +54,16 @@ try:
    frame_box=phone.bounding_box()
    assert visual['x']<=frame_box['x'] and frame_box['x']+frame_box['width']<=visual['x']+visual['width']
    assert visual['y']<=frame_box['y'] and frame_box['y']+frame_box['height']<=visual['y']+visual['height']
-   assert phone.evaluate("el=>Math.abs(el.clientWidth/el.clientHeight-.5)<.01")
+   status=page.locator('.landing-phone-status')
+   expect(status).to_have_text('9:41')
+   assert status.locator('svg').count()==3
+   assert phone.evaluate("""el=>{
+    const frame=el.parentElement;
+    return el.naturalWidth/el.naturalHeight===.5&&
+     Math.abs(frame.clientWidth-el.clientWidth-6)<=1&&
+     Math.abs(frame.clientHeight-el.clientHeight-frame.querySelector('.landing-phone-status').clientHeight-6)<=1&&
+     getComputedStyle(el).objectFit==='cover';
+   }""")
    root.evaluate('(node)=>node.__kept=true')
    header_anchor('la-app');expect(page).to_have_url(BASE+'/#/?section=la-app')
    page.wait_for_timeout(600)
@@ -78,8 +88,16 @@ try:
    assert not page.locator('[data-stage-playback]').count()
    assert not root.locator('.landing-stage-progress,[role=progressbar]').count()
    actions=page.locator('.landing-owner-actions')
-   primary=actions.locator('.toca-btn span').bounding_box();secondary=actions.locator('.landing-text-link span').bounding_box()
-   assert abs(primary['x']-secondary['x'])<1,'Venue action labels must share the same left edge'
+   assert actions.locator('.toca-btn svg').count()==0
+   assert actions.locator('a').evaluate_all("""nodes=>{
+    const [first,second]=nodes;
+    const [primary,secondary]=nodes.map(link=>getComputedStyle(link));
+    const center=element=>{const box=element.getBoundingClientRect();return box.x+box.width/2;};
+    const group=first.closest('.landing-owner-actions');
+    return Math.abs(group.getBoundingClientRect().left-group.parentElement.getBoundingClientRect().left)<1&&
+     [first,second].every(link=>Math.abs(center(link.firstElementChild)-center(link))<1)&&
+     ['fontSize','fontWeight','lineHeight','paddingLeft'].every(key=>primary[key]===secondary[key]);
+   }"""),'Venue actions stay left-aligned and their labels are centered'
    header_anchor('contacto');page.wait_for_timeout(450)
    form=page.locator('#landing-contact-form');form.locator('[name=name]').fill('Landing fixture');form.locator('[name=email]').fill('landing@example.test');form.locator('[name=message]').fill('Tengo una sugerencia para mejorar la aplicación.')
    header_anchor('la-app');page.go_back();expect(form.locator('[name=name]')).to_have_value('Landing fixture')
@@ -92,11 +110,20 @@ try:
    page.locator('.toca-landing-header [data-download-open]').click();dialog=page.locator('#landing-download-dialog');expect(dialog).to_be_visible();assert dialog.locator('canvas').count()==1
    assert page.evaluate('window.__qr')==BASE+'/#/explore'
    expect(dialog.locator('.landing-store')).to_have_count(0)
-   assert not dialog.get_by_role('link',name='Abrir versión web').locator('svg').count()
+   web_link=dialog.get_by_role('link',name='Abrir versión web')
+   expect(web_link).to_have_attribute('href','#/explore')
+   assert not web_link.locator('svg').count()
    dialog.locator('[data-download-close]').click();expect(dialog).not_to_be_visible()
    assert page.locator('.landing-socials a[href*="instagram.com/tocamusicapp"]').count()==1
    assert page.locator('.landing-socials a[href*="facebook.com"]').count()==1
-   assert page.locator('.landing-socials > *').count()==2
+   assert page.locator('.landing-socials a').count()==2
+   for name in ['TikTok','X']:
+    expect(page.get_by_role('img',name=f'{name} · Próximamente',exact=True)).to_be_visible()
+   stores=page.locator('.landing-footer .landing-store')
+   expect(stores).to_have_count(2)
+   expect(stores.first).to_have_text('PróximamenteApp Store')
+   expect(stores.last).to_have_text('PróximamenteGoogle Play')
+   assert page.locator('.landing-footer a.landing-store').count()==0
    for id in ['la-app','para-bares','contacto']:
     page.locator('#'+id).scroll_into_view_if_needed();page.wait_for_timeout(100)
    page.wait_for_function("Array.from(document.querySelectorAll('.landing-expanded img')).filter(i=>!i.closest('[hidden]')).every(i=>i.complete&&i.naturalWidth>0)")

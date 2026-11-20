@@ -409,17 +409,23 @@ class Spotify(
         if(devices(venueId).none{it["id"]==deviceId && it["restricted"]!=true})fail(HttpStatus.BAD_REQUEST,"Dispositivo no disponible")
         db.exec("UPDATE venue SET spotify_device_id=?,updated_at=now() WHERE id=?",deviceId,venueId)
     }
-    fun selectPlaylist(venueId:UUID,playlistId:String) {
+    fun selectPlaylist(venueId:UUID,playlistId:String,onlyIfMissing:Boolean=false):String {
         if(!playlistId.matches(Regex("[A-Za-z0-9]{15,40}")))fail(HttpStatus.BAD_REQUEST,"Playlist inválida")
         if(playlists(venueId).none {it["id"]==playlistId})fail(HttpStatus.BAD_REQUEST,"Playlist no encontrada en la cuenta")
         // Provider validation happens before acquiring the venue lock. Once a
         // command is accepted its selected playlist must remain immutable.
+        var selected=playlistId
         changeVenueWithoutRequest(venueId) { connection ->
+            if(onlyIfMissing){
+                val existing=db.one("SELECT playlist_id FROM venue WHERE id=?",venueId)?.get("playlist_id") as? String
+                if(!existing.isNullOrBlank()){selected=existing;return@changeVenueWithoutRequest}
+            }
             connection.prepareStatement("UPDATE venue SET playlist_id=?,queue_started_at=now(),updated_at=now() WHERE id=?").use { statement ->
                 statement.setString(1,playlistId);statement.setObject(2,venueId);statement.executeUpdate()
             }
         }
         musicCache.remove(venueId)
+        return selected
     }
 
     private fun changeVenueWithoutRequest(venueId:UUID, change:(Connection)->Unit) {

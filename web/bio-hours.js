@@ -8,6 +8,7 @@
   const dayToken=/\b(lunes|lun|martes|mar|miercoles|mier|mie|jueves|jue|viernes|vie|sabados?|sab|domingos?|dom)\b/g;
   const dayIndex={lunes:0,lun:0,martes:1,mar:1,miercoles:2,mier:2,mie:2,jueves:3,jue:3,viernes:4,vie:4,sabado:5,sabados:5,sab:5,domingo:6,domingos:6,dom:6};
   const names=['lunes','martes','miércoles','jueves','viernes','sábado','domingo'];
+  const shorthand={l:'lunes',m:'martes',x:'miercoles',j:'jueves',v:'viernes',s:'sabado',d:'domingo'};
   const normalize=text=>String(text).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
   const token='\\d{1,2}(?:[:.]\\d{2})?\\s*(?:(?:[ap]\\.?\\s*m\\.?|horas?\\b|hs?\\b\\.?))?';
   const rangePattern=new RegExp('(?<![\\d:.])('+token+')\\s*(?:[-–—]|\\b(?:a|hasta)\\b)\\s*(?:las\\s+)?('+token+')(?![\\d:.a-z])','g');
@@ -86,7 +87,11 @@
       }
     }
     for(const original of lines){
-      const text=normalize(original),mentioned=daysIn(text);
+      let text=normalize(original);
+      if(/^\s*(?:[⏰🕒🕐]|horarios?\s*:)/u.test(text)||/^\s*[-–—]\s*[LMXJVSD]\b/.test(original)){
+        text=text.replace(/\b[lmxjvsd]\b/g,day=>shorthand[day]);
+      }
+      const mentioned=daysIn(text);
       if(calendarCue.test(text)||/\b(?:no\s+(?:abrimos|abiert[oa]s?|atendemos)|primer[oa]?|segund[oa]|tercer[oa]?|ultim[oa])\b/.test(text)||/https?:\/\/|www\.|📍|\b(?:telefono|whatsapp|celular)\b/.test(text)){
         if(mentioned.mentioned)notes.add(`No se tomó como horario semanal: «${original}».`);
         pending=null;continue;
@@ -129,6 +134,8 @@
           offer(days,{open:from.time,close:to.time,closed:false},source);
         }else offer(days,{open:event.kind==='opening'?from.time:null,close:event.kind==='closing'?from.time:null,closed:false},source);
       }
+      const remaining=daysIn(text.slice(previousEnd));
+      if(remaining.mentioned&&events.at(-1).kind!=='closed')notes.add(`Se mencionan días sin horas exactas: «${original}». Revisá esos días manualmente.`);
       pending=null;
     }
     // Reject merging opening/closing fragments into an invalid zero-length day.

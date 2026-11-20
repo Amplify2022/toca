@@ -21,7 +21,7 @@ with sync_playwright() as p:
   venue=dict(id=ID,name='Sync Bar',address='Test street 123',city='Montevideo',active=True,published=True,requestAccessMode='NEARBY',openingHours='W2|-|19:00-00:00|19:00-00:00|19:00-00:00|21:00-05:00|21:00-05:00|18:00-00:00')
   playlist=dict(id='P'*22,name='Night',snapshot='s1',tracks=[CAT[A].copy(),CAT[B].copy()])
   player=dict(now=CAT[A].copy(),isPlaying=True,contextUri='spotify:playlist:'+playlist['id'],progressMs=5000,repeat='off',shuffle=False,device=dict(id='speakers',name='Bar speakers',volume=50))
-  reconciles=[];edits=[];controls=[];saved={};lag=[];held=[];hold_edit=[False];hold_control=[False];conflict=[False];external=[False];uncertain=[False];pending=[None];reject=[False];recover=[False];pending_result=[None];version=[1];player_reads=[];hold_player=[False];held_players=[]
+  reconciles=[];edits=[];controls=[];saved={};lag=[];held=[];hold_edit=[False];hold_control=[False];conflict=[False];external=[False];uncertain=[False];pending=[None];reject=[False];recover=[False];pending_result=[None];version=[1];player_reads=[];failed_reads=[0];hold_player=[False];held_players=[]
   def bump():version[0]+=1;playlist['snapshot']='s'+str(version[0])
   def reply(route,data,status=200):route.fulfill(status=status,content_type='application/json',body=json.dumps(data),headers={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'*','Access-Control-Allow-Methods':'GET,POST,PUT,OPTIONS'})
   def apply_control(body):
@@ -40,6 +40,8 @@ with sync_playwright() as p:
    if path.endswith('/music/player'):
     if method=='GET':
      player_reads.append(path)
+     if failed_reads[0]:
+      failed_reads[0]-=1;return route.abort('failed')
      if hold_player[0]:hold_player[0]=False;held_players.append((route,copy.deepcopy(player)));return
      return reply(route,player)
     controls.append(body)
@@ -93,6 +95,25 @@ with sync_playwright() as p:
    page.locator('[data-track-index="0"]').wait_for();return page.locator('[data-admin-studio]')
   root=open_music()
   expect(root.locator('[data-player-title]')).to_have_text('Track A')
+  # A passive read failure leaves the playlist and last song visible. A persistent
+  # failure has a local status that clears when the next read succeeds.
+  failed_reads[0]=1
+  page.wait_for_function("document.querySelectorAll('[data-track-index]').length===2")
+  with page.expect_event('requestfailed',lambda request:request.method=='GET' and request.url.endswith('/music/player')):
+   page.clock.run_for(1400)
+  assert 'Failed to fetch' not in root.inner_text()
+  expect(root.locator('[data-player-title]')).to_have_text('Track A')
+  with page.expect_response(lambda response:response.ok and response.url.endswith('/music/player')):
+   page.clock.run_for(1300)
+  failed_reads[0]=3
+  warning=root.locator('[data-player-sync]')
+  for interval in (1500,2000,3000):
+   with page.expect_event('requestfailed',lambda request:request.method=='GET' and request.url.endswith('/music/player')):
+    page.clock.run_for(interval)
+  expect(warning).to_have_text('No se pudo actualizar el reproductor. Reintentando…')
+  expect(root.locator('[data-track-index]')).to_have_count(2)
+  page.clock.run_for(6000)
+  expect(warning).to_have_text('',timeout=10000)
   # Spotify Connect has no browser event stream: detect an actual remote track
   # change within one polling second, without sending any playback command.
   player.update(now=CAT[B].copy(),progressMs=0)
@@ -148,6 +169,7 @@ with sync_playwright() as p:
   route,data=held.pop();reply(route,data)
   page.wait_for_function("!document.querySelector('[data-cabina-open=add]').disabled")
   assert root.locator('[data-track-index] strong').all_text_contents()==['Track A','Track C']
+  expect(page.locator('#toast')).to_contain_text('Tema eliminado exitosamente')
   # A definite rejection restores the hidden row without asking for a second delete.
   lag.clear();hold_edit[0]=True;reject[0]=True;root.locator('[data-cabina-track="0"]').click()
   with page.expect_request(lambda r:'/music/edits/' in r.url):root.locator('[data-studio-edit=remove]').click()

@@ -10,7 +10,7 @@ SHOTS=Path(os.environ.get('TOCA_SCREENSHOT_DIR','/tmp'));SHOTS.mkdir(parents=Tru
 BIO='Clásico de Montevideo, desde 2008 con amor.\nViernes & Sábados 20 Hs.\nTodos los Miércoles = Jazz Club\nEntrada libre\nCanelones 760, esquina Ciudadela.'
 ID='77777777-7777-4777-8777-777777777777';A='A'*22;B='B'*22
 with sync_playwright() as p:
- browser=p.chromium.launch(executable_path='/usr/bin/chromium',args=['--no-sandbox'])
+ browser=p.chromium.launch(executable_path=os.getenv('TOCA_CHROMIUM','/usr/bin/chromium'),args=['--no-sandbox'])
  for width in [1440,390]:
   context=browser.new_context(viewport={'width':width,'height':1000},locale='es-UY',service_workers='block');page=context.new_page()
   page.set_default_timeout(8000)
@@ -18,7 +18,7 @@ with sync_playwright() as p:
   venue=dict(id=ID,name='Existing Bar',address='Old address',city='Montevideo',latitude=-34.9,longitude=-56.17,genre='Rock',active=False,spotifyConnected=True,photos=[],coverPhotoUrl='/assets/venues/bar-1.webp',requestAccessMode='NEARBY',openingHours='W2|-|19:00-23:00|-|-|-|18:00-01:00|-')
   playlist=dict(id='P'*22,name='Night',snapshot='s1',tracks=[dict(id=A,title='Track A',artist='Band A',durationMs=180000,imageUrl='/assets/venues/bar-1.webp'),dict(id=B,title='Track B',artist='Band B',durationMs=200000)])
   writes=[];controls=[];tokens=[];edits=[];version=[1];owned=[venue]
-  operation=[None];connected=[True];flags=[True];blocked=[];allowed=[];playlist_reads=[]
+  operation=[None];selected=[True];connected=[True];flags=[True];blocked=[];allowed=[];playlist_reads=[]
   drop_response=[False];applied={};edit_ids=[];recovery_unavailable=[False];reconcile_available=[True]
   playback_options=dict(shuffle=False,repeat='off');playing=[False];now=[playlist['tracks'][0].copy()];context_uri=['spotify:playlist:'+playlist['id']];device=[dict(id='speaker',name='TOCA',volume=50)]
   page.add_init_script("sessionStorage.setItem('amplify-token','synthetic-admin-session');sessionStorage.setItem('amplify-user',JSON.stringify({id:'owner',name:'Owner',email:'owner@example.test'}));")
@@ -31,10 +31,10 @@ with sync_playwright() as p:
     else:data=owned
    elif path==f'/api/venues/{ID}':data=venue
    elif path.endswith('/request-access'):data=dict(mode='NEARBY',radiusMeters=100,requiresQr=False)
-   elif path.endswith('/spotify/status'):data=dict(connected=connected[0],premium=True,controlEnabled=flags[0],playlistWriteEnabled=flags[0],playlistId=playlist['id'])
+   elif path.endswith('/spotify/status'):data=dict(connected=connected[0],premium=True,controlEnabled=flags[0],playlistWriteEnabled=flags[0],playlistId=playlist['id'] if selected[0] else '')
    elif path.endswith('/spotify/playlists'):data=[dict(id=playlist['id'],name=playlist['name'])]
    elif path.endswith('/spotify/playlist'):
-    writes.append((path,body));data={}
+    writes.append((path,body));selected[0]=True;data={'playlistId':body['playlistId']}
    elif path.endswith('/spotify/devices'):data=[dict(id='speaker',name='Bar Speakers',type='Speaker',active=True,restricted=False),dict(id='restricted',name='Private speaker',restricted=True)]
    elif path.endswith('/session'):writes.append((path,body));venue['active']=body['active'];data={}
    elif path.endswith('/policy'):writes.append((path,body));venue['curatedOnly']=body['curatedOnly'];data={}
@@ -49,8 +49,8 @@ with sync_playwright() as p:
     if profile=='missing.profile':
      route.fulfill(status=503,content_type='application/json',body=json.dumps(dict(message='El proveedor no está disponible. Intentá nuevamente.')),headers={'Access-Control-Allow-Origin':'*'});return
     data=dict(source='Instagram',fields=dict(name='BLUZZ BAR',description=BIO,instagramHandle='bar.ig'),warnings=['Instagram no publica dirección ni horarios estructurados mediante esta API. Revisá la biografía y completá los campos faltantes.'],details={},sourceUrl='https://www.instagram.com/bar.ig/')
-   elif path.endswith('/music/playlist/revision'):data=dict(playlist={k:playlist[k] for k in ['id','name','snapshot']},operation=operation[0])
-   elif path.endswith('/music/playlist'):playlist_reads.append(path);data=dict(playlist=playlist,operation=operation[0])
+   elif path.endswith('/music/playlist/revision'):data=dict(playlist={k:playlist[k] for k in ['id','name','snapshot']} if selected[0] else None,operation=operation[0])
+   elif path.endswith('/music/playlist'):playlist_reads.append(path);data=dict(playlist=playlist if selected[0] else None,operation=operation[0])
    elif path.endswith('/music/player'):
     if method=='POST':
      controls.append(body);data=dict(accepted=True)
@@ -301,6 +301,27 @@ with sync_playwright() as p:
   root.locator('[data-cabina-start]').click();root.locator('[data-player-start]').click()
   root.locator('dialog[data-cabina-dialog=connection][open]').wait_for()
   assert 'Elegí dónde' in root.locator('dialog[open] [data-cabina-dialog-status]').inner_text()
+  assert len(controls)==before_controls
+  # A new venue selects the uniquely named TOCÁ playlist without starting playback.
+  before_controls=len(controls)
+  for name in [' TOCÁ ','toca']:
+   selected[0]=False;playlist['name']=name;before_writes=len(writes)
+   page.reload()
+   expect(root.locator('[data-studio-playlist-name]')).to_have_text(name.strip())
+   assert writes[before_writes:]==[(f'/api/admin/venues/{ID}/spotify/playlist',{'playlistId':playlist['id'],'onlyIfMissing':True})]
+   assert len(controls)==before_controls and not root.locator('[data-cabina-dialog="select-playlist"]').is_visible()
+  # A different account playlist is presented for review and needs explicit confirmation.
+  selected[0]=False;playlist['name']='Noche de prueba';before_writes=len(writes)
+  page.reload()
+  chooser=root.locator('[data-cabina-dialog="select-playlist"]')
+  expect(chooser).to_be_visible()
+  expect(root.locator('[data-studio-playlist-name]')).to_have_text('Elegí tu playlist')
+  assert len(writes)==before_writes
+  chooser.locator('[data-cabina-playlist-select]').select_option(playlist['id'])
+  chooser.locator('[data-cabina-select-playlist]').click()
+  expect(root.locator('[data-studio-playlist-name]')).to_have_text('Noche de prueba')
+  expect(chooser).not_to_be_visible()
+  assert writes[before_writes:]==[(f'/api/admin/venues/{ID}/spotify/playlist',{'playlistId':playlist['id']})]
   assert len(controls)==before_controls
   # First connection state hides unusable player and playlist controls.
   connected[0]=False;page.reload();root.locator('.cabina-empty').wait_for()

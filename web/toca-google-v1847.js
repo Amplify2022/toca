@@ -1,12 +1,9 @@
-/* TOCÁ v1.8.47b — Google Identity Services for customer accounts only.
- * Google issues an ID token; the Micronaut API verifies it and issues the
- * existing TOCÁ customer session. Admin sessions remain separate.
- */
+/* Google Identity Services with separate customer and bar-admin endpoints. */
 (() => {
   'use strict';
   const googleSrc = 'https://accounts.google.com/gsi/client';
   let configPromise, sdkPromise, initialized = false;
-  let busy = false;
+  let busy = false, buttonSequence = 0;
   const returnKey = 'toca:customer:after-login';
   const root = document.getElementById('app') || document.body;
 
@@ -32,10 +29,11 @@
     return sdkPromise;
   }
 
-  function feedback(message, error = false) {
+  function feedback(message, error = false, slot) {
     const auth = document.querySelector('.toca-google-feedback') || document.querySelector('#toca-customer-auth-error');
     const link = document.querySelector('#toca-google-link-message');
-    const destination = location.hash.startsWith('#/customer/') ? auth : link;
+    const destination = slot?.parentElement.querySelector('.toca-google-feedback') ||
+      (location.hash.startsWith('#/customer/') ? auth : link);
     if (destination) {
       destination.hidden = false;
       destination.textContent = message;
@@ -47,24 +45,35 @@
 
   async function complete(response) {
     if (busy || typeof response?.credential !== 'string') return;
+    const slot = [...root.querySelectorAll('[data-google-state]')].find(node => node.dataset.googleState === response.state);
+    if (!slot) return;
     busy = true;
-    const linking = location.hash.startsWith('#/profile');
+    const flow = slot.dataset.googleFlow, linking = flow === 'link', admin = flow.startsWith('admin-');
     try {
       const authorization = linking ? window.tocaCustomerBearer?.() : '';
       if (linking && !authorization) throw Error('Iniciá sesión como cliente para vincular Google.');
-      const url = linking ? '/api/customers/me/google/link' : '/api/customers/google';
+      const url = admin ? `/api/auth/google/${flow==='admin-register'?'register':'login'}` :
+        linking ? '/api/customers/me/google/link' : '/api/customers/google';
       const result = await fetch(`${API_URL}${url}`, {
         method: 'POST', cache: 'no-store',
         headers: { 'Content-Type': 'application/json', ...(authorization ? { Authorization: authorization } : {}) },
         body: JSON.stringify({ credential: response.credential })
       });
       const json = await result.json().catch(() => ({}));
+      if (!slot.isConnected) return;
       if (!result.ok) {
         const reason = json._embedded?.errors?.[0]?.message || json.message || 'No se pudo iniciar sesión con Google.';
         // Never hide a 409 from users with a pre-existing password account.
-        throw Error(result.status === 409 ? `${reason} Iniciá sesión con contraseña y vinculá Google desde tu perfil.` : reason);
+        throw Error(!admin && result.status === 409 ? `${reason} Iniciá sesión con contraseña y vinculá Google desde tu perfil.` : reason);
       }
-      if (linking) {
+      if (admin) {
+        if (!json.token || !json.user?.id) throw Error('La API no devolvió una sesión del portal válida.');
+        state.token = json.token;
+        state.user = json.user;
+        sessionStorage.setItem('amplify-token', json.token);
+        sessionStorage.setItem('amplify-user', JSON.stringify(json.user));
+        navigate(ADMIN_HOME);
+      } else if (linking) {
         feedback('¡Google quedó vinculado a tu cuenta TOCÁ!');
         typeof toast === 'function' && toast('Google vinculado correctamente');
       } else {
@@ -89,11 +98,11 @@
         }
       }
     } catch (error) {
-      feedback(error.message || 'No se pudo validar Google.', true);
+      if (slot.isConnected) feedback(error.message || 'No se pudo validar Google.', true, slot);
     } finally { busy = false; }
   }
 
-  async function mountGoogle(slot) {
+  async function mountGoogle(slot, flow) {
     if (!slot.isConnected || slot.dataset.googleReady) return;
     slot.dataset.googleReady = 'loading';
     try {
@@ -114,9 +123,12 @@
       }
       if (!slot.isConnected) return;
       slot.textContent = '';
+      slot.dataset.googleFlow = flow;
+      slot.dataset.googleState = String(++buttonSequence);
       google.accounts.id.renderButton(slot, {
         type: 'standard', theme: 'filled_black', size: 'large',
-        shape: 'pill', text: 'continue_with', logo_alignment: 'left', width: 330,
+        shape: 'pill', text: flow==='admin-register'?'signup_with':'continue_with', logo_alignment: 'left',
+        width: Math.min(330, slot.clientWidth || 330), state: slot.dataset.googleState,
         locale: 'es'
       });
       slot.dataset.googleReady = 'yes';
@@ -131,14 +143,14 @@
   }
 
   function render() {
-    // Customer login & registration only. Never insert in /login or /admin.
-    const authForm = root.querySelector('#toca-customer-auth-form');
-    if (authForm && !authForm.closest('.toca-customer-card')?.querySelector('.toca-google-container')) {
+    const authForm = root.querySelector('#toca-customer-auth-form, #onboard-account, #login-form');
+    if (authForm && !authForm.nextElementSibling?.classList.contains('toca-google-container')) {
       const container = document.createElement('div');
       container.className = 'toca-google-container';
       container.innerHTML = '<div class="toca-google-divider"><span>O continuá con</span></div><div class="toca-google-slot"></div><div class="toca-google-feedback" role="alert" aria-live="polite" hidden></div>';
       authForm.insertAdjacentElement('afterend', container);
-      mountGoogle(container.querySelector('.toca-google-slot'));
+      const flow = authForm.id==='onboard-account'?'admin-register':authForm.id==='login-form'?'admin-login':'customer';
+      mountGoogle(container.querySelector('.toca-google-slot'), flow);
     }
     const customerProfile = root.querySelector('.toca-profile-v1841');
     const customer = window.tocaCustomerUser?.();
@@ -152,7 +164,7 @@
         <p>Usá el mismo correo que tu cuenta de TOCÁ para iniciar sesión con Google.</p>
         <div class="toca-google-slot"></div><div id="toca-google-link-message" role="status" hidden></div>`;
       destination.appendChild(wrap);
-      mountGoogle(wrap.querySelector('.toca-google-slot'));
+      mountGoogle(wrap.querySelector('.toca-google-slot'), 'link');
     }
   }
 

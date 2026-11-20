@@ -535,7 +535,7 @@ class ApiController(private val db:Db,private val auth:Auth,private val spotify:
     @Put("/admin/venues/{id}/spotify/playlist") fun spotifySetPlaylist(id:String,@Header(value="Authorization",defaultValue="")authorization:String,@Body body:Map<String,Any?>):Map<String,String> {
         ownerVenue(id,authorization)
         val p=required(body,"playlistId",100)
-        spotify.selectPlaylist(safeUuid(id),p)
-        return mapOf("playlistId" to p)
+        val selected=spotify.selectPlaylist(safeUuid(id),p,asBoolean(body,"onlyIfMissing"))
+        return mapOf("playlistId" to selected)
     }
 }

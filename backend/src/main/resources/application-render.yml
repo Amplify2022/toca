@@ -1,0 +1,13 @@
+micronaut:
+  server:
+    port: ${PORT:10000}
+  router:
+    static-resources:
+      web:
+        mapping: /**
+        paths: [file:/app/web]
+
+flyway:
+  datasources:
+    default:
+      enabled: false

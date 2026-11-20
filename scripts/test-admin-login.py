@@ -1,5 +1,5 @@
 """Real login/navigation with controlled analytics responses; no external accounts."""
-import functools,json,threading
+import functools,json,os,threading
 from pathlib import Path
 from http.server import ThreadingHTTPServer,SimpleHTTPRequestHandler
 from playwright.sync_api import sync_playwright,expect
@@ -24,11 +24,11 @@ CASES=[
 ]
 try:
  with sync_playwright() as p:
-  browser=p.chromium.launch(executable_path='/usr/bin/chromium',args=['--no-sandbox'])
+  browser=p.chromium.launch(executable_path=os.getenv('TOCA_CHROMIUM','/usr/bin/chromium'),args=['--no-sandbox'])
   for width in [1440,390]:
    for name,stats,status,valid in CASES:
     context=browser.new_context(viewport={'width':width,'height':1000},timezone_id='America/Montevideo',service_workers='block')
-    page=context.new_page();errors=[];logins=[];page.on('pageerror',lambda error:errors.append(str(error)))
+    page=context.new_page();errors=[];logins=[];analytics=[];page.on('pageerror',lambda error:errors.append(str(error)))
     venue=dict(id=ID,name='Login Test Bar',address='Test street 123',city='Montevideo',latitude=-34.9,longitude=-56.17,genre='Rock',active=False,spotifyConnected=False,photos=[],coverPhotoUrl=None,requestAccessMode='NEARBY')
     def api(route):
      path=route.request.url.split('8080',1)[1].split('?',1)[0];result=[];code=200
@@ -38,7 +38,7 @@ try:
      elif path=='/api/auth/me':result=dict(id='owner',name='Owner',email='owner@example.test')
      elif path=='/api/admin/venues':result=[venue]
      elif path==f'/api/venues/{ID}':result=venue
-     elif path.endswith('/analytics'):result=stats;code=status
+     elif path.endswith('/analytics'):analytics.append(path);result=stats;code=status
      elif path.endswith('/music-status'):result=dict(active=False,isPlaying=False,now=None,playlist=[])
      elif path.endswith('/spotify/status'):result=dict(connected=False,premium=False)
      elif path.endswith('/request-access'):result=dict(mode='NEARBY',radiusMeters=100,requiresQr=False)
@@ -49,6 +49,22 @@ try:
     page.locator('#login-form [name="email"]').fill('owner@example.test')
     page.locator('#login-form [name="password"]').fill('Synthetic-test-password')
     page.locator('#login-form button[type="submit"],#login-form button:not([type])').last.click()
+    expect(page).to_have_url(base+'/#/admin/music')
+    expect(page.locator('[data-admin-studio] h1')).to_have_text('Música')
+    assert not analytics
+    if name=='empty analytics':
+     page.goto(base+'/#/')
+     portal=page.get_by_role('link',name='Ir a mi portal',exact=True)
+     expect(portal).to_have_attribute('href','#/admin/music')
+     portal.click()
+     expect(page).to_have_url(base+'/#/admin/music')
+     expect(page.locator('[data-admin-studio] h1')).to_have_text('Música')
+     page.goto(base+'/#/admin')
+     expect(page).to_have_url(base+'/#/admin/music')
+     expect(page.locator('[data-admin-studio] h1')).to_have_text('Música')
+    nav='.toca-admin-menu' if width==1440 else '.toca-admin-mobile-nav'
+    page.locator(nav).get_by_role('link',name='Dashboard',exact=True).click()
+    expect(page).to_have_url(base+'/#/admin/general')
     root=page.locator('[data-venue-analytics]');expect(root).to_be_visible()
     expect(root).to_have_attribute('aria-busy','false')
     assert len(logins)==1 and page.evaluate("sessionStorage.getItem('amplify-token')")==TOKEN
@@ -67,6 +83,6 @@ try:
      assert 'Todavía no hay pedidos confirmados' in root.inner_text()
      page.screenshot(path=f'/tmp/toca-dashboard-after-login-{width}.png',full_page=True)
      page.goto(base+'/#/admin/profile');page.locator('[data-venue-profile] .identity').wait_for()
-    context.close();print('PASS real login -> dashboard:',width,name)
+    context.close();print('PASS real login -> Música, explicit Dashboard:',width,name)
   browser.close()
 finally:server.shutdown()

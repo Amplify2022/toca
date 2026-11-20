@@ -34,3 +34,10 @@ Las pruebas del backend se ejecutan desde `backend/` con Java 21 y Gradle 8.14:
 ```bash
 gradle --no-daemon test
 ```
+
+
+## Google para el portal de bares
+
+El botón de Google está disponible en **Registrar mi bar** y en el inicio de sesión del portal cuando se configura `GOOGLE_CLIENT_ID`. La primera alta crea una cuenta del portal y abre el asistente si todavía no tiene un bar. Después podés volver a entrar con Google. Una cuenta de cliente y una de bar conservan sesiones independientes, incluso si usan el mismo correo.
+
+Si ya tenías una cuenta del portal con contraseña, seguí entrando con esa contraseña. El alta con Google no vincula cuentas existentes por coincidencia de correo. La migración V26 habilita cuentas del portal con Google como método de acceso.

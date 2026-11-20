@@ -1,5 +1,6 @@
 """Login recovery placement, responsive account forms and independent admin/customer sessions."""
 import functools,json,threading
+import os
 from pathlib import Path
 from http.server import SimpleHTTPRequestHandler,ThreadingHTTPServer
 from urllib.parse import urlsplit
@@ -14,7 +15,7 @@ USER=dict(id='customer',name='Customer',email='customer@example.test')
 OWNER=dict(id='owner',name='Owner',email='owner@example.test')
 try:
  with sync_playwright() as p:
-  browser=p.chromium.launch(executable_path='/usr/bin/chromium',args=['--no-sandbox'])
+  browser=p.chromium.launch(executable_path=os.getenv('TOCA_CHROMIUM','/usr/bin/chromium'),args=['--no-sandbox'])
   for width in [1440,390,320]:
    context=browser.new_context(viewport=dict(width=width,height=1000),service_workers='block')
    page=context.new_page();page.set_default_timeout(6000);errors=[];calls=[];failure=[False];held=[];hold=[False]
@@ -91,6 +92,11 @@ try:
    # Password-reset links keep their token in the request body and return to the right login.
    page.goto(BASE+'/#/account?kind=customer&purpose=reset&token=synthetic-reset')
    root=page.locator('.toca-account-page');root.locator('[name=password]').fill('New-synthetic-password')
+   before=len(calls)
+   root.locator('[name=passwordConfirmation]').fill('Other-synthetic-password')
+   root.locator('[data-account-action=consume] button').click();expect(root.locator('#account-status')).to_contain_text('no coinciden')
+   assert len(calls)==before
+   root.locator('[name=passwordConfirmation]').fill('New-synthetic-password')
    root.locator('[data-account-action=consume] button').click();expect(root.locator('#account-status')).to_contain_text('contraseña se actualizó')
    assert calls[-1]['body']==dict(token='synthetic-reset',password='New-synthetic-password')
    assert page.evaluate('sessionStorage.getItem("amplify-token")')==ADMIN

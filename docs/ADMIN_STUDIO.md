@@ -53,7 +53,25 @@ INSTAGRAM_DISCOVERY_ACCOUNT_ID=...
 META_GRAPH_VERSION=v23.0
 ```
 
-El token se administra en el servidor; el dueño del bar sólo ingresa el usuario a consultar. Mantené/renová el token según su vigencia. Si no configurás un proveedor, el formulario manual sigue disponible y se explica que la importación no está habilitada.
+El token se administra en el servidor; el dueño del bar sólo ingresa el usuario a consultar. Podés renovarlo según su vigencia o activar la renovación automática para un token de sistema compatible. Si no configurás un proveedor, el formulario manual sigue disponible y se explica que la importación no está habilitada.
+
+Si la biografía marca una dirección con calle y número, TOCÁ puede sugerirla para revisar. Las franjas con apertura y cierre explícitos aparecen como horarios sugeridos, incluso cuando usan iniciales de los días. Confirmá el pin y completá los días mencionados sin horas exactas.
+
+#### Renovación automática de Instagram
+
+Activala únicamente con un **token de usuario del sistema con vencimiento** que ya funcione con Business Discovery. El token inicial y el ID de Instagram se configuran como arriba. Agregá también estas variables al entorno privado del backend:
+
+```dotenv
+INSTAGRAM_DISCOVERY_AUTO_RENEW=true
+INSTAGRAM_DISCOVERY_META_APP_ID=ID_DE_LA_APP_DE_META
+INSTAGRAM_DISCOVERY_META_APP_SECRET=SECRETO_DE_LA_APP_DE_META
+INSTAGRAM_DISCOVERY_TOKEN_KEY=CLAVE_AES_256_EN_BASE64
+INSTAGRAM_DISCOVERY_CHECK_PROFILE=USUARIO_PROFESIONAL_PUBLICO
+```
+
+Generá la clave independiente con `openssl rand -base64 32` y conservá su valor al recrear el contenedor. Usá como perfil de verificación una cuenta profesional pública que sabés que responde a Business Discovery. Con Docker Compose, aplicá la actualización con `docker compose up --build -d api`, usando los mismos archivos `-f` del despliegue. Flyway crea la tabla de credenciales.
+
+La primera renovación permite conocer la vigencia emitida por Meta. Luego el backend revisa cada hora y renueva unos 14 días antes del vencimiento. Comprueba el token nuevo contra el perfil configurado antes de guardarlo cifrado en PostgreSQL. Ante un fallo mantiene el token anterior y vuelve a intentar después de seis horas. El log de la API registra la etapa del fallo sin incluir credenciales ni URLs. Conservá el mismo valor inicial y la misma clave de cifrado en todas las instancias, incluso luego de una rotación automática. Si Meta revoca el acceso o la autorización a datos vence, verificá el acceso y reemplazá el token inicial por uno válido. [Renovación de tokens de sistema de Meta](https://developers.facebook.com/docs/business-management-apis/system-users/install-apps-and-generate-tokens/)
 
 ### Spotify para pruebas privadas autorizadas
 

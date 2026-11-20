@@ -1,6 +1,6 @@
 /* Selection opens a half-height mobile sheet or a left desktop panel. */
 .toca-place-map>.toca-map-you{display:none}
-.toca-place-map .leaflet-marker-icon.toca-place-selected .toca-map-venue-pin-v1845{transform:scale(1.22);border-color:#edffdf!important;box-shadow:0 0 0 6px #b9fc8926,0 5px 15px #0009!important}
+.toca-place-map .leaflet-marker-icon.toca-place-selected .toca-map-venue-pin-v1845{transform:scale(1.28);border-color:#f1ffdf!important;box-shadow:0 0 0 2px #b9fc89a6,0 0 0 7px #b9fc8938,0 5px 15px #0009!important}
 .toca-place-panel{--place-panel:#111e1a;--place-line:#2b3d35;--place-text:#f1f5ee;--place-muted:#9bac9f;--place-lime:#b9f583;position:absolute;z-index:20;left:22px;top:20px;bottom:20px;width:366px;max-width:calc(100% - 44px);border:1px solid #34463a;border-radius:19px;background:var(--place-panel);box-shadow:0 12px 45px #0006;color:var(--place-text);overflow:hidden;font:13px/1.5 'DM Sans',sans-serif;text-align:left}
 .toca-place-panel *{box-sizing:border-box}
 .toca-place-panel svg{position:static;inset:auto;width:20px;height:20px;display:block;flex:none;opacity:1;transform:none}

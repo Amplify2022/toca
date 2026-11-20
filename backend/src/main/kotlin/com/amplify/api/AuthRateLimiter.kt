@@ -24,7 +24,7 @@ data class AuthRateRule(val scope: String, val key: String, val limit: Int, val 
  */
 object AuthRatePolicy {
     private val paths = setOf(
-        "/api/auth/login", "/api/auth/register",
+        "/api/auth/login", "/api/auth/register", "/api/auth/google/login", "/api/auth/google/register",
         "/api/customers/login", "/api/customers/register",
         "/api/customers/google", "/api/customers/me/google/link"
     )

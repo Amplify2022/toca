@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   let current=null;
-  const onDashboard=()=>['/admin','/admin/general'].includes(route().path);
+  const onDashboard=()=>route().path==='/admin/general';
   const alive=ctx=>ctx===current&&ctx.root.isConnected&&ctx.session===state.token&&ctx.id===state.venueId&&onDashboard();
   const q=(ctx,selector)=>ctx.root.querySelector(selector);
   const integer=n=>new Intl.NumberFormat('es-UY').format(n);

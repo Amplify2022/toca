@@ -16,15 +16,10 @@ import java.sql.SQLException
 import java.util.Locale
 import java.util.UUID
 
-/** Web Google Identity Services login is for CUSTOMER identities only.
- * Existing bar admins are never created or authorized by this endpoint.
- * Google's cryptographically verified `sub` is the unique federated identifier.
- */
+internal data class GoogleIdentity(val subject: String, val email: String, val name: String)
+
 @Singleton
-class CustomerGoogleAuth(
-    private val db: Db,
-    private val customerAuth: CustomerAuth,
-    private val roles: RolePolicy,
+class GoogleIdentityVerifier(
     @Value("\${GOOGLE_CLIENT_ID:}") private val clientId: String,
 ) {
     // Reuse the verifier; it caches Google's periodically rotating public keys.
@@ -36,9 +31,7 @@ class CustomerGoogleAuth(
 
     fun config(): Map<String, Any> = mapOf("enabled" to clientId.isNotBlank(), "clientId" to clientId)
 
-    private data class Identity(val subject: String, val email: String, val name: String)
-
-    private fun identity(data: Map<String, Any?>): Identity {
+    internal fun verify(data: Map<String, Any?>): GoogleIdentity {
         val googleVerifier = verifier ?: fail(HttpStatus.SERVICE_UNAVAILABLE, "Login con Google no configurado")
         val credential = required(data, "credential", 8192)
         // No unsigned parsing or tokeninfo lookups: verify signature, issuer, audience and expiry.
@@ -60,11 +53,21 @@ class CustomerGoogleAuth(
         }
         val claimedName = (payload["name"] as? String)?.trim().orEmpty()
         val name = claimedName.take(120).takeIf { it.length >= 2 } ?: "Usuario TOCÁ"
-        return Identity(sub, email, name)
+        return GoogleIdentity(sub, email, name)
     }
+}
+
+@Singleton
+class CustomerGoogleAuth(
+    private val db: Db,
+    private val customerAuth: CustomerAuth,
+    private val roles: RolePolicy,
+    private val googleVerifier: GoogleIdentityVerifier,
+) {
+    fun config() = googleVerifier.config()
 
     fun login(data: Map<String, Any?>): Map<String, Any?> {
-        val google = identity(data)
+        val google = googleVerifier.verify(data)
         var customer = db.one(
             "SELECT id,name,email FROM customer_account WHERE google_sub=?", google.subject
         )
@@ -94,7 +97,7 @@ class CustomerGoogleAuth(
 
     fun link(authorization: String, data: Map<String, Any?>): Map<String, Boolean> {
         val user = customerAuth.user(authorization)  // verified local customer session, NOT admin
-        val google = identity(data)
+        val google = googleVerifier.verify(data)
         if ((user["email"] as String).lowercase(Locale.ROOT) != google.email)
             fail(HttpStatus.CONFLICT, "El correo de Google debe coincidir con el de tu cuenta TOCÁ")
         try {
@@ -120,4 +123,12 @@ class CustomerGoogleController(private val google: CustomerGoogleAuth) {
         @Header(value="Authorization", defaultValue="") authorization: String,
         @Body body: Map<String, Any?>,
     ) = google.link(authorization, body)
+}
+
+
+@Controller("/api/auth/google")
+@ExecuteOn(TaskExecutors.BLOCKING)
+class AdminGoogleController(private val google: GoogleIdentityVerifier, private val auth: Auth) {
+    @Post("/register") fun register(@Body body: Map<String, Any?>) = auth.googleSession(google.verify(body), true)
+    @Post("/login") fun login(@Body body: Map<String, Any?>) = auth.googleSession(google.verify(body), false)
 }

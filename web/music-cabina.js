@@ -55,6 +55,7 @@
   panelState={id:root.dataset.venueId,session:state.token,name};
   dialog.showModal();dialog.querySelector('[data-cabina-close]')?.focus();
   if(name==='add')dialog.querySelector('input')?.focus();
+  if(name==='connection')root.dispatchEvent(new Event('cabina-connection-open',{bubbles:true}));
  }
  function close(root){const dialogs=[...root.querySelectorAll('dialog[open]')];if(!dialogs.length)return;dialogs.forEach(el=>el.close());panelState=null;if(returnFocus?.isConnected&&returnFocus.getClientRects().length)returnFocus.focus();else root.querySelector('[data-cabina-open="playlist-options"],.cabina-heading-actions button')?.focus();}
  window.tocaCabinaInit=ctx=>{
@@ -65,7 +66,7 @@
  window.tocaCabinaReset=()=>{window.tocaCabinaDragCancel?.();panelState=null;returnFocus=null;};
  const isCurrent=(ctx,t)=>!!t.id&&ctx.playback?.now?.id===t.id&&ctx.playback?.contextUri===`spotify:playlist:${ctx.playlist?.id}`;
  const rowPlay=(ctx,t)=>{const playing=isCurrent(ctx,t)&&ctx.playback.isPlaying;return svg(playing?'pause':'play')+`<span class="sr-only">${playing?'Pausar':'Reproducir'} ${esc(t.title)}</span>`};
- window.tocaCabinaTracks=ctx=>ctx.playlist?.tracks.length?ctx.playlist.tracks.map((t,i)=>`<div class="toca-studio-track cabina-track" data-track-index="${i}" data-track-id="${esc(t.id||'')}"><span class="cabina-track-number">${i+1}</span><button type="button" class="btn icon-btn cabina-drag" data-cabina-drag="${i}" aria-label="Mover ${esc(t.title)}" aria-describedby="cabina-drag-help" aria-pressed="false" title="Arrastrar para cambiar el orden">${svg('grip')}</button><div class="cabina-song">${art(t)}<div class="cabina-song-meta"><div class="cabina-title-row">${playingIndicator}<strong>${esc(t.title)}</strong><span class="cabina-added-badge" data-cabina-added-badge hidden>Agregado</span></div><small>${esc(t.artist)}</small></div></div><span class="cabina-duration">${ms(t.durationMs)}</span><button type="button" class="btn icon-btn cabina-row-play" data-cabina-row-play="${i}" ${t.id?'':'disabled'}>${rowPlay(ctx,t)}</button><button type="button" class="btn icon-btn" data-cabina-track="${i}" aria-label="Opciones de ${esc(t.title)}">${svg('dots')}</button></div>`).join(''):`<div class="cabina-empty-list"><strong>${ctx.playlist?'Tu playlist está lista para recibir canciones.':'Todavía no elegiste una playlist.'}</strong><p>${ctx.playlist?'Usá «Agregar» para empezar.':'Elegí una de Spotify o creá una nueva desde el menú de playlist.'}</p>${button('Elegir playlist','data-cabina-open="select-playlist" data-cabina-selection','list','small')}${button('Crear playlist','data-cabina-name-mode="create" data-cabina-create-open','plus','small')}</div>`;
+ window.tocaCabinaTracks=ctx=>ctx.playlist?.tracks.length?ctx.playlist.tracks.map((t,i)=>`<div class="toca-studio-track cabina-track" data-track-index="${i}" data-track-id="${esc(t.id||'')}"><span class="cabina-track-number">${i+1}</span><button type="button" class="btn icon-btn cabina-drag" data-cabina-drag="${i}" aria-label="Mover ${esc(t.title)}" aria-describedby="cabina-drag-help" aria-pressed="false" title="Arrastrar para cambiar el orden">${svg('grip')}</button><div class="cabina-song">${art(t)}<div class="cabina-song-meta"><div class="cabina-title-row">${playingIndicator}<strong>${esc(t.title)}</strong><span class="cabina-added-badge" data-cabina-added-badge hidden>Agregado</span></div><small>${esc(t.artist)}</small></div></div><span class="cabina-duration">${ms(t.durationMs)}</span><button type="button" class="btn icon-btn cabina-row-play" data-cabina-row-play="${i}" ${t.id?'':'disabled'}>${rowPlay(ctx,t)}</button><button type="button" class="btn icon-btn" data-cabina-track="${i}" aria-label="Opciones de ${esc(t.title)}">${svg('dots')}</button></div>`).join(''):`<div class="cabina-empty-list"><strong>${ctx.playlist?'Tu playlist está lista para recibir canciones.':ctx.playlistError?'No se pudo cargar la playlist.':'Todavía no elegiste una playlist.'}</strong><p>${ctx.playlist?'Usá «Agregar» para empezar.':'Elegí una de Spotify o creá una nueva desde el menú de playlist.'}</p>${button('Elegir playlist','data-cabina-open="select-playlist" data-cabina-selection','list','small')}${button('Crear playlist','data-cabina-name-mode="create" data-cabina-create-open','plus','small')}</div>`;
  window.tocaCabinaIsCurrent=isCurrent;
 
  window.tocaCabinaPlaylistUpdated=ctx=>{
@@ -84,10 +85,14 @@
   toggle.setAttribute('aria-label',data.isPlaying?'Pausar música':'Reproducir música');
   const image=root.querySelector('[data-player-art]'),signature=JSON.stringify([data.now?.id,data.now?.imageUrl]);if(image.dataset.signature!==signature){image.innerHTML=art(data.now);image.dataset.signature=signature;}
   root.querySelector('.cabina-player .cabina-playing-indicator').hidden=!data.isPlaying||!data.now;
-  root.querySelector('[data-player-sync]').textContent=ctx.pendingPlayback?'Sincronizando…':'';root.querySelector('.cabina-player').setAttribute('aria-busy',String(!!ctx.pendingPlayback));
+  window.tocaCabinaPlaybackStatus(ctx);
   root.querySelectorAll('[data-player-device],[data-player-output]').forEach(el=>el.textContent=data.device?.name||'Elegir salida');
   const volume=root.querySelector('[data-cabina-volume]');if(volume&&document.activeElement!==volume)volume.value=data.device?.volume??50;
   updateTrackPlayback(ctx);
+ };
+ window.tocaCabinaPlaybackStatus=ctx=>{
+  ctx.root.querySelector('[data-player-sync]').textContent=ctx.pendingPlayback?'Sincronizando…':ctx.playerReadWarning||'';
+  ctx.root.querySelector('.cabina-player').setAttribute('aria-busy',String(!!ctx.pendingPlayback));
  };
  function updateTrackPlayback(ctx){
   ctx.root.querySelectorAll('[data-track-index]').forEach(row=>{
@@ -160,6 +165,7 @@
   show(ctx.root,'track',ctx.root.querySelector(`[data-cabina-track="${index}"]`));
  };
  window.tocaCabinaShowConnection=ctx=>show(ctx.root,'connection');
+ window.tocaCabinaShowPlaylistChoices=ctx=>show(ctx.root,'select-playlist');
  window.tocaCabinaRequireAuthorization=ctx=>{
   if(!ctx?.root.isConnected)return;
   show(ctx.root,'connection');

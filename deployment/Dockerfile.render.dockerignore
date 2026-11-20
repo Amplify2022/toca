@@ -1,0 +1,12 @@
+**
+!backend/
+!backend/build.gradle.kts
+!backend/settings.gradle.kts
+!backend/gradle.lockfile
+!backend/src/
+!backend/src/**
+!web/
+!web/**
+!deployment/
+!deployment/start-render.sh
+**/.env*

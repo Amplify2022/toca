@@ -15,7 +15,7 @@ server=ThreadingHTTPServer(('127.0.0.1',0),functools.partial(Quiet,directory=str
 threading.Thread(target=server.serve_forever,daemon=True).start();BASE=f'http://127.0.0.1:{server.server_port}'
 try:
  with sync_playwright() as p:
-  browser=p.chromium.launch(executable_path='/usr/bin/chromium',args=['--no-sandbox','--use-angle=swiftshader','--enable-unsafe-swiftshader'])
+  browser=p.chromium.launch(executable_path=os.getenv('TOCA_CHROMIUM','/usr/bin/chromium'),args=['--no-sandbox','--use-angle=swiftshader','--enable-unsafe-swiftshader'])
   for width in [1440,390]:
    for scenario in ['google','instagram','manual']:
     context=browser.new_context(viewport={'width':width,'height':1000},locale='es-UY',service_workers='block');page=context.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
@@ -29,7 +29,7 @@ try:
      elif path=='/api/admin/venue-import/status':result=dict(google=True,instagram=True)
      elif path.endswith('/google/search'):result=[dict(id='test-place-id',name='Imported Bar',address='Test street 123')]
      elif path.endswith('/google/preview'):result=dict(source='Google Maps',fields=dict(name='Imported Bar',address='Test street 123',city='Montevideo',latitude=-34.9,longitude=-56.17,openingHours='W2|-|-|-|-|20:00-02:00|20:00-03:00|-'))
-     elif path.endswith('/instagram/preview'):result=dict(source='Instagram',fields=dict(name='Instagram Bar',instagramHandle='bar.ig',description='Viernes & Sábados 20 Hs.\nTodos los miércoles Jazz Club.'))
+     elif path.endswith('/instagram/preview'):result=dict(source='Instagram',fields=dict(name='Instagram Bar',address='Test street 123',instagramHandle='bar.ig',description='Viernes & Sábados 20 Hs.\nTodos los miércoles Jazz Club.'))
      elif path=='/api/admin/geocode':result=dict(results=[dict(lat=-34.9,lon=-56.17,name='Test street 123, Montevideo')])
      elif path=='/api/admin/geocode/suggest':result=dict(results=[dict(lat=-34.9,lon=-56.17,name='Test street 123, Montevideo',address='Test street 123',city='Montevideo')])
      elif path=='/api/admin/venues':
@@ -61,7 +61,12 @@ try:
      route.abort()
     page.route('**/*',handle)
     page.goto(BASE+'/#/register');form=page.locator('#onboard-account');form.wait_for()
-    form.locator('[name=name]').fill('Owner');form.locator('[name=email]').fill('owner@example.test');form.locator('[name=password]').fill('Synthetic-password-123');form.get_by_role('button',name='Crear cuenta y seguir').click()
+    form.locator('[name=name]').fill('Owner');form.locator('[name=email]').fill('owner@example.test');form.locator('[name=password]').fill('Synthetic-password-123')
+    form.locator('[name=passwordConfirmation]').fill('Different-password-123')
+    form.get_by_role('button',name='Crear cuenta y seguir').click()
+    assert 'no coinciden' in form.locator('[data-account-error]').inner_text() and not registrations
+    form.locator('[name=passwordConfirmation]').fill('Synthetic-password-123')
+    form.get_by_role('button',name='Crear cuenta y seguir').click()
     page.locator('#onboard-search').wait_for();assert len(registrations)==1
     assert page.evaluate("Object.entries(sessionStorage).filter(([k])=>k.includes('venue-registration')).every(([,v])=>!v.includes('Synthetic-password'))")
     if scenario=='manual':page.locator('[data-onboard=manual]').click()
@@ -72,11 +77,13 @@ try:
      page.locator('#onboard-query').press('Enter')
      if scenario=='google':page.locator('.result-choice').click()
     form=page.locator('#onboard-details');form.wait_for()
-    if scenario!='google':
+    if scenario=='manual':
      assert form.locator('[name=address]').input_value()==''
-     if scenario=='manual':form.locator('[name=name]').fill('Manual bar')
+     form.locator('[name=name]').fill('Manual bar')
      form.locator('[name=city]').fill('Montevideo');form.locator('[name=address]').fill('Test street 123')
-     form.locator('[data-v183-choice]').first.click()
+    elif scenario=='instagram':
+     assert form.locator('[name=address]').input_value()=='Test street 123'
+    if scenario!='google':form.locator('[data-v183-choice]').first.click()
     form.locator('[data-action=location-confirm]').click()
     page.wait_for_function("document.querySelector('.toca-location-widget').dataset.confirmed==='true'")
     if scenario=='instagram':

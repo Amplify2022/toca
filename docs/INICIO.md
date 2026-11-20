@@ -1,8 +1,8 @@
 # Inicio público de TOCÁ
 
-La página reúne la presentación, “La app” con el recorrido en cuatro pasos, el portal para bares, preguntas frecuentes y contacto. La cabecera ofrece acceso directo a la versión web y un código QR. Las capturas usan el nombre de ejemplo “Bar Central”. Respeta los colores y componentes de la app.
+La página reúne la presentación, “La app” con el recorrido en cuatro pasos, el portal para bares, preguntas frecuentes y contacto. La cabecera ofrece un botón de descarga con acceso al QR y a la versión web. Las capturas usan el nombre de ejemplo “Bar Central”. Respeta los colores y componentes de la app.
 
-Los enlaces de la cabecera y el pie llevan a secciones de la misma página mediante el router existente: `/#/?section=la-app`, `/#/?section=para-bares` y `/#/?section=contacto`. Los enlaces anteriores a `section=como-funciona` siguen llevando a “La app”. Funcionan al abrir un enlace directo y al usar atrás/adelante, y conservan el formulario mientras se navega entre secciones. La cabecera permanece visible; sus enlaces se agrupan a la derecha junto a “Abrir TOCÁ” y al botón del QR. En celular los enlaces de sección se reúnen en un menú.
+Los enlaces de la cabecera y el pie llevan a secciones de la misma página mediante el router existente: `/#/?section=la-app`, `/#/?section=para-bares` y `/#/?section=contacto`. Los enlaces anteriores a `section=como-funciona` siguen llevando a “La app”. Funcionan al abrir un enlace directo y al usar atrás/adelante, y conservan el formulario mientras se navega entre secciones. La cabecera permanece visible; sus enlaces se agrupan a la derecha junto a “Bajá la app”. En celular los enlaces de sección se reúnen en un menú.
 
 El recorrido de cuatro pasos avanza automáticamente cada cinco segundos y vuelve al primero al terminar. En escritorio el celular aparece a la izquierda y los pasos a la derecha; en celular se muestran cuatro selectores numéricos seguidos por el texto y la captura del paso activo. Se presentan sin contador adicional, barras de progreso ni botón de pausa. El borde, el fondo y las fotos del paso saliente y entrante cambian suavemente durante 650 ms. Las fotos se superponen dentro de un único marco para hacer el fundido sin saltos de tamaño. Los pasos no muestran flechas. El mouse y el foco no detienen el avance; elegir un paso manualmente reinicia los cinco segundos y continúa el recorrido. Se detiene al salir de la sección o al ocultar la pestaña. Al volver comienza un intervalo completo. Con movimiento reducido no hay fundido ni avance automático y los cuatro pasos siguen disponibles manualmente. El temporizador y el observador se eliminan al salir de inicio.
 
@@ -34,9 +34,9 @@ Los enlaces públicos se configuran en `web/config.js`, dentro de `TOCA_CONFIG.m
 }
 ```
 
-“Abrir TOCÁ” abre `/#/explore`. El QR se genera en el navegador y lleva a la versión web. Cuando haya una tienda oficial configurada, el QR llevará a `/#/download`, que abre la tienda correspondiente en iOS o Android si está disponible y ofrece la versión web. Para compartir el QR con otro dispositivo, usá un dominio público accesible.
+“Bajá la app” abre el diálogo del QR. «Abrir versión web» lleva a `/#/explore`. El QR se genera en el navegador y lleva a la versión web. Cuando haya una tienda oficial configurada, el QR llevará a `/#/download`, que abre la tienda correspondiente en iOS o Android si está disponible y ofrece la versión web. Para compartir el QR con otro dispositivo, usá un dominio público accesible.
 
-El pie muestra Instagram y Facebook con su configuración actual. Las demás redes y las tiendas aparecen al configurar sus URLs oficiales.
+El pie enlaza a Instagram y Facebook. Los íconos de TikTok y X y los avisos «Próximamente» de App Store y Google Play aparecen en el pie mientras faltan sus URLs oficiales. Al completar las URLs, se convierten en enlaces.
 
 ## Contacto
 

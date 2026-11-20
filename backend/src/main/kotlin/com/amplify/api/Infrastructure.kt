@@ -97,8 +97,26 @@ class Auth(private val db: Db,private val roles:RolePolicy) {
         val password=required(body,"password",128)
         if(password.toByteArray(Charsets.UTF_8).size>72) fail(HttpStatus.BAD_REQUEST,"La contraseña supera 72 bytes; usá recuperación para restablecerla")
         val user=db.one("SELECT id,name,email,password_hash FROM admin_user WHERE email=?",email)
-        if(user==null || !BCrypt.checkpw(password,user["password_hash"] as String)) fail(HttpStatus.UNAUTHORIZED,"Credenciales incorrectas")
+        val hash=user?.get("password_hash") as? String
+        if(user==null || hash==null || !BCrypt.checkpw(password,hash)) fail(HttpStatus.UNAUTHORIZED,"Credenciales incorrectas")
         return issue(user["id"] as UUID,user["name"] as String,email)
+    }
+    internal fun googleSession(identity:GoogleIdentity, register:Boolean):Map<String,Any?> = db.transaction {
+        val query="SELECT id,name,email FROM admin_user WHERE google_sub=?"
+        var account=db.one(query,identity.subject)
+        if(account==null && register){
+            // Neither a matching email nor a customer session can claim a bar account.
+            db.exec("""INSERT INTO admin_user(id,name,email,password_hash,google_sub,email_verified_at)
+                VALUES(?,?,?,NULL,?,now()) ON CONFLICT DO NOTHING""",
+                UUID.randomUUID(),identity.name,identity.email,identity.subject)
+            account=db.one(query,identity.subject)
+                ?: fail(HttpStatus.CONFLICT,"Ese correo ya tiene una cuenta del portal. Iniciá sesión con tu contraseña.")
+        }
+        val admin=account ?: fail(HttpStatus.UNAUTHORIZED,
+            "No hay una cuenta del portal vinculada a este Google. Registrate como bar o usá tu contraseña.")
+        val id=admin["id"] as UUID
+        roles.grantVenueAdmin(id)
+        issue(id,admin["name"] as String,admin["email"] as String)
     }
     private fun issue(id:UUID,name:String,email:String):Map<String,Any?> {
         val token=randomString(48)

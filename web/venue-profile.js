@@ -33,14 +33,29 @@
     return groups.join('')||'Todos los días cerrados';
   }
 
-  function card(ic,title,copy,status,label,section){return `<section class="manage-card ${section==='hours'?'vp-hours-card':''}"><div class="card-head"><span class="card-icon">${icon(ic)}</span><h3>${title}</h3></div><p class="${section==='hours'?'vp-hours-summary':''}">${copy}</p><div class="row-action"><span>${status}</span><a href="${link(section)}">${label}${icon('arrow')}</a></div></section>`;}
-  function overview(v,owned){const photos=Array.isArray(v.photos)?v.photos:[],cover=!!v.coverPhotoUrl,published=v.published!==false;
+  function card(ic,title,copy,label,section){
+    return `<section class="manage-card ${section==='hours'?'vp-hours-card':''}"><div class="card-head"><span class="card-icon">${icon(ic)}</span><h3>${title}</h3></div><p class="${section==='hours'?'vp-hours-summary':''}">${copy}</p><div class="row-action"><a href="${link(section)}">${label}${icon('arrow')}</a></div></section>`;
+  }
+  function overview(v,owned){
+    const photos=Array.isArray(v.photos)?v.photos:[],cover=!!v.coverPhotoUrl,published=v.published!==false;
+    const count=photos.length||Number(cover);
+    const photoSummary=count?`${count} ${count===1?'foto':'fotos'} en la ficha.`:'Todavía no agregaste fotos.';
+    const publicationUrl=`#/admin/onboarding?step=ready&amp;venue=${encodeURIComponent(v.id)}`;
     return (owned.length>1?`<label class="vp-select">Bar<select data-profile-venue aria-label="Bar que administrás">${owned.map(b=>`<option value="${esc(b.id)}" ${v.id===b.id?'selected':''}>${esc(b.name)}</option>`).join('')}</select></label>`:'')+
-      `<div class="page-heading"><div><div class="eyebrow">TU ESPACIO EN TOCÁ</div><h1>Mi Bar</h1><p>Revisá tu perfil y elegí qué querés actualizar.</p></div><div class="page-actions">${pill(published?'Publicado':'Borrador')}</div></div>`+
-      (!published?`<div class="notice">${icon('info')}<div><strong>Tu bar ya está creado.</strong><br>Podés editar sus datos y continuar la preparación antes de publicarlo. <a href="#/admin/onboarding?step=ready&amp;venue=${encodeURIComponent(v.id)}">Ver próximos pasos</a></div></div>`:'')+
-      `<section class="panel identity">${cover?`<img class="vp-cover" src="${esc(mediaUrl(v.coverPhotoUrl))}" alt="Portada de ${esc(v.name)}">`:`<div class="bar-art"><strong>${esc(String(v.name).slice(0,2).toUpperCase())}</strong></div>`}<div><h2>${esc(v.name)}</h2><p class="address">${icon('pin')}${esc(v.address)} · ${esc(v.city)}</p>${v.instagramHandle?`<p class="social">${icon('instagram')}@${esc(v.instagramHandle)}</p>`:''}</div><div class="identity-actions">${published?`<a class="btn" href="#/venue/${encodeURIComponent(v.id)}">Ver mi bar publicado${icon('arrow')}</a>`:`<a class="btn" href="#/admin/onboarding?step=ready&amp;venue=${encodeURIComponent(v.id)}">Revisar publicación${icon('arrow')}</a>`}</div></section>`+
-      `<div class="section-title"><h2>¿Qué querés administrar?</h2></div><div class="card-grid">${card('pin','Datos y ubicación',esc(v.address)+'<br>'+esc(v.city),'Nombre, dirección y presentación','Editar datos','data')}${card('photo','Fotos del bar','Portada y galería para mostrar el ambiente de tu local.',cover?`${photos.length||1} ${(photos.length||1)===1?'foto':'fotos'}`:'Todavía sin portada',cover?'Administrar fotos':'Agregar foto','photos')}${card('clock','Horarios',hoursSummary(v.openingHours),'Horario semanal','Editar horarios','hours')}${card('users','Quién puede pedir',v.requestAccessMode==='ANYWHERE'?'Personas desde cualquier ubicación.':'Personas que están a menos de 100 metros del bar.','Todos deben iniciar sesión','Cambiar acceso','access')}</div>`+
-      `<section class="secondary-import"><div><h3>¿Cambió algo en tus perfiles?</h3><p>Podés buscar datos nuevos y revisar cuáles querés actualizar.</p></div><a class="btn" href="${link('import')}">Actualizar desde Google o Instagram${icon('arrow')}</a></section><details class="vp-danger"><summary>Más opciones del bar</summary><button type="button" class="btn text" data-action="open-delete-venue">Eliminar mi bar</button></details>`;
+      '<div class="page-heading"><h1>Mi Bar</h1></div>'+
+      (!published?`<div class="notice">${icon('info')}<div><strong>Tu bar ya está creado.</strong><br>Podés editar sus datos antes de publicarlo.</div></div>`:'')+
+      `<section class="panel identity">${cover?`<img class="vp-cover" src="${esc(mediaUrl(v.coverPhotoUrl))}" alt="Portada de ${esc(v.name)}">`:`<div class="bar-art" aria-hidden="true"><strong>${esc(String(v.name).slice(0,2).toUpperCase())}</strong></div>`}
+        <div><h2>${esc(v.name)}</h2>${published?pill('Publicado'):'<span class="pill amber">Borrador</span>'}
+        <p class="address">${icon('pin')}${esc([v.address,v.city].filter(Boolean).join(' · '))}</p>${v.instagramHandle?`<p class="social">${icon('instagram')}@${esc(v.instagramHandle)}</p>`:''}</div>
+        <div class="identity-actions">${published?`<a class="btn primary" href="#/venue/${encodeURIComponent(v.id)}">Ver mi bar publicado${icon('arrow')}</a>`:`<a class="btn primary" href="${publicationUrl}">Revisar publicación${icon('arrow')}</a>`}</div>
+      </section>`+
+      `<div class="section-title"><h2>Ficha de tu bar</h2></div><div class="card-grid">
+        ${card('pin','Datos y ubicación','Nombre, dirección, Instagram y presentación.','Editar datos','data')}
+        ${card('photo','Fotos del bar',photoSummary,count?'Administrar fotos':'Agregar foto','photos')}
+        ${card('clock','Horarios',hoursSummary(v.openingHours),'Editar horarios','hours')}
+        ${card('users','Quién puede pedir',`${v.requestAccessMode==='ANYWHERE'?'Desde cualquier ubicación.':'A menos de 100 m.'} Se requiere iniciar sesión.`,'Cambiar acceso','access')}
+      </div>`+
+      `<section class="secondary-import"><h3>Importar datos</h3><a class="btn" href="${link('import')}">Actualizar desde Google o Instagram${icon('arrow')}</a></section><details class="vp-danger"><summary>Más opciones del bar</summary><button type="button" class="btn text" data-action="open-delete-venue">Eliminar mi bar</button></details>`;
   }
   function dataEditor(v,imported){const d={...v,...(imported?.fields||{})},pending=!!imported;
     return back(labels.data)+head('Datos del bar','Actualizá el nombre, la dirección y la presentación de tu local.')+
@@ -83,12 +98,21 @@
     const v=owned.find(v=>v.id===state.venueId)||owned[0];state.venueId=v.id;state.detail=v;state.venues=owned;
     if(pendingImport&&(pendingImport.token!==state.token||pendingImport.id!==v.id))pendingImport=null;
     const c={v,path,section,token:state.token,dirty:false,busy:false};ctx=c;
-    mount(`<section class="venue-profile" data-venue-profile>${section?sectionPage(section,v):overview(v,owned)}${discard()}</section>`,'admin');
+    mount(`<section class="venue-profile${section?'':' vp-overview'}" data-venue-profile>${section?sectionPage(section,v):overview(v,owned)}${discard()}</section>`,'admin');
     c.element=root();
     if(section==='data'){
       const imported=pendingImport?.id===v.id?pendingImport:null;
-      if(imported){const lat=Number(imported.fields.latitude??v.latitude),lon=Number(imported.fields.longitude??v.longitude);window.tocaApplyImportedLocation(root().querySelector('form'),lat,lon);c.dirty=true;}
-      if(imported)await ensureMap(c);
+      if(imported){
+        const form=c.element.querySelector('form');
+        const {latitude,longitude}=imported.fields;
+        c.dirty=true;
+        if(Number.isFinite(latitude)&&Number.isFinite(longitude))window.tocaApplyImportedLocation(form,latitude,longitude);
+        const map=ensureMap(c);
+        if(!Number.isFinite(latitude)||!Number.isFinite(longitude)){
+          form.elements.address.dispatchEvent(new Event('input',{bubbles:true}));
+        }
+        await map;
+      }
     }
     if(section==='import'){const box=root().querySelector('[data-venue-import]');box._comparisonModel=comparisonModel(v);box._commitSelection=fields=>applyImport(c,fields);}
   };

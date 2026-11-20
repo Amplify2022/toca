@@ -1,0 +1,76 @@
+services:
+  postgres:
+    profiles: [local]
+  web:
+    profiles: [local]
+
+  migrate:
+    depends_on: !reset {}
+    environment:
+      JDBC_URL: ${TOCA_MIGRATION_JDBC_URL:?Set the Supabase migration JDBC URL}
+      DB_USERNAME: ${DB_USERNAME:?Set the Supabase migration user}
+      TOCA_DB_SCHEMA: toca
+    volumes:
+      - ${TOCA_DB_CA_FILE:?Set the path to the Supabase database CA}:/run/toca/postgres-ca.pem:ro
+
+  provision-db-role:
+    image: postgres:16-alpine
+    entrypoint: ["bash", "/opt/toca/init-app-role.sh"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      PGHOST: ${TOCA_DB_HOST:?Set the Supabase database host}
+      PGPORT: ${TOCA_DB_PORT:-5432}
+      PGSSLMODE: verify-full
+      PGSSLROOTCERT: /run/toca/postgres-ca.pem
+      POSTGRES_USER: ${DB_USERNAME:?Set the Supabase migration user}
+      POSTGRES_DB: ${TOCA_DB_NAME:-postgres}
+      TOCA_DB_SCHEMA: toca
+      PGPASSWORD: ${DB_PASSWORD:?Set the Supabase migration password}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?Set a password for toca_app}
+    volumes:
+      - ./deployment/init-app-role.sh:/opt/toca/init-app-role.sh:ro
+      - ${TOCA_DB_CA_FILE:?Set the path to the Supabase database CA}:/run/toca/postgres-ca.pem:ro
+
+  api:
+    ports: !reset []
+    depends_on:
+      provision-db-role:
+        condition: service_completed_successfully
+    environment:
+      JDBC_URL: ${TOCA_APP_JDBC_URL:?Set the Supabase application JDBC URL}
+      DB_USERNAME: ${TOCA_APP_DB_USERNAME:-toca_app}
+      FRONTEND_ORIGIN: https://${TOCA_DOMAIN:?Set the public DNS name}
+      SPOTIFY_REDIRECT_URI: https://${TOCA_DOMAIN}/api/integrations/spotify/callback
+      TOKEN_SIMULATED_TOPUPS_ENABLED: "false"
+      SPOTIFY_PRIVATE_TEST_CONTROL: "false"
+      SPOTIFY_PRIVATE_TEST_PLAYLIST_WRITES: "false"
+    volumes:
+      - ${TOCA_DB_CA_FILE:?Set the path to the Supabase database CA}:/run/toca/postgres-ca.pem:ro
+
+  gateway:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    environment:
+      TRUSTED_PROXY_TOKEN: ${TRUSTED_PROXY_TOKEN:?Set a random proxy token of at least 32 characters}
+      TOCA_DOMAIN: ${TOCA_DOMAIN:?Set the public DNS name}
+    volumes:
+      - ./deployment/Caddyfile.tunnel:/etc/caddy/Caddyfile:ro
+      - ./web:/srv:ro
+    depends_on:
+      - api
+    networks: [default, tunnel]
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    command: ["tunnel", "--no-autoupdate", "run"]
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?Set the Cloudflare Tunnel token}
+    restart: unless-stopped
+    depends_on:
+      - gateway
+    networks: [tunnel]
+
+networks:
+  tunnel:

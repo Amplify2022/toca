@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: toca
+    runtime: docker
+    plan: free
+    dockerfilePath: ./deployment/Dockerfile.render
+    healthCheckPath: /api/health
+    envVars:
+      - key: MICRONAUT_ENVIRONMENTS
+        value: render
+      - key: JAVA_TOOL_OPTIONS
+        value: "-Xmx256m"
+      - key: TOKEN_SIMULATED_TOPUPS_ENABLED
+        value: "false"
+      - key: JDBC_URL
+        sync: false
+      - key: DB_USERNAME
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: TOCA_MIGRATION_JDBC_URL
+        sync: false
+      - key: TOCA_MIGRATION_DB_USERNAME
+        sync: false
+      - key: TOCA_MIGRATION_DB_PASSWORD
+        sync: false

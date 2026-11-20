@@ -1,0 +1,16 @@
+# syntax=docker/dockerfile:1
+FROM gradle:8.14-jdk21@sha256:aa72246029828dd4b4ddb5d4aba31f72ee070cafe52dc85ad5cc3296007ace6f AS builder
+WORKDIR /workspace
+COPY --chown=gradle:gradle backend/build.gradle.kts backend/settings.gradle.kts backend/gradle.lockfile ./
+COPY --chown=gradle:gradle backend/src ./src
+RUN --mount=type=cache,target=/home/gradle/.gradle,uid=1000,gid=1000 gradle --no-daemon test installDist
+
+FROM eclipse-temurin:21-jre-alpine
+WORKDIR /app
+RUN addgroup -S toca && adduser -S -G toca toca
+COPY --from=builder /workspace/build/install/amplify-api/ /app/
+COPY web /app/web
+COPY deployment/start-render.sh /app/start-render.sh
+USER toca
+EXPOSE 10000
+ENTRYPOINT ["/bin/sh", "/app/start-render.sh"]

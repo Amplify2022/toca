@@ -3,6 +3,7 @@
 Run with Python, Playwright and /usr/bin/chromium. No credentials or ZIP
 fixtures are required; these tests exercise the repository's current modules.
 """
+import os
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 ROOT = Path(__file__).resolve().parents[1]
@@ -18,7 +19,7 @@ window.navigate=destination=>{window.__routes.push(destination);location.hash=de
 window.mount=()=>{};window.iconSvg=()=>'';window.toast=()=>{};window.esc=s=>s;
 window.google={accounts:{id:{
   initialize(opts){window.__callback=opts.callback;},
-  renderButton(slot){const btn=document.createElement('button');btn.type='button';btn.id='fake-google';btn.textContent='Continuar con Google';btn.onclick=()=>window.__callback({credential:'signed-google-token'});slot.appendChild(btn);}
+  renderButton(slot,opts){const btn=document.createElement('button');btn.type='button';btn.id='fake-google';btn.textContent='Continuar con Google';btn.onclick=()=>window.__callback({credential:'signed-google-token',state:opts.state});slot.appendChild(btn);}
 }}};
 window.__googleStatus=200;
 window.__googleUser='customer-123';
@@ -28,6 +29,8 @@ window.fetch = async (url,opts={})=>{
  window.__requests.push({address,method,auth:opts.headers?.Authorization||''});
  let body={}; let status=200;
  if(address.endsWith('/google/config')) body={enabled:true,clientId:'my-google-client-id'};
+ else if(address.includes('/api/auth/google/') && method==='POST')
+   body={token:'synthetic-admin-token',user:{id:'admin-123'}};
  else if(address.endsWith('/api/customers/google') && method==='POST'){
    status=window.__googleStatus;
    body=status===200?{token:'1234567890abcdefghijklmnopqrstuvwxyz1234567890abcdef',user:{id:window.__googleUser}}:{message:'Ese correo ya tiene una cuenta.'};
@@ -73,7 +76,7 @@ def setup(browser, status=200, pending=None, me_user=None, me_status=200, expire
 
 def tests():
     with sync_playwright() as p:
-        browser=p.chromium.launch(executable_path='/usr/bin/chromium', headless=True, args=['--no-sandbox'])
+        browser=p.chromium.launch(executable_path=os.getenv('TOCA_CHROMIUM','/usr/bin/chromium'), headless=True, args=['--no-sandbox'])
         page,ctx=setup(browser)
         page.locator('#fake-google').click()
         page.wait_for_function("window.tocaCustomerVerified?.() && location.hash === '#/profile'",timeout=5000)
@@ -130,6 +133,21 @@ def tests():
             page.wait_for_function("location.hash === '#/profile'")
             assert page.evaluate("sessionStorage.getItem('toca:customer:after-login')") is None
             assert page.evaluate('state.token')==''
+            ctx.close()
+        for route,form,endpoint in [('register','onboard-account','register'),('login','login-form','login')]:
+            page,ctx=setup(browser)
+            page.evaluate("""({route,form})=>{
+              window.ADMIN_HOME='#/admin/music';
+              const oldState=document.querySelector('.toca-google-slot').dataset.googleState;
+              location.hash='#/'+route;
+              document.querySelector('#app').innerHTML='<form id="'+form+'"></form>';
+              window.__callback({credential:'stale-customer-token',state:oldState});
+            }""",{'route':route,'form':form})
+            page.locator('#fake-google').click()
+            page.wait_for_function("location.hash === '#/admin/music'")
+            assert page.evaluate("sessionStorage.getItem('amplify-token')")=='synthetic-admin-token'
+            assert page.evaluate("sessionStorage.getItem('toca:customer:session')") is None
+            assert page.evaluate("window.__requests.filter(r=>r.method==='POST').map(r=>r.address.split('/api/')[1])")==[f'auth/google/{endpoint}']
             ctx.close()
         browser.close()
     print('PASS: 8 Google login scenarios (session, QR return, conflict, identity mismatch, late 401, role rejection, unsafe redirects)')

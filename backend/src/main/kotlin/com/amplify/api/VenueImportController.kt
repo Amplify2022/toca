@@ -8,11 +8,9 @@ import io.micronaut.http.annotation.*
 import io.micronaut.scheduling.TaskExecutors
 import io.micronaut.scheduling.annotation.ExecuteOn
 import java.net.URI
-import java.net.URLEncoder
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
-import java.nio.charset.StandardCharsets
 import java.time.Duration
 
 /** Converts provider data into an editable draft; never writes venue information. */
@@ -69,12 +67,27 @@ object VenueImportData {
             "sourceUrl" to place.path("googleMapsUri").asText(""),"attributions" to place.path("attributions").map { it.path("provider").asText("") })
     }
 
+    private fun instagramAddress(bio: String): String? {
+        val addressLine = Regex("""^\s*(?:📍\s*|direcci[oó]n\s*:\s*)(.+)$""", RegexOption.IGNORE_CASE)
+        val streetAddress = Regex(
+            """^([\p{L}\d][\p{L}\p{M}\d .'’°º-]*?\s+\d{1,6}[a-z]?)(?=$|[,;.]|\s+(?:esq(?:uina)?|entre)\b)""",
+            RegexOption.IGNORE_CASE
+        )
+        return bio.lineSequence().mapNotNull { addressLine.matchEntire(it)?.groupValues?.get(1)?.trim() }
+            .mapNotNull { streetAddress.find(it)?.groupValues?.get(1) }
+            .filter { it.length in 4..240 && it.any(Char::isLetter) }
+            .distinct().toList().singleOrNull()
+    }
+
     fun instagram(profile:JsonNode,handle:String):Map<String,Any?> = mapOf(
         "source" to "Instagram","sourceUrl" to "https://www.instagram.com/$handle/",
         "fields" to buildMap<String,Any?> {
             put("instagramHandle",handle)
             profile.path("name").asText("").takeIf { it.isNotBlank() }?.let { put("name",it.take(160)) }
-            profile.path("biography").asText("").takeIf { it.isNotBlank() }?.let { put("description",it.take(2000)) }
+            profile.path("biography").asText("").takeIf { it.isNotBlank() }?.take(2000)?.let { bio ->
+                put("description",bio)
+                instagramAddress(bio)?.let { put("address",it) }
+            }
         },"details" to mapOf("website" to profile.path("website").asText("")),
         "warnings" to listOf("Instagram no publica dirección ni horarios estructurados mediante esta API. Revisá la biografía y completá los campos faltantes."))
 }
@@ -82,12 +95,9 @@ object VenueImportData {
 @Controller("/api/admin/venue-import")
 @ExecuteOn(TaskExecutors.BLOCKING)
 class VenueImportController(private val auth:Auth,private val limiter:AuthRateLimiter,private val json:ObjectMapper,
-    @Value("\${GOOGLE_PLACES_API_KEY:}") private val googleKey:String,
-    @Value("\${INSTAGRAM_DISCOVERY_TOKEN:}") private val instagramToken:String,
-    @Value("\${INSTAGRAM_DISCOVERY_ACCOUNT_ID:}") private val instagramAccount:String,
-    @Value("\${META_GRAPH_VERSION:v23.0}") private val graphVersion:String) {
+    private val instagramDiscovery:InstagramDiscovery,
+    @Value("\${GOOGLE_PLACES_API_KEY:}") private val googleKey:String) {
     private val http=HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build()
-    private fun encode(s:String)=URLEncoder.encode(s,StandardCharsets.UTF_8)
     private fun admit(authorization:String) {
         val user=auth.user(authorization)
         if(!limiter.consume(AuthRateRule("venue-import",user["id"].toString(),30,60)))
@@ -108,7 +118,7 @@ class VenueImportController(private val auth:Auth,private val limiter:AuthRateLi
     }
     @Get("/status") fun status(@Header(value="Authorization",defaultValue="") authorization:String):Map<String,Boolean> {
         auth.user(authorization)
-        return mapOf("google" to googleKey.isNotBlank(),"instagram" to (instagramToken.isNotBlank()&&instagramAccount.matches(Regex("[0-9]+"))))
+        return mapOf("google" to googleKey.isNotBlank(),"instagram" to instagramDiscovery.configured)
     }
     @Get("/google/search") fun search(@Header(value="Authorization",defaultValue="") authorization:String,@QueryValue q:String):List<Map<String,String>> {
         admit(authorization)
@@ -126,11 +136,7 @@ class VenueImportController(private val auth:Auth,private val limiter:AuthRateLi
     @Get("/instagram/preview") fun instagram(@Header(value="Authorization",defaultValue="") authorization:String,@QueryValue profile:String):Map<String,Any?> {
         admit(authorization)
         val handle=VenueImportData.instagramHandle(profile)
-        if(instagramToken.isBlank() || !instagramAccount.matches(Regex("[0-9]+")) || !graphVersion.matches(Regex("v[0-9]+\\.[0-9]+")))
-            fail(HttpStatus.PRECONDITION_FAILED,"La importación de Instagram aún no está configurada. Podés completar el formulario manualmente.")
-        val fields="business_discovery.username($handle){name,username,biography,website}"
-        val root=read(HttpRequest.newBuilder(URI("https://graph.facebook.com/$graphVersion/$instagramAccount?fields=${encode(fields)}"))
-            .timeout(Duration.ofSeconds(12)).header("Authorization","Bearer $instagramToken").GET().build()).path("business_discovery")
+        val root=instagramDiscovery.profile(handle)
         if(root.isMissingNode || root.isNull)fail(HttpStatus.NOT_FOUND,"No se encontró un perfil profesional de Instagram accesible")
         return VenueImportData.instagram(root,handle)
     }

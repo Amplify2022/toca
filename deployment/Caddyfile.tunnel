@@ -1,0 +1,15 @@
+http://{$TOCA_DOMAIN}:8080 {
+ encode zstd gzip
+ handle /api/* {
+  reverse_proxy api:8080 {
+   header_up X-Toca-Proxy-Key {$TRUSTED_PROXY_TOKEN}
+   header_up X-Toca-Client-IP {http.request.header.CF-Connecting-IP}
+  }
+ }
+ handle {
+  root * /srv
+  file_server
+ }
+ header X-Content-Type-Options nosniff
+ header Referrer-Policy strict-origin-when-cross-origin
+}

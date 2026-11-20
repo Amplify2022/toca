@@ -149,7 +149,7 @@
       return `<tr class="toca-import-field ${key==='description'?'toca-import-field-wide':''}">
         <th scope="row"><label for="${id}-${index}">${label}</label>${matches?'<span class="toca-import-match">Coincide</span>':''}</th>
         <td class="toca-import-before"><span class="toca-import-cell-caption">Actual</span><span class="toca-import-current ${existing?'':'is-empty'}" title="${esc(existing?displayValue(key,existing):'')}">${existing?esc(displayValue(key,existing)):coordinate?'Revisar en el mapa':'Sin completar'}</span></td>
-        <td class="toca-import-after"><span class="toca-import-cell-caption">Desde ${esc(draft.source)}</span><span class="toca-import-value">${esc(value)}</span>${coordinate?'<span class="toca-import-location-hint">Confirmá el pin antes de guardar.</span>':''}</td>
+        <td class="toca-import-after"><span class="toca-import-cell-caption">Desde ${esc(draft.source)}</span><span class="toca-import-value">${esc(value)}</span>${coordinate||instagram&&key==='address'?'<span class="toca-import-location-hint">Confirmá el pin antes de guardar.</span>':''}</td>
         <td class="toca-import-use"><label class="toca-import-check-target"><input id="${id}-${index}" type="checkbox" data-import-field="${key}" aria-label="${label}" ${!existing?'checked':''} /><span class="toca-import-sr">Usar ${label}</span></label></td>
       </tr>`;
     });
@@ -158,7 +158,9 @@
     const subtitle=instagram?(fields.instagramHandle?'@'+fields.instagramHandle:'Perfil profesional de Instagram'):(fields.address||'Datos del local en Google Maps');
     const warnings=(draft.warnings||[]).map(w=>{
       if(!instagram||!/^Instagram no publica direcci/.test(w))return w;
-      return bioSuggestion?.days.length?'Revisá la dirección en Mi Bar y confirmá los horarios sugeridos de la biografía.':'Instagram no incluye dirección ni horarios. Podés completarlos en el formulario del bar.';
+      return fields.address||bioSuggestion?.days.length
+        ?'Revisá los datos sugeridos de la biografía. Si usás la dirección, confirmá el pin antes de guardar.'
+        :'No encontramos una dirección ni horarios claros en la biografía. Podés completarlos en el formulario del bar.';
     });
     const website=safeLink(details.website);
     const initials=String(title).trim().split(/\s+/).map(part=>Array.from(part)[0]).slice(0,2).join('').toUpperCase();

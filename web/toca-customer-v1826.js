@@ -125,7 +125,7 @@
           ${register?`<label>Tu nombre<input class="input" name="name" autocomplete="name" minlength="2" maxlength="120" required /></label>`:''}
           <label>Correo electrónico<input class="input" name="email" type="email" autocomplete="email" maxlength="200" required /></label>
           <label>Contraseña<input class="input" name="password" type="password" autocomplete="${register?'new-password':'current-password'}" minlength="10" maxlength="72" required /></label>
-          ${register?'<small>Usá una contraseña de al menos 10 caracteres.</small>':''}
+          ${register?'<label>Repetí la contraseña<input class="input" name="passwordConfirmation" type="password" autocomplete="new-password" minlength="10" maxlength="72" required /></label><small>Usá una contraseña de al menos 10 caracteres.</small>':''}
           <div id="toca-customer-auth-error" class="toca-customer-error" role="alert" hidden></div>
           <button class="toca-btn full" type="submit">${register?'Crear cuenta':'Entrar'} ${iconSvg('arrow',17)}</button>
         </form>
@@ -183,6 +183,7 @@
     if (button) button.disabled = true;
     if (errorBox) errorBox.hidden = true;
     try {
+      if(register)confirmNewPassword(body);
       const result = await customerApi(register ? '/register' : '/login', 'POST', body);
       sessionStorage.setItem(KEY, result.token);
       session.token = result.token;
