@@ -36,7 +36,7 @@ try:
  with sync_playwright() as p:
   browser=p.chromium.launch(executable_path=os.getenv('TOCA_CHROMIUM','/usr/bin/chromium'),args=['--no-sandbox','--use-angle=swiftshader','--enable-unsafe-swiftshader'])
   for width in [320,390,768,1024,1440]:
-   context=browser.new_context(viewport=dict(width=width,height=950),service_workers='block')
+   context=browser.new_context(viewport=dict(width=width,height=950),has_touch=width<=760,service_workers='block')
    authenticated=width==1440
    if authenticated:context.add_init_script("sessionStorage.setItem('toca:customer:session','synthetic-map-customer-session-abcdefghijklmnopqrstuvwxyz')")
    page=context.new_page();page.clock.install();held=[];errors=[];calls=[];art_calls=[]
@@ -69,6 +69,12 @@ try:
     if path.endswith('/tracks'):return reply(route,[dict(id='A'*22,title='Canción de prueba para pedir',artist='Artista de prueba',durationMs=180000)])
     return reply(route,[])
    page.route('**/*',intercept);page.goto(base+'/#/explore')
+   heading=page.get_by_role('heading',name='Descubrí bares')
+   expect(heading).to_be_visible()
+   if width<=760:
+    expect(heading).to_have_css('user-select','none')
+    heading.tap()
+    assert page.evaluate("window.getSelection().isCollapsed && document.activeElement.id!=='venue-search'")
    search=page.get_by_role('searchbox',name='Buscar bares')
    search.fill('Bar Dos');expect(page.locator('#venue-grid .toca-venue')).to_have_count(1)
    search.fill('');expect(page.locator('#venue-grid .toca-venue')).to_have_count(2)

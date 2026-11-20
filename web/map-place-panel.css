@@ -114,6 +114,7 @@
 .toca-place-panel .place-heading-actions [aria-label="Quitar de favoritos"] {color:#b9f583}
 @media(max-width:760px) {
   .toca-explore-toolbar {gap:10px 8px}
+  .toca-explore-toolbar h1 {-webkit-user-select:none;user-select:none}
   .toca-explore-toolbar .toca-search-field,
   .toca-explore-toolbar .toca-filter-chips {grid-column:1/-1}
   .toca-explore-toolbar .chip {padding:7px 11px; min-height:36px}
