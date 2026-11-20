@@ -18,7 +18,9 @@
   }catch(_){/* Preserve the owned local cache and retry migration on the next visit. */}}
   return user;
  };
- const previous=render, originalMount=mount;let running=false,pending=false,activePath=null,lastCommitted=null,abort=null;window.tocaNavigationSignal=()=>abort?.signal;
+ const previous=render, originalMount=mount;
+ // A direct Explore link should open without moving focus to its heading.
+ let running=false,pending=false,activePath=null,lastCommitted=route().path==='/explore'?'/explore':null,abort=null;window.tocaNavigationSignal=()=>abort?.signal;
  document.addEventListener('keydown',event=>{if(event.target.matches('.switch')&&!['BUTTON','INPUT'].includes(event.target.tagName)&&[' ','Enter'].includes(event.key)){event.preventDefault();event.target.click()}});
  function decorate(){
   const main=document.querySelector('main')||document.getElementById('app');

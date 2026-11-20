@@ -85,6 +85,7 @@ try:
    assert map_box.bounding_box()['height']==initial_map_height
    heading=page.get_by_role('heading',name='Descubrí bares')
    expect(heading).to_be_visible()
+   expect(heading).not_to_be_focused()
    if width<=760:
     expect(heading).to_have_css('user-select','none')
     heading.tap()
