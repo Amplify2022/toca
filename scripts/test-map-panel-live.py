@@ -42,12 +42,14 @@ try:
    page=context.new_page();page.clock.install();held=[];errors=[];calls=[];art_calls=[]
    page.on('pageerror',lambda e:errors.append(str(e)))
    model={'hold':True,'mode':'paused','image':ART_TWO,'title':'Canción del segundo bar'}
+   pending_style=[];hold_style=[True]
    def reply(route,data,status=200):route.fulfill(status=status,body=json.dumps(data),content_type='application/json',headers={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'Authorization,Content-Type,X-TOCA-Customer,X-TOCA-Join,Idempotency-Key','Access-Control-Allow-Methods':'GET,OPTIONS'})
    def intercept(route):
     url=route.request.url;path=urlsplit(url).path
     if url.startswith(base):return route.continue_()
     if url in sdk:return route.fulfill(body=sdk[url].read_bytes(),content_type='text/css' if url.endswith('.css') else 'text/javascript')
     if url.startswith('https://tiles.versatiles.org/'):
+     if hold_style[0]:hold_style[0]=False;pending_style.append(route);return
      return reply(route,style)
     if url in [ART_ONE,ART_TWO,ART_BROKEN]:
      art_calls.append(url)
@@ -69,6 +71,18 @@ try:
     if path.endswith('/tracks'):return reply(route,[dict(id='A'*22,title='Canción de prueba para pedir',artist='Artista de prueba',durationMs=180000)])
     return reply(route,[])
    page.route('**/*',intercept);page.goto(base+'/#/explore')
+   map_box=page.locator('.toca-map-art')
+   expect(map_box).to_have_attribute('data-map-state','loading')
+   expect(map_box.get_by_role('status')).to_have_text('Cargando mapa…')
+   expect(map_box.locator('#leaflet-map')).to_have_css('visibility','hidden')
+   assert map_box.locator('.toca-map-pin').count()==0
+   initial_map_height=map_box.bounding_box()['height']
+   page.wait_for_function("!!document.querySelector('#leaflet-map .maplibregl-canvas')")
+   assert pending_style
+   reply(pending_style.pop(),style)
+   expect(map_box).to_have_attribute('data-map-state','ready',timeout=15000)
+   expect(map_box.get_by_role('status')).to_have_count(0)
+   assert map_box.bounding_box()['height']==initial_map_height
    heading=page.get_by_role('heading',name='Descubrí bares')
    expect(heading).to_be_visible()
    if width<=760:
@@ -83,8 +97,7 @@ try:
    page.get_by_role('button',name='Favoritos',exact=True).click()
    expect(page.locator('#venue-grid .toca-venue')).to_have_count(1 if authenticated else 0)
    page.get_by_role('button',name='Todos',exact=True).click()
-   page.wait_for_function("document.getElementById('leaflet-map')?.style.visibility==='' && !!state.map")
-   map_box=page.locator('.toca-map-art')
+   expect(map_box).to_have_attribute('data-map-state','ready',timeout=15000)
    viewport="() => [outerWidth,outerHeight,innerWidth,innerHeight,devicePixelRatio,visualViewport.scale,!!document.fullscreenElement,state.map.getZoom()]"
    before=page.evaluate(viewport)
    dimensions=map_box.evaluate("node=>[node.offsetWidth,node.offsetHeight,getComputedStyle(node).position]")

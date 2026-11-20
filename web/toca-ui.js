@@ -67,7 +67,12 @@ shell=(body,selected='explore')=>{
  const current=route().path.replace('/','').split('/')[0];
  return `<div class="toca-app-shell"><header class="toca-app-header">${brand()}<div class="toca-desktop-menu"><a href="#/">Inicio</a><a class="${selected==='explore'?'active':''}" href="#/explore">Descubrir bares</a><a class="${selected==='about'?'active':''}" href="#/?section=la-app">Cómo funciona</a>${tocaCustomerAuthenticated()?'<a href="#/my-requests">Mis canciones</a>':''}</div><div class="toca-header-end"><a class="toca-user-button" href="#/profile" aria-label="Perfil">${iconSvg('user',19)}</a></div></header><main class="toca-app-content">${body}</main>${nav(current==='my-requests'?'my-requests':current==='profile'?'profile':selected)}</div>`;
 };
-function tocaMap(venues,interactive=true){const minlon=-56.24,maxlon=-56.105,minlat=-34.945,maxlat=-34.865;const coords=venues.filter(v=>Number.isFinite(Number(v.latitude))&&Number.isFinite(Number(v.longitude)));return `<div class="toca-map-art" role="region" aria-label="Mapa de bares"><svg viewBox="0 0 850 520" preserveAspectRatio="xMidYMid slice"><rect width="850" height="520" fill="#101d20"/><path d="M0 0h850v520H0z" fill="#132126"/><path d="M-80 380Q100 300 290 440T930 440V580H-80Z" fill="#173542" stroke="#1e5b65" stroke-width="8"/><g stroke="#293c42" fill="none" stroke-width="18"><path d="M-60 10 790 550M-90 112 650 560M50-40 850 425M320-60 970 320M550-60 900 170M-40 440 490-80M95 560 750-60M300 580 850 80M520 580 940 220"/></g><g stroke="#53666a" opacity=".42" fill="none" stroke-width="2"><path d="M-60 10 790 550M-90 112 650 560M50-40 850 425M320-60 970 320M550-60 900 170M-40 440 490-80M95 560 750-60M300 580 850 80M520 580 940 220"/><path d="M45 0v520M230 0v520M410 0v520M630 0v520M0 95h850M0 250h850M0 420h850"/></g><g fill="#82979a" font-size="16" font-family="Arial"><text x="140" y="128">Parque Rodó</text><text x="465" y="176">Cordón</text><text x="605" y="415">Pocitos</text><text x="60" y="325">Ciudad Vieja</text></g></svg>${coords.map((v,i)=>{const x=8+84*(Number(v.longitude)-minlon)/(maxlon-minlon),y=8+82*(maxlat-Number(v.latitude))/(maxlat-minlat);return `<a title="${esc(v.name)}" aria-label="Ver ${esc(v.name)}" href="#/venue/${encodeURIComponent(v.id)}" class="toca-map-pin ${v.active?'on':''}" style="left:${Math.max(7,Math.min(92,x))}%;top:${Math.max(10,Math.min(88,y))}%">${iconSvg('music',17)}</a>`}).join('')}<div class="toca-map-you"><i></i> Ubicación de referencia</div>${interactive?'<div id="leaflet-map"></div>':''}</div>`}
+function tocaMap(){
+ return `<div class="toca-map-art" role="region" aria-label="Mapa de bares" data-map-state="loading">
+  <div class="toca-map-status" role="status">Cargando mapa…</div>
+  <div id="leaflet-map"></div>
+ </div>`;
+}
 
 function tocaVisibleCityLabel(venues) {
   if (!venues.length) return 'Sin resultados';
@@ -88,6 +93,7 @@ function tocaVisibleCityLabel(venues) {
 }
 
 explore=async function(){
+ void window.tocaLoadMaps?.().catch(()=>{});
  const [all]=await Promise.all([fetchVenues(),window.tocaCustomerEnsure?.()]);
  if(route().path!=='/explore')return;
  state.search='';state.venues=all;
@@ -101,24 +107,40 @@ explore=async function(){
      <div class="toca-search-field">${iconSvg('search',18)}<input id="venue-search" class="input" type="search" placeholder="Busca bares o géneros" aria-label="Buscar bares" autocomplete="off"></div>
      <div class="toca-filter-chips" role="group" aria-label="Filtrar bares">${chips}</div>
    </div>
-   <div class="toca-primary-map">${tocaMap(filtered)}</div>
+   <div class="toca-primary-map">${tocaMap()}</div>
    <div class="toca-explore-results"><h2>Bares</h2><span id="toca-results-count" role="status">${filtered.length} ${filtered.length===1?'lugar':'lugares'}</span></div>
    <div id="venue-grid" class="toca-venues-grid"></div>
  </section>`;
  mount(body,'explore');refreshDiscoveryResults({rebuildMap:false});tocaLoadLiveMap();
 };
-mapView=function(){const vs=state.venues;return `<div class="toca-inner-heading"><a href="#/explore">${iconSvg('back',17)} Volver</a><h1>Explorá el mapa</h1><p>Descubrí bares de Montevideo y lo que están escuchando.</p></div><div class="toca-discovery-layout toca-full-map"><div>${tocaMap(vs)}</div><aside><h2>Bares en el mapa <span class="toca-muted">(${vs.length})</span></h2><div class="toca-map-venue-list">${vs.map((v,i)=>`<a href="#/venue/${encodeURIComponent(v.id)}" class="toca-side-venue">${photo(v,i)}<div><b>${esc(v.name)}</b><small>${esc(v.genre||'')} · ${esc(v.address||'')}</small><span>${v.active?'● Sonando ahora':'○ Música inactiva'}</span></div>${iconSvg('arrow',16)}</a>`).join('')}</div></aside></div>`};
+mapView=function(){const vs=state.venues;return `<div class="toca-inner-heading"><a href="#/explore">${iconSvg('back',17)} Volver</a><h1>Explorá el mapa</h1><p>Descubrí bares de Montevideo y lo que están escuchando.</p></div><div class="toca-discovery-layout toca-full-map"><div>${tocaMap()}</div><aside><h2>Bares en el mapa <span class="toca-muted">(${vs.length})</span></h2><div class="toca-map-venue-list">${vs.map((v,i)=>`<a href="#/venue/${encodeURIComponent(v.id)}" class="toca-side-venue">${photo(v,i)}<div><b>${esc(v.name)}</b><small>${esc(v.genre||'')} · ${esc(v.address||'')}</small><span>${v.active?'● Sonando ahora':'○ Música inactiva'}</span></div>${iconSvg('arrow',16)}</a>`).join('')}</div></aside></div>`};
 async function tocaLoadLiveMap(){
  const el=document.getElementById('leaflet-map');if(!el)return;
- // Keep its real dimensions while loading; display:none produced zero-sized maps.
- el.style.visibility='hidden';el.style.display='block';let initialized;
- const fallback=()=>{if(!el.isConnected)return;el.style.display='none';el.style.visibility='';if(initialized&&state.map===initialized.map){initialized.map.remove();state.map=null;}};
+ const frame=el.closest('.toca-map-art'),status=frame.querySelector('.toca-map-status');
+ let initialized,finished=false;
+ function fallback(){
+  if(finished)return;
+  finished=true;clearTimeout(timeout);
+  if(!el.isConnected)return;
+  frame.dataset.mapState='unavailable';
+  status.textContent='El mapa no está disponible. Podés explorar los bares en la lista.';
+  if(initialized&&state.map===initialized.map){initialized.map.remove();state.map=null;}
+ }
+ const timeout=setTimeout(fallback,18000);
  try{
-  await window.tocaLoadMaps();if(!el.isConnected)return;
+  await window.tocaLoadMaps();
+  if(!el.isConnected||finished){clearTimeout(timeout);return;}
   initialized=initMap();if(!initialized){fallback();return;}
   const gl=initialized.layer.getMaplibreMap();
-  const reveal=()=>{if(!el.isConnected)return;el.style.visibility='';requestAnimationFrame(()=>{if(el.isConnected){initialized.map.invalidateSize({pan:false});gl.resize();}})};
-  gl.on('error',fallback);if(gl.loaded())reveal();else gl.once('load',reveal);
+  const reveal=()=>{
+   if(!el.isConnected||finished){clearTimeout(timeout);return;}
+   initialized.map.invalidateSize({pan:false});
+   gl.resize();
+   finished=true;clearTimeout(timeout);
+   frame.dataset.mapState='ready';
+   status.remove();
+  };
+  if(gl.loaded())reveal();else gl.once('load',reveal);
  }catch(_){fallback();}
 }
 

@@ -100,6 +100,12 @@
 .toca-explore .toca-primary-map .toca-map-art {
   height:clamp(480px,68dvh,760px); margin:0; isolation:isolate; scroll-margin-top:12px;
 }
+.toca-map-art[data-map-state] {background:#122420}
+.toca-map-art[data-map-state]:not([data-map-state="ready"]) #leaflet-map {visibility:hidden}
+.toca-map-status {
+  position:absolute;inset:0;display:grid;place-items:center;padding:24px;
+  color:#a9bdb4;font-size:13px;text-align:center;
+}
 .toca-explore-results {display:flex; align-items:baseline; gap:12px; margin:22px 0 12px}
 .toca-explore-results h2 {margin:0; font-size:22px}
 .toca-explore-results span {font-size:13px; color:#a3b695}

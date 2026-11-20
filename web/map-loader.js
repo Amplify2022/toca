@@ -16,9 +16,12 @@
   if(!old)document.head.append(el);
  })}
  window.tocaLoadMaps=()=>pending ||= (async()=>{
-  await Promise.all([css('toca-leaflet-css','leaflet@1.9.4/dist/leaflet.css'),css('toca-maplibre-css','maplibre-gl@5.24.0/dist/maplibre-gl.css')]);
-  await script('toca-leaflet-script','leaflet@1.9.4/dist/leaflet.js',()=>!!window.L);
-  await script('toca-maplibre-script','maplibre-gl@5.24.0/dist/maplibre-gl.js',()=>!!window.maplibregl);
+  await Promise.all([
+   css('toca-leaflet-css','leaflet@1.9.4/dist/leaflet.css'),
+   css('toca-maplibre-css','maplibre-gl@5.24.0/dist/maplibre-gl.css'),
+   script('toca-leaflet-script','leaflet@1.9.4/dist/leaflet.js',()=>!!window.L),
+   script('toca-maplibre-script','maplibre-gl@5.24.0/dist/maplibre-gl.js',()=>!!window.maplibregl),
+  ]);
   await script('toca-maplibre-leaflet-script','@maplibre/maplibre-gl-leaflet@0.1.4/leaflet-maplibre-gl.js',()=>typeof window.L?.maplibreGL==='function');
  })().catch(error=>{pending=null;throw error});
  window.tocaMapLayer=()=>L.maplibreGL({

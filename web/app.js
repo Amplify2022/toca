@@ -98,7 +98,7 @@ function refreshDiscoveryResults({rebuildMap=true}={}){
   const oldMap=document.querySelector('.toca-primary-map .toca-map-art');
   if(oldMap && typeof tocaMap==='function'){
     if(state.map){try{state.map.remove()}catch(e){console.warn('Removing previous map:',e)}state.map=null;}
-    oldMap.outerHTML=tocaMap(visible);
+    oldMap.outerHTML=tocaMap();
     if(typeof tocaLoadLiveMap==='function')tocaLoadLiveMap();
   }
 }

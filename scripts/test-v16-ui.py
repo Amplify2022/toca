@@ -53,10 +53,9 @@ with sync_playwright() as p:
  page.wait_for_selector('#venue-search',timeout=10000)
  page.locator('#venue-search').fill('Jazz');page.wait_for_timeout(120)
  assert page.locator('#toca-results-count').inner_text().startswith('1 '),page.locator('#toca-results-count').inner_text()
- assert page.locator('.toca-map-pin').count()==1, 'map fallback pins not filtered'
+ assert page.locator('.toca-map-art').get_attribute('data-map-state')=='unavailable'
  assert page.locator('#venue-grid').inner_text().find('Bar Jazz')!=-1
  page.locator('#venue-search').fill('zzzzzz');page.wait_for_timeout(120)
- assert page.locator('.toca-map-pin').count()==0
  assert 'No encontramos' in page.locator('#venue-grid').inner_text()
  page.evaluate("location.hash='#/admin/profile'")
  page.evaluate('render()')

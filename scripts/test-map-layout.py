@@ -44,19 +44,19 @@ try:
     route.abort()
    page.route('**/*',handle)
    page.goto(base+'/#/explore')
-   page.wait_for_function("document.getElementById('leaflet-map')?.style.visibility === '' && !!document.querySelector('#leaflet-map .maplibregl-canvas')",timeout=20000)
+   page.wait_for_function("!!document.querySelector('[data-map-state=ready] #leaflet-map .maplibregl-canvas')",timeout=20000)
    assert styles and 'gray-dark' in styles[0]
    dimensions=page.evaluate("""()=>{const el=document.getElementById('leaflet-map'),size=state.map.getSize();return {width:el.clientWidth,height:el.clientHeight,x:size.x,y:size.y}}""")
    assert dimensions['width']>200 and dimensions['height']>200,dimensions
    assert abs(dimensions['x']-dimensions['width'])<=1 and abs(dimensions['y']-dimensions['height'])<=1,dimensions
    assert page.locator('#leaflet-map .leaflet-marker-icon').count()==2
    page.get_by_role('button',name='Con música',exact=True).click()
-   page.wait_for_function("document.getElementById('leaflet-map')?.style.visibility === '' && document.querySelectorAll('#leaflet-map .leaflet-marker-icon').length===1")
+   page.wait_for_function("document.querySelectorAll('[data-map-state=ready] #leaflet-map .leaflet-marker-icon').length===1")
    pin=page.locator('#leaflet-map .leaflet-marker-icon');pin.click()
    panel=page.locator('.toca-place-panel');expect(panel).to_be_visible()
    expect(panel.locator('#toca-place-name')).to_have_text('Bluzz Bar')
    assert panel.locator('.place-heading p').inner_text()=='Rock · Cumbia'
-   assert panel.locator('.place-status').inner_text()=='Música activa'
+   expect(panel.locator('.place-status')).to_have_text('Pedidos abiertos')
    assert panel.locator('.place-primary').get_attribute('href')=='#/request/layout-bar'
    expect(panel.locator('.place-primary')).to_have_text('Pedir una canción')
    expect(panel.locator('.place-request-help')).to_have_text('Elegí tu tema y sumalo a la playlist del bar.')
