@@ -203,6 +203,10 @@ try:
     expect(page.locator('#toca-customer-auth-form')).to_be_visible()
     assert page.evaluate("sessionStorage.getItem('toca:customer:after-login')")=='#/request/'+ONE
    expect(panel).to_have_count(0)
+   page.goto(base+'/#/explore')
+   page.get_by_role('link',name='TOCÁ - inicio',exact=True).click()
+   expect(page).to_have_url(base+'/#/')
+   expect(page.locator('.landing-expanded')).to_be_visible()
    assert not errors,errors
    assert all(method in ['GET','OPTIONS'] for method,path in calls),calls
    assert not any('/requests' in path for method,path in calls if method!='GET')

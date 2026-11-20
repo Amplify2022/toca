@@ -2,7 +2,7 @@
    Kept separate from legacy compatibility layer so the API contract remains reusable. */
 const TOCA_ICON = '/assets/icon.svg';
 const photoFor = (venue, index = 0) => venue?.coverPhotoUrl ? mediaUrl(venue.coverPhotoUrl) : `/assets/venues/bar-${Math.abs(index % 6) + 1}.webp`;
-const brand = (small = false) => `<a class="toca-brand ${small?'compact':''}" href="#/explore" aria-label="TOCÁ - descubrir bares"><img src="${TOCA_ICON}" alt=""/><strong>TOCÁ</strong></a>`;
+const brand = (small = false, href = '#/explore') => `<a class="toca-brand ${small?'compact':''}" href="${href}" aria-label="TOCÁ - ${href==='#/'?'inicio':'descubrir bares'}"><img src="${TOCA_ICON}" alt=""/><strong>TOCÁ</strong></a>`;
 const iconSvg = (name,size=20) => {const shapes={
  home:'<path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z"/>',
  pin:'<path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/>',
@@ -65,7 +65,7 @@ shell=(body,selected='explore')=>{
  if(selected==='auth')return `<div class="toca-auth-frame"><a href="#/" class="toca-auth-back">${iconSvg('back',18)} Volver al inicio</a><main class="toca-auth-content">${body}</main></div>`;
  if(selected==='admin')return tocaSideLayout(body,'admin');
  const current=route().path.replace('/','').split('/')[0];
- return `<div class="toca-app-shell"><header class="toca-app-header">${brand()}<div class="toca-desktop-menu"><a href="#/">Inicio</a><a class="${selected==='explore'?'active':''}" href="#/explore">Descubrir bares</a><a class="${selected==='about'?'active':''}" href="#/?section=la-app">Cómo funciona</a>${tocaCustomerAuthenticated()?'<a href="#/my-requests">Mis canciones</a>':''}</div><div class="toca-header-end"><a class="toca-user-button" href="#/profile" aria-label="Perfil">${iconSvg('user',19)}</a></div></header><main class="toca-app-content">${body}</main>${nav(current==='my-requests'?'my-requests':current==='profile'?'profile':selected)}</div>`;
+ return `<div class="toca-app-shell"><header class="toca-app-header">${brand(false,'#/')}<div class="toca-desktop-menu"><a href="#/">Inicio</a><a class="${selected==='explore'?'active':''}" href="#/explore">Descubrir bares</a><a class="${selected==='about'?'active':''}" href="#/?section=la-app">Cómo funciona</a>${tocaCustomerAuthenticated()?'<a href="#/my-requests">Mis canciones</a>':''}</div><div class="toca-header-end"><a class="toca-user-button" href="#/profile" aria-label="Perfil">${iconSvg('user',19)}</a></div></header><main class="toca-app-content">${body}</main>${nav(current==='my-requests'?'my-requests':current==='profile'?'profile':selected)}</div>`;
 };
 function tocaMap(){
  return `<div class="toca-map-art" role="region" aria-label="Mapa de bares" data-map-state="loading">
