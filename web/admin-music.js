@@ -450,7 +450,20 @@
   const valid=()=>browser===registration&&registration.selected&&registration.selection===selection&&registration.session===state.token&&registration.deviceId===deviceId;
   const linking=(async()=>{
    await previous?.catch(()=>{});if(!valid())return;
-   await api(`/api/admin/venues/${ctx.id}/spotify/device`,{method:'PUT',body:{deviceId}});
+   // Spotify Connect can list the SDK device after the SDK emits ready.
+   const delays=[0,300,750,1500,2500];
+   for(const delay of delays){
+    if(delay)await new Promise(resolve=>setTimeout(resolve,delay));
+    if(!valid())return;
+    try{
+     await api(`/api/admin/venues/${ctx.id}/spotify/device`,{method:'PUT',body:{deviceId}});
+     break;
+    }catch(error){
+     if(!valid())return;
+     if(error.status!==400||error.message!=='Dispositivo no disponible')throw error;
+     if(delay===delays.at(-1))throw Error('Spotify todavía no reconoce el audio de este navegador. Volvé a conectarlo o elegí una salida de Spotify Connect.');
+    }
+   }
    if(!valid())return;
    if(!registration.transferred||forceTransfer){
     await api(musicPath(ctx.id)+'/player',{method:'POST',body:{action:'transfer'}});

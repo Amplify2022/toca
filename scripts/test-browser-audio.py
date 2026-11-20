@@ -18,9 +18,9 @@ with sync_playwright() as p:
   playlist=dict(id='P'*22,name='Night',snapshot='s1',tracks=tracks)
   venue=dict(id=ID,name='Audio Bar',address='Test street',city='Montevideo',active=True,published=True)
   playback=dict(now=tracks[6],isPlaying=False,progressMs=12000,contextUri='spotify:playlist:'+playlist['id'],device=dict(id='old-device',name='Old device',volume=50),shuffle=False,repeat='off')
-  controls=[];devices=[];held=[];hold=[True];errors=[]
+  controls=[];devices=[];held=[];hold=[True];errors=[];device_lag=[2];device_attempts=[]
   page.on('pageerror',lambda e:errors.append(str(e)))
-  def reply(route,data):route.fulfill(content_type='application/json',body=json.dumps(data),headers={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'*','Access-Control-Allow-Methods':'GET,POST,PUT,OPTIONS'})
+  def reply(route,data,status=200):route.fulfill(status=status,content_type='application/json',body=json.dumps(data),headers={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'*','Access-Control-Allow-Methods':'GET,POST,PUT,OPTIONS'})
   def api(route):
    req=route.request;path=urlsplit(req.url).path;body=req.post_data_json if req.method in ['POST','PUT'] else None;data=[]
    if req.method=='OPTIONS':return reply(route,{})
@@ -31,7 +31,11 @@ with sync_playwright() as p:
    elif path.endswith('/music/playlist/revision'):data=dict(playlist={k:playlist[k] for k in ['id','name','snapshot']},operation=None)
    elif path.endswith('/music/playlist'):data=dict(playlist=playlist,operation=None)
    elif path.endswith('/music/browser-token'):data=dict(accessToken='synthetic-spotify-token',expiresIn=60)
-   elif path.endswith('/spotify/device'):devices.append(body);playback['device']=dict(id=body['deviceId'],name=body['deviceId'],volume=50);data={}
+   elif path.endswith('/spotify/device'):
+    device_attempts.append(body['deviceId'])
+    if body['deviceId']=='browser' and device_lag[0]:
+     device_lag[0]-=1;return reply(route,dict(message='Dispositivo no disponible'),400)
+    devices.append(body);playback['device']=dict(id=body['deviceId'],name=body['deviceId'],volume=50);data={}
    elif path.endswith('/spotify/devices'):data=[dict(id='remote',name='Remote speakers',type='Speaker',restricted=False)]
    elif path.endswith('/music/player'):
     if req.method=='GET':data=playback
@@ -53,6 +57,7 @@ with sync_playwright() as p:
   root.locator('.cabina-heading-actions [data-cabina-open=connection]').click()
   with page.expect_request(lambda r:r.method=='POST' and r.url.endswith('/music/player')):root.locator('[data-browser-connect]').click()
   page.wait_for_function('window.__transferHeld===true')
+  assert device_attempts==['browser']*3
   assert held and controls==[dict(action='transfer')]
   # Readiness may fire repeatedly while the first transfer is still in flight.
   page.evaluate('window.__sdk.ready();window.__sdk.ready()')
