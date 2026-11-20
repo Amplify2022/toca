@@ -55,9 +55,10 @@ class PublicPlaybackService(spotify:Spotify) {
 class PublicPlaybackController(private val db:Db,private val playback:PublicPlaybackService) {
     @Get fun current(id:String):HttpResponse<PublicPlayback> {
         val uuid=safeUuid(id)
-        val venue=db.one("SELECT active,spotify_premium FROM venue WHERE id=?",uuid)
+        val venue=db.one("SELECT active,published,spotify_premium FROM venue WHERE id=?",uuid)
             ?:fail(HttpStatus.NOT_FOUND,"Bar no encontrado")
-        val snapshot=if(venue["active"]==true&&venue["spotify_premium"]==true)playback.snapshot(uuid)
+        val snapshot=if(venue["published"]==true&&venue["spotify_premium"]==true)
+            playback.snapshot(uuid).copy(active=venue["active"]==true)
             else PublicPlayback(false,false,null)
         return HttpResponse.ok(snapshot).header("Cache-Control","no-store")
     }

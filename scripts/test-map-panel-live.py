@@ -145,7 +145,17 @@ try:
    model['image']='javascript:alert(1)'
    refresh('playing');expect(cover).to_have_count(0)
    model['image']=ART_TWO
-   for mode in ['paused','disabled','empty','fail']:
+   refresh('playing');expect(cover).to_have_attribute('src',ART_TWO)
+   page.evaluate("window.__closedRequestCover=document.querySelector('.place-song-cover img')")
+   refresh('disabled')
+   expect(panel.locator('.place-status')).to_have_text('Pedidos cerrados')
+   expect(panel.locator('.place-song-copy strong')).to_have_text(model['title'])
+   expect(panel.locator('.place-primary')).to_have_count(0)
+   assert page.evaluate("window.__closedRequestCover===document.querySelector('.place-song-cover img')")
+   refresh('playing')
+   expect(panel.locator('.place-status')).to_have_text('Pedidos abiertos')
+   expect(panel.locator('.place-primary')).to_be_visible()
+   for mode in ['paused','empty','fail']:
     refresh('playing');expect(panel.locator('.place-primary')).to_be_visible()
     refresh(mode)
     expect(panel.locator('.place-music')).to_have_text(UNAVAILABLE)

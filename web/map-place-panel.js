@@ -36,7 +36,7 @@
     const instagram=/^[A-Za-z0-9._]{1,30}$/.test(username)?`<div class="place-social"><a class="place-social-handle" href="https://www.instagram.com/${encodeURIComponent(username)}/" target="_blank" rel="noopener noreferrer" aria-label="Instagram de ${esc(v.name)} (se abre en otra pestaña)">${icon('instagram')}<span>@${esc(username)}</span></a></div>`:'';
     const genres=String(v.genre||'').split(/[,•·]/).map(s=>s.trim()).filter(Boolean).join(' · ');
     return `<button type="button" class="place-handle" data-place-expand aria-expanded="false" aria-label="Ampliar ficha del bar"><span></span></button><div class="place-scroll">
-      <header class="place-heading"><div><span class="place-status ${v.active?'':'inactive'}"><i></i>${v.active?'Música activa':'Música inactiva'}</span><h2 id="toca-place-name">${esc(v.name||'Bar')}</h2>${genres?`<p>${esc(genres)}</p>`:''}</div><div class="place-heading-actions">${favButton(v)}<button type="button" class="place-close" data-place-close aria-label="Cerrar ficha del bar">${icon('close')}</button></div></header>
+      <header class="place-heading"><div><span class="place-status ${v.active?'':'inactive'}"><i></i><span>${v.active?'Pedidos abiertos':'Pedidos cerrados'}</span></span><h2 id="toca-place-name">${esc(v.name||'Bar')}</h2>${genres?`<p>${esc(genres)}</p>`:''}</div><div class="place-heading-actions">${favButton(v)}<button type="button" class="place-close" data-place-close aria-label="Cerrar ficha del bar">${icon('close')}</button></div></header>
       <section class="place-request-block is-unavailable" aria-label="Qué suena y cómo pedir tu canción">
         <div class="place-music" aria-live="polite"><p>Consultando canción actual…</p></div>
         <div class="place-request-controls"></div>
@@ -57,7 +57,17 @@
   }
   function music(ctx,snapshot,error=false){
     const box=ctx.root.querySelector('.place-music'),block=ctx.root.querySelector('.place-request-block'),controls=ctx.root.querySelector('.place-request-controls');
-    const playing=!error&&snapshot?.active===true&&snapshot.isPlaying===true&&typeof snapshot.now?.title==='string'&&!!snapshot.now.title.trim();
+    const playing=!error&&snapshot?.isPlaying===true&&typeof snapshot.now?.title==='string'&&!!snapshot.now.title.trim();
+    const requestsOpen=snapshot?.active===true;
+    const canRequest=playing&&requestsOpen;
+    if(!error&&ctx.requestsOpen!==requestsOpen){
+      ctx.requestsOpen=requestsOpen;
+      const badge=ctx.root.querySelector('.place-status');
+      badge.classList.toggle('inactive',!requestsOpen);
+      badge.querySelector('span').textContent=requestsOpen?'Pedidos abiertos':'Pedidos cerrados';
+    }
+    if(canRequest&&!controls.childElementCount)controls.innerHTML=`<p class="place-request-help" id="toca-place-request-help">Elegí tu tema y sumalo a la playlist del bar.</p><div class="place-actions"><a class="place-primary" href="#/request/${encodeURIComponent(ctx.venue.id)}" aria-describedby="toca-place-request-help">${icon('music')}Pedir una canción</a></div>`;
+    if(!canRequest&&controls.childElementCount)controls.replaceChildren();
     const cover=playing?coverUrl(snapshot.now.imageUrl):'';
     const signature=playing?JSON.stringify([snapshot.now.id||'',snapshot.now.title,snapshot.now.artist||'',cover]):'unavailable';
     // Position changes every second. Keep the existing cover, focused link and
@@ -66,10 +76,9 @@
     if(ctx.musicSignature===signature&&!retryCover)return;
     ctx.musicSignature=signature;ctx.failedCover=null;
     block.classList.toggle('is-unavailable',!playing);
-    if(!playing){box.innerHTML=`<p>${unavailable}</p>`;controls.replaceChildren();return;}
+    if(!playing){box.innerHTML=`<p>${unavailable}</p>`;return;}
     box.innerHTML=`<div class="place-song-cover">${icon('music')}${cover?`<img src="${esc(cover)}" alt="Portada de ${esc(snapshot.now.title)}" decoding="async" referrerpolicy="no-referrer">`:''}</div><div class="place-song-copy"><span>SUENA AHORA</span><strong>${esc(snapshot.now.title)}</strong><small>${esc(snapshot.now.artist||'')}</small></div><div class="place-equalizer" aria-hidden="true"><i></i><i></i><i></i><i></i></div>`;
     const image=box.querySelector('.place-song-cover img');if(image)image.onerror=()=>{image.remove();if(valid(ctx)&&ctx.musicSignature===signature){ctx.failedCover=cover;ctx.coverRetryAt=performance.now()+30000;}};
-    if(!controls.childElementCount)controls.innerHTML=`<p class="place-request-help" id="toca-place-request-help">Elegí tu tema y sumalo a la playlist del bar.</p><div class="place-actions"><a class="place-primary" href="#/request/${encodeURIComponent(ctx.venue.id)}" aria-describedby="toca-place-request-help">${icon('music')}Pedir una canción</a></div>`;
   }
   async function refresh(ctx){
     if(!valid(ctx)||ctx.busy||document.hidden)return;ctx.busy=true;clearTimeout(ctx.timer);
