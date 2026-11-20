@@ -145,12 +145,14 @@ class AdminMusic(private val db:Db,private val json:ObjectMapper,private val gat
                 return response(row(id,venue))+mapOf("playlist" to mapOf("id" to state.id,"name" to state.name,"snapshot" to state.snapshot,"tracks" to state.tracks))
             }
             else if(body["acceptSnapshot"]==state.snapshot) {
-                db.exec("UPDATE venue_music_operation SET status='RELEASED',message='Estado actual aceptado por el administrador',updated_at=now() WHERE id=?",id)
+                releasePending(id)
             }
         } else if(created && body["acceptMissing"]==true) {
-            // The administrator explicitly reviewed the current playlist list.
-            db.exec("UPDATE venue_music_operation SET status='RELEASED',updated_at=now() WHERE id=?",id)
+            releasePending(id)
         }
         return response(row(id,venue))
+    }
+    private fun releasePending(id:UUID) {
+        db.exec("UPDATE venue_music_operation SET status='RELEASED',message='Spotify no confirmó el cambio',updated_at=now() WHERE id=? AND status IN ('PREPARING','APPLYING','UNCERTAIN')",id)
     }
 }
