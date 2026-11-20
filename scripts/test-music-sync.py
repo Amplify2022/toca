@@ -142,14 +142,10 @@ with sync_playwright() as p:
   assert root.locator('[data-studio-edit=add]').is_disabled() and held
   route,data=held.pop();reply(route,data)
   page.wait_for_function("!document.querySelector('dialog[open]')")
-  assert 'Track C' in page.locator('.toasty').inner_text()
+  assert page.locator('.toasty').count()==0
   assert root.locator('[data-studio-status]').inner_text()==''
   assert root.locator('[data-cabina-add-feedback]:visible').count()==0
   assert root.locator('[data-track-index] strong').all_text_contents()==['Track A','Track B','Track C']
-  page.clock.run_for(400);assert page.locator('.toasty').evaluate('(n)=>n.getAnimations()[0].effect.getTiming().duration')==300
-  page.clock.fast_forward(3500);assert page.locator('.toasty').count()==1
-  page.clock.run_for(250);assert page.locator('.toasty[data-leaving]').count()==1
-  page.clock.run_for(700);assert page.locator('.toasty').count()==0
   # A stale preparation is retried only after the server confirms no provider write.
   conflict[0]=True
   root.locator('[data-cabina-track="1"]').click();root.locator('[data-studio-edit=remove]').click()
@@ -186,14 +182,14 @@ with sync_playwright() as p:
   expect(root.locator('[data-cabina-open=add]')).to_be_enabled()
   expect(root.locator('[data-cabina-start]')).to_be_enabled()
   assert len(edits)==count+1 and pending[0] is None
-  assert root.locator('[data-studio-operation]').inner_text()==''
+  assert root.locator('[data-studio-reconcile],[data-studio-accept],[data-studio-recover]').count()==0
   assert root.locator('[data-track-index]:visible strong').all_text_contents()==['Track A','Track C']
   # A delayed removal that did apply completes without exposing a verification banner.
   uncertain[0]=True;recover[0]=True;count=len(edits)
   root.locator('[data-cabina-track="1"]').click();root.locator('[data-studio-edit=remove]').click()
   expect(root.locator('[data-track-index]')).to_have_count(1)
   expect(root.locator('[data-cabina-open=add]')).to_be_enabled()
-  assert len(edits)==count+1 and root.locator('[data-studio-operation]').inner_text()==''
+  assert len(edits)==count+1
   assert root.locator('[data-studio-status]').inner_text()==''
   # Duplicate occurrences cannot be safely rebased after an external insertion.
   page.wait_for_function("!document.querySelector('[data-cabina-open=add]').disabled")
@@ -202,26 +198,39 @@ with sync_playwright() as p:
   page.wait_for_function("document.querySelector('[data-studio-status]').textContent.includes('inequívoca')")
   assert len(edits)==count and [t['id'] for t in playlist['tracks']].count(A)==2
   message=root.locator('[data-studio-status]').inner_text();page.clock.fast_forward(6000);assert root.locator('[data-studio-status]').inner_text()==message
-  # A delayed verification completes automatically using reads, then closes the search.
-  uncertain[0]=True;recover[0]=True;count=len(edits)
+  # Spotify reports the edit before it can verify it. Show the new track once
+  # the background check succeeds, with no banner and no duplicate write.
+  uncertain[0]=True;count=len(edits);checks=len(reconciles)
   root.locator('[data-cabina-open=add]').click();root.locator('[data-studio-search]').fill('Track C');root.locator('[data-studio-edit=add]').click()
+  page.clock.run_for(2200)
   page.wait_for_function("!document.querySelector('dialog[open]')")
-  assert len(edits)==count+1 and reconciles and root.locator('[data-studio-operation]').inner_text()==''
+  assert root.locator('[data-studio-reconcile],[data-studio-accept],[data-studio-recover]').count()==0
+  assert root.locator('[data-studio-status]').inner_text()==''
+  playlist['tracks'].append(CAT[C].copy());bump()
+  pending_result[0]=dict(status='COMPLETED',action='add',playlist=copy.deepcopy(playlist))
+  page.clock.run_for(8000)
+  expect(root.locator('[data-cabina-open=add]')).to_be_enabled()
+  assert len(edits)==count+1 and len(reconciles)>checks
   assert root.locator('[data-track-index] strong').all_text_contents()[-1]=='Track C'
   # An unknown provider result must never trigger an automatic second write.
   uncertain[0]=True;count=len(edits)
   root.locator('[data-cabina-open=add]').click();root.locator('[data-studio-search]').fill('Track C');root.locator('[data-studio-edit=add]').click()
   page.clock.run_for(2200)
-  root.locator('[data-studio-reconcile]').wait_for()
+  expect(root.locator('[data-cabina-open=add]')).to_be_disabled()
   assert len(reconciles)>=1
-  assert len(edits)==count+1 and root.locator('[data-cabina-open=add]').is_disabled()
-  saved[edits[-1][0]]=dict(status='RELEASED');pending[0]=None
+  assert len(edits)==count+1 and root.locator('[data-studio-status]').inner_text()==''
+  for _ in range(5):
+   page.clock.run_for(7000)
+   if 'Spotify no confirmó el cambio' in root.locator('[data-studio-status]').inner_text():break
+  expect(root.locator('[data-studio-status]')).to_contain_text('Spotify no confirmó el cambio')
+  expect(root.locator('[data-cabina-open=add]')).to_be_enabled()
+  assert len(edits)==count+1
   # Pending changes left by an older app are also verified automatically on load.
   page.evaluate("sessionStorage.removeItem('toca-music-edit:'+state.venueId)")
   pending[0]=dict(id='old-operation',status='UNCERTAIN',action='remove',message='Confirmando cambio anterior')
   pending_result[0]=dict(status='COMPLETED',action='remove',playlist=copy.deepcopy(playlist));count=len(edits)
   root=open_music()
-  page.wait_for_function("document.querySelector('[data-studio-operation]').textContent===''")
+  expect(root.locator('[data-cabina-open=add]')).to_be_enabled()
   assert len(edits)==count and reconciles[-1].endswith('/old-operation/reconcile')
   # SDK samples anchor a local clock. Ticking does not poll the HTTP API each second.
   root=open_music();root.locator('.cabina-heading-actions [data-cabina-open=connection]').click();root.locator('[data-browser-connect]').click()

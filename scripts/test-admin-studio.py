@@ -62,7 +62,7 @@ with sync_playwright() as p:
     else:data=dict(now=now[0],isPlaying=playing[0],contextUri=context_uri[0],progressMs=5000,repeat=playback_options['repeat'],shuffle=playback_options['shuffle'],device=device[0])
    elif path.endswith('/music/browser-token'):tokens.append(route.request.headers.get('authorization'));data=dict(accessToken='synthetic-spotify-access-token',expiresIn=60)
    elif path.endswith('/reconcile'):
-    if not reconcile_available[0]:
+    if not reconcile_available[0] or recovery_unavailable[0]:
      route.fulfill(status=503,content_type='application/json',body=json.dumps(dict(message='Verificación temporalmente no disponible.')),headers={'Access-Control-Allow-Origin':'*'});return
     operation[0]=None;data=dict(status='COMPLETED')
    elif '/music/edits/' in path:
@@ -236,14 +236,14 @@ with sync_playwright() as p:
   # A pending write locks create/add/rename/selection, but keeps playback available.
   reconcile_available[0]=False
   operation[0]=dict(id='88888888-8888-4888-8888-888888888888',action='add',status='UNCERTAIN',message='Verificando cambio')
-  page.evaluate("window.dispatchEvent(new Event('focus'))");root.locator('[data-studio-reconcile]').wait_for()
+  page.evaluate("window.dispatchEvent(new Event('focus'))");expect(root.locator('[data-cabina-open="add"]')).to_be_disabled()
   assert root.locator('[data-cabina-open="add"]').is_disabled()
   assert root.locator('.cabina-playlist-selector').is_disabled()
   assert root.locator('[data-studio-create]').is_disabled()
   assert root.locator('[data-player-toggle]').is_enabled()
-  reconcile_available[0]=True;root.locator('[data-studio-reconcile]').click()
-  page.wait_for_function("!document.querySelector('[data-studio-reconcile]')")
-  assert root.locator('.cabina-empty-list [data-cabina-name-mode="create"]').is_enabled()
+  assert root.locator('[data-studio-reconcile],[data-studio-accept]').count()==0
+  reconcile_available[0]=True
+  expect(root.locator('.cabina-empty-list [data-cabina-name-mode="create"]')).to_be_enabled(timeout=10000)
   # A lost response is confirmed automatically, without sending a new edit.
   root.locator('[data-cabina-open="playlist-options"]').click()
   root.locator('[data-cabina-name-mode="rename"]').click()
@@ -259,12 +259,12 @@ with sync_playwright() as p:
   saved=dict(id='99999999-9999-4999-8999-999999999999',input=dict(action='rename',name='Recovered on startup',snapshot=playlist['snapshot']))
   page.evaluate("value=>sessionStorage.setItem('toca-music-edit:'+"+json.dumps(ID)+",JSON.stringify(value))",saved)
   recovery_unavailable[0]=True;page.reload()
-  root.locator('[data-studio-recover]').wait_for()
+  expect(root.locator('[data-cabina-open="add"]')).to_be_disabled()
   assert root.locator('[data-studio-playlist-name]').inner_text()==playlist['name']
   page.wait_for_function("document.querySelector('[data-player-title]').textContent!=='Sin reproducción activa'")
   assert root.locator('[data-player-toggle]').is_enabled()
-  recovery_unavailable[0]=False;root.locator('[data-studio-recover]').click()
-  page.wait_for_function("!document.querySelector('[data-studio-recover]')")
+  recovery_unavailable[0]=False
+  expect(root.locator('[data-cabina-open="add"]')).to_be_enabled(timeout=10000)
   # Available output selection transfers audio and excludes restricted devices.
   root.locator('.cabina-heading-actions [data-cabina-open="connection"]').click()
   root.locator('[data-cabina-devices]').click();root.locator('[data-cabina-select-device=speaker]').wait_for()

@@ -7,7 +7,6 @@
  const savedEdit=id=>{
   try{return JSON.parse(sessionStorage.getItem(key(id))||'null')}catch{return null}
  };
- const removal=ctx=>ctx.operation?ctx.operation.action==='remove':savedEdit(ctx.id)?.input?.action==='remove';
  const removalError=(ctx,reason)=>notify(ctx,reason||'No pudimos confirmar que Spotify quitara la canción. Se conserva la última lista disponible.',false,true);
  const syncChannel=typeof BroadcastChannel==='function'?new BroadcastChannel('toca-playlist-changes'):null;
  const live=ctx=>!!ctx&&ctx===current&&ctx.root.isConnected&&ctx.session===state.token&&ctx.id===state.venueId;
@@ -52,8 +51,6 @@
   list.innerHTML=window.tocaCabinaTracks(ctx);list.scrollTop=scroll;
   window.tocaCabinaPlaylistUpdated?.(ctx);
   }
-  const saved=sessionStorage.getItem(key(ctx.id));
-  root.querySelector('[data-studio-operation]').innerHTML=removal(ctx)?'':ctx.operation?`<div class="cabina-notice"><div><strong>Cambio pendiente de verificación.</strong><p>${esc(ctx.operation.message||'Consultá el resultado antes de volver a editar.')}</p></div><button type="button" class="btn small" data-studio-reconcile>Consultar resultado</button><button type="button" class="btn small" data-studio-accept>Aceptar estado actual</button></div>`:saved?'<div class="cabina-notice"><p>No se confirmó el último cambio. Consultá su resultado para continuar.</p><button type="button" class="btn small" data-studio-recover>Consultar resultado</button></div>':'';
   optimisticRemoval(ctx);updateButtons(ctx);
  }
  function optimisticRemoval(ctx){
@@ -77,7 +74,7 @@
    const revision=data.playlist,previous=ctx.playlist;
    if(ctx.playlistError||revision?.id!==previous?.id||revision?.snapshot!==previous?.snapshot||revision?.name!==previous?.name||JSON.stringify(data.operation)!==JSON.stringify(ctx.operation))await reload(ctx,true);
    if(!live(ctx))return;
-   if(ctx.operation||savedEdit(ctx.id)?.input?.action==='remove')await recoverPendingEdit(ctx);
+   if(ctx.operation||savedEdit(ctx.id))await recoverPendingEdit(ctx);
    ctx.syncFailures=0;ctx.syncRetryAt=0;syncStatus(ctx);
   }catch(error){
    if(!live(ctx)||error.name==='AbortError')return;
@@ -274,9 +271,9 @@
   window.tocaCabinaPlaybackStatus?.(ctx);
  }
  function editFeedback(ctx,body){
-  const track=body.action==='add'?ctx.playlist?.tracks.findLast(t=>t.id===body.trackId):null;
-  const message=body.action==='add'?(track?`«${track.title}» se agregó a la playlist.`:'Canción agregada a la playlist.'):body.action==='remove'?'Tema eliminado exitosamente':body.action==='move'?'Se guardó el nuevo orden.':body.action==='create'?'Playlist creada.':'Nombre de la playlist actualizado.';
-  notify(ctx,'');toast(message);
+  notify(ctx,'');
+  if(body.action==='add')return;
+  toast(body.action==='remove'?'Tema eliminado exitosamente':body.action==='move'?'Se guardó el nuevo orden.':body.action==='create'?'Playlist creada.':'Nombre de la playlist actualizado.');
  }
  const terminalEdit=result=>['COMPLETED','FAILED','RELEASED'].includes(result.status);
  async function checkEdit(ctx,id,result,action){
@@ -293,16 +290,17 @@
   }
   if(result.missing)return {status:'FAILED'};
   if(action==='remove'&&result.status==='UNCERTAIN'&&live(ctx)){
-   return await settleRemoval(ctx,id).catch(()=>result);
+   return await settleEdit(ctx,id,action).catch(()=>result);
   }
   return result;
  }
  function reconcileEdit(ctx,id,body={}){
   return api(musicPath(ctx.id)+`/edits/${id}/reconcile`,{method:'POST',body});
  }
- async function settleRemoval(ctx,id){
+ async function settleEdit(ctx,id,action){
   // Accept only a fresh snapshot. The server checks it again and confirms a
-  // removal that arrived in the meantime instead of releasing it as failed.
+  // change that arrived in the meantime instead of releasing it as failed.
+  if(action==='create')return reconcileEdit(ctx,id,{acceptMissing:true});
   const data=await api(musicPath(ctx.id)+'/playlist');
   if(!live(ctx))return {status:'UNKNOWN'};
   if(data.operation?.id!==id||data.error||!data.playlist?.snapshot)return reconcileEdit(ctx,id);
@@ -321,27 +319,33 @@
  }
  async function recoverPendingEdit(ctx){
   const saved=savedEdit(ctx.id);
-  const operation=ctx.operation||(saved?.input?.action==='remove'?{id:saved.id,action:'remove',status:'UNKNOWN'}:null);
-  if(!live(ctx)||ctx.busy||ctx.verifyingEdit||!operation?.id||(operation.action!=='remove'&&!['UNCERTAIN','UNKNOWN'].includes(operation.status))||Date.now()<(ctx.editRetryAt||0))return;
-  ctx.verifyingEdit=true;ctx.editRetryAt=Date.now()+7000;
+  const operation=ctx.operation||(saved?.id?{id:saved.id,action:saved.input?.action}:null);
+  if(!live(ctx)||ctx.busy||ctx.verifyingEdit||!operation?.id)return;
+  if(ctx.editRecovery?.id!==operation.id)ctx.editRecovery={id:operation.id,since:Date.now(),next:0};
+  const recovery=ctx.editRecovery;
+  if(Date.now()<recovery.next)return;
+  recovery.next=Date.now()+6000;
+  ctx.verifyingEdit=true;
   try{
    let result=await reconcileEdit(ctx,operation.id);
    if(!live(ctx)||(ctx.operation?.id||savedEdit(ctx.id)?.id)!==operation.id)return;
-   if(operation.action==='remove'&&result.status==='UNCERTAIN')result=await settleRemoval(ctx,operation.id);
+   if(result.status==='UNCERTAIN'&&(operation.action==='remove'||Date.now()-recovery.since>=14000))result=await settleEdit(ctx,operation.id,operation.action);
    if(!live(ctx))return;
    if(terminalEdit(result)){
-    sessionStorage.removeItem(key(ctx.id));
+    if(saved?.id===operation.id)sessionStorage.removeItem(key(ctx.id));
     if(result.status==='COMPLETED')await completeEdit(ctx,result,{action:result.action||operation.action});
     else{
      await reload(ctx);
      if(operation.action==='remove')removalError(ctx,result.status==='FAILED'?result.message:null);
+     else notify(ctx,result.status==='FAILED'&&result.message||'Spotify no confirmó el cambio. Revisá la playlist antes de volver a intentarlo.',false,true);
     }
    }
   }catch(error){
-   if(error.status===429)ctx.editRetryAt=Date.now()+60000;
-   if(live(ctx)&&operation.action==='remove'){
-    if(error.status===404&&!ctx.operation){sessionStorage.removeItem(key(ctx.id));updateButtons(ctx);}
-    removalError(ctx);
+   if(error.status===429)recovery.next=Date.now()+60000;
+   if(live(ctx)&&error.status===404&&!ctx.operation&&savedEdit(ctx.id)?.id===operation.id){
+    sessionStorage.removeItem(key(ctx.id));updateButtons(ctx);
+    if(operation.action==='remove')removalError(ctx);
+    else notify(ctx,'No se pudo verificar el cambio. Revisá la playlist antes de volver a intentarlo.',false,true);
    }
   }
   finally{ctx.verifyingEdit=false;}
@@ -349,7 +353,7 @@
  async function edit(ctx,body){
   if(!live(ctx))return;
   if((!ctx.settings.playlistWriteEnabled)){window.tocaCabinaShowConnection?.(ctx);notify(ctx,'La edición de playlist está deshabilitada en el servidor.');return}
-  if(ctx.busy||ctx.operation||sessionStorage.getItem(key(ctx.id))){notify(ctx,'Hay un cambio pendiente. Consultá su resultado antes de volver a editar.');return}
+  if(ctx.busy||ctx.operation||sessionStorage.getItem(key(ctx.id)))return;
   const intent=window.tocaMusicEditIntent.capture(ctx.playlist,body);
   ctx.busy=true;ctx.editAction=body;notify(ctx,'');
   if(body.action==='remove'){ctx.optimisticRemoval=intent;window.tocaCabinaClose?.(ctx);optimisticRemoval(ctx);}
@@ -359,7 +363,7 @@
    for(let attempt=0;attempt<2;attempt++){
     if(body.action!=='create')await reload(ctx);
     if(!live(ctx))return;
-    if(ctx.operation)throw Error('Hay una edición pendiente. Consultá su resultado antes de continuar.');
+    if(ctx.operation){window.tocaCabinaClose?.(ctx);return;}
     const input=window.tocaMusicEditIntent.resolve(intent,ctx.playlist);
     if(!input){window.tocaCabinaClose?.(ctx);toast('La playlist ya refleja ese cambio.');return;}
     id=crypto.randomUUID();sessionStorage.setItem(key(ctx.id),JSON.stringify({id,input}));sent=true;terminal=false;
@@ -369,9 +373,9 @@
     terminal=terminalEdit(result);if(terminal)sessionStorage.removeItem(key(ctx.id));
     if(attempt===0&&result.status==='FAILED'&&result.result?.code==='PLAYLIST_CHANGED'&&result.result.beforeWrite===true)continue;
     if(result.status==='COMPLETED'){await completeEdit(ctx,result,body);return;}
-    if(body.action==='remove')removalError(ctx,result.status==='FAILED'?result.message:null);
-    else if(terminal)notify(ctx,result.message||'No se pudo guardar el cambio. Volvé a intentarlo.');
-    else notify(ctx,'');
+    if(!terminal)window.tocaCabinaClose?.(ctx);
+    else if(body.action==='remove')removalError(ctx,result.status==='FAILED'?result.message:null);
+    else notify(ctx,result.message||'No se pudo guardar el cambio. Volvé a intentarlo.',false,true);
     await reload(ctx);return;
    }
   }catch(error){
@@ -381,8 +385,9 @@
     if(terminalEdit(result)){terminal=true;sessionStorage.removeItem(key(ctx.id));if(result.status==='COMPLETED'){await completeEdit(ctx,result,body);return;}}
     else ctx.operation={id,status:'UNKNOWN',action:body.action};
    }
-   if(body.action==='remove')removalError(ctx,sent&&!terminal?null:error.message);
-   else notify(ctx,sent&&!terminal?'':error.message);
+   if(sent&&!terminal)window.tocaCabinaClose?.(ctx);
+   else if(body.action==='remove')removalError(ctx,error.message);
+   else notify(ctx,error.message,false,true);
    try{await reload(ctx)}catch{if(sent&&!terminal)renderPlaylist(ctx,{playlist:ctx.playlist,operation:ctx.operation});}
   }finally{ctx.busy=false;ctx.editAction=null;ctx.optimisticRemoval=null;if(live(ctx)){optimisticRemoval(ctx);updateButtons(ctx);syncSoon(ctx);}}
  }
@@ -548,11 +553,6 @@
 
   if(browser&&(browser.id!==id||browser.session!==ctx.session))stopBrowser();
   try{
-   const saved=savedEdit(id);
-   if(saved&&saved.input?.action!=='remove'){const result=await api(musicPath(id)+`/edits/${saved.id}`,{method:'POST',body:saved.input});if(!live(ctx))return;if(['COMPLETED','FAILED','RELEASED'].includes(result.status))sessionStorage.removeItem(key(id));}
-  }catch(error){notify(ctx,error.message)}
-  if(!live(ctx))return;
-  try{
    await reload(ctx);await recoverPendingEdit(ctx);await configureFirstPlaylist(ctx);
   }catch(error){
    if(live(ctx))renderPlaylist(ctx,{playlist:ctx.playlist,operation:ctx.operation,error:connectionMessage(error,'No se pudo cargar la playlist. Se volverá a intentar automáticamente.')});
@@ -564,7 +564,6 @@
   const button=event.target.closest('[data-admin-studio] button');const ctx=current;
   if(!button||!ctx||!live(ctx)||button.disabled)return;
   try{
-   if(button.hasAttribute('data-studio-recover')){await window.tocaInitAdminMusic(ctx.id,ctx.settings);await refreshActivity(current);return}
    if(button.hasAttribute('data-cabina-row-play')){
     const position=Number(button.dataset.cabinaRowPlay),track=ctx.playlist?.tracks[position];if(!track?.id)return;
     await control(ctx,window.tocaCabinaIsCurrent(ctx,track)?{action:ctx.playback.isPlaying?'pause':'resume'}:{action:'start',position,trackId:track.id,playlistId:ctx.playlist.id,snapshot:ctx.playlist.snapshot});return;
@@ -601,14 +600,6 @@
     if(button.disabled||ctx.busy||ctx.operation||sessionStorage.getItem(key(ctx.id)))return;
     const action=button.dataset.studioEdit;
     await edit(ctx,{action,...(action==='add'?{trackId:button.dataset.track}:action==='move'?{from:Number(button.dataset.from),to:Number(button.dataset.to)}:{position:Number(button.dataset.position)})});return;
-   }
-   if(button.hasAttribute('data-studio-reconcile')||button.hasAttribute('data-studio-accept')){
-    if(!ctx.operation)return;
-    let body={};if(button.hasAttribute('data-studio-accept')){
-     if(!confirm('¿Revisaste la lista actual? Se aceptará ese estado sin repetir la edición anterior.'))return;
-     body={...(ctx.playlist?{acceptSnapshot:ctx.playlist.snapshot}:{}),...(ctx.operation.action==='create'?{acceptMissing:true}:{})};
-    }
-    button.disabled=true;const result=await api(musicPath(ctx.id)+`/edits/${ctx.operation.id}/reconcile`,{method:'POST',body});if(!live(ctx))return;if(['COMPLETED','RELEASED','FAILED'].includes(result.status))sessionStorage.removeItem(key(ctx.id));if(result.status==='COMPLETED')playlistChanged(ctx);notify(ctx,result.status==='COMPLETED'?'Edición confirmada.':result.message||result.status);await reload(ctx);return;
    }
    let body;
    if(button.dataset.playerCommand)body={action:button.dataset.playerCommand};
