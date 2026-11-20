@@ -1,9 +1,12 @@
 /* TOCÁ v1.8.47 — Google sign-in accent, compatible with TOCÁ dark/neon theme. */
-.toca-google-container {margin:22px 0 14px;display:grid;gap:16px}
+.toca-google-container {margin:20px 0 14px;display:grid;gap:12px;min-width:0}
 .toca-google-divider {display:flex;align-items:center;gap:14px;color:#a9bdb4;font-size:12px;letter-spacing:.02em}
 .toca-google-divider:before,.toca-google-divider:after {content:"";flex:1;height:1px;background:rgba(194,231,203,.18)}
-.toca-google-slot {display:flex;align-items:center;justify-content:center;min-height:43px;max-width:100%;overflow:visible}
+.toca-google-slot {display:flex;align-items:center;justify-content:center;min-width:0;min-height:44px}
 .toca-google-slot > div {max-width:100%}
+/* The Google iframe adds a white gutter around its own button. */
+.toca-google-slot iframe {clip-path:inset(2px 10px round 4px)}
+.toca-google-slot:focus-within {outline:2px solid var(--lime,#b9fc89);outline-offset:2px;border-radius:6px}
 .toca-google-unavailable {font-size:12px;line-height:1.5;color:#9caea6;text-align:center}
 .toca-google-link-container {margin-top:25px;padding:18px;border:1px solid rgba(173,255,94,.18);border-radius:14px;background:rgba(122,195,86,.045)}
 .toca-google-link-title {font-size:14px;font-weight:700;color:#e9f4ea}

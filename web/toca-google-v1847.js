@@ -127,8 +127,8 @@
       slot.dataset.googleState = String(++buttonSequence);
       google.accounts.id.renderButton(slot, {
         type: 'standard', theme: 'filled_black', size: 'large',
-        shape: 'pill', text: flow==='admin-register'?'signup_with':'continue_with', logo_alignment: 'left',
-        width: Math.min(330, slot.clientWidth || 330), state: slot.dataset.googleState,
+        shape: 'rectangular', text: flow==='admin-register'?'signup_with':'continue_with', logo_alignment: 'left',
+        width: Math.min(400, slot.clientWidth || 330), state: slot.dataset.googleState,
         locale: 'es'
       });
       slot.dataset.googleReady = 'yes';
