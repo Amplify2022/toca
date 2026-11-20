@@ -25,7 +25,8 @@ try:
     else:result=[]
     route.fulfill(content_type='application/json',body=json.dumps(result),headers={'Access-Control-Allow-Origin':'*'})
    page.route('http://localhost:8080/**',api);page.route('https://**/*',lambda r:r.abort())
-   page.goto(BASE+'/#/');root=page.locator('.landing-expanded');expect(root).to_be_visible()
+   page.goto(BASE+'/');root=page.locator('.landing-expanded');expect(root).to_be_visible()
+   expect(page).to_have_url(BASE+'/')
    def header_anchor(identity):
     toggle=page.locator('.landing-menu-toggle')
     if toggle.is_visible() and toggle.get_attribute('aria-expanded')!='true':toggle.click()
