@@ -98,7 +98,7 @@
       const hasPoint=validPoint(draft.latitude,draft.longitude);
       if(!draft.confirmed&&hasPoint)window.tocaApplyImportedLocation(form,draft.latitude,draft.longitude);
       const map=window.tocaInitVenueLocation();
-      if(!draft.manual&&draft.address&&!hasPoint)form.elements.address.dispatchEvent(new Event('input',{bubbles:true}));
+      if(!draft.manual&&draft.address&&!hasPoint)window.tocaLookupImportedAddress?.(form);
       await map;
       if(box?.isConnected){
         const widget=box.querySelector('.toca-location-widget');

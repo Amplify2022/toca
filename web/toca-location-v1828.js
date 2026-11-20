@@ -188,7 +188,7 @@
     return widget?.isConnected && input?.isConnected && input.closest('form') === widget.closest('form');
   }
 
-  async function suggest(widget, input, typed, number) {
+  async function suggest(widget, input, typed, number, imported = false) {
     const box = getBox(input);
     if (!matches(widget, input) || !box || seq.get(input) !== number) return;
     const city = fields(widget).city?.value.trim() || 'Montevideo';
@@ -200,7 +200,15 @@
         if (cache.size > 150) cache.clear();
         if (results.length) cache.set(cacheKey, results);
       }
-      if (!matches(widget, input) || seq.get(input) !== number || input.value.trim() !== typed) return;
+      if (!matches(widget, input) || seq.get(input) !== number || input.value.trim() !== typed ||
+          (fields(widget).city?.value.trim() || 'Montevideo') !== city) return;
+      const exact = results.filter(entry => entry?.precise === true && hasCoords(entry));
+      if (imported && exact.length === 1 && !widget.dataset.pendingLat && widget.dataset.confirmed !== 'true') {
+        dismissSelectedAddress(widget);
+        setAddress(widget, typed, exact[0].city || city);
+        window.tocaApplyImportedLocation(fields(widget).form, Number(exact[0].lat), Number(exact[0].lon));
+        return;
+      }
       input._v183Results = results.filter(result =>
         result && String(result.address || '').trim() &&
         (hasCoords(result) || result.kind === 'street')
@@ -219,7 +227,7 @@
     }
   }
 
-  function onInput(input, widget) {
+  function onInput(input, widget, imported = false) {
     if (!matches(widget, input)) return;
     const typed = input.value.trim();
     const old = timers.get(input);
@@ -242,8 +250,13 @@
       box.textContent = 'Buscando direcciones…';
       box.hidden = false;
     }
-    timers.set(input, setTimeout(() => void suggest(widget, input, typed, number), 450));
+    timers.set(input, setTimeout(() => void suggest(widget, input, typed, number, imported), imported ? 0 : 450));
   }
+
+  window.tocaLookupImportedAddress = form => {
+    const widget = form.querySelector('.toca-location-widget');
+    if (widget) onInput(fields(widget).address, widget, true);
+  };
 
   // Reuse the original location-result handler so the selected suggestion
   // moves the REAL Leaflet marker and goes through the existing confirm flow.
@@ -399,10 +412,10 @@
   document.addEventListener('input', event => {
     const input = event.target;
     if (!(input instanceof HTMLInputElement)) return;
-    if (input.name !== 'address' && input.id !== 'toca-location-query') return;
+    if (!['address','city'].includes(input.name) && input.id !== 'toca-location-query') return;
     const widget = input.closest('form')?.querySelector('.toca-location-widget');
     if (widget) {
-      onInput(input, widget);
+      onInput(input.name === 'city' ? fields(widget).address : input, widget);
       if (event._v183KeepPin) {
         const {lat, lon} = event._v183KeepPin;
         widget._v183LastPin = `${Number(lat).toFixed(6)},${Number(lon).toFixed(6)}`;

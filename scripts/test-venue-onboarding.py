@@ -31,7 +31,7 @@ try:
      elif path.endswith('/google/preview'):result=dict(source='Google Maps',fields=dict(name='Imported Bar',address='Test street 123',city='Montevideo',latitude=-34.9,longitude=-56.17,openingHours='W2|-|-|-|-|20:00-02:00|20:00-03:00|-'))
      elif path.endswith('/instagram/preview'):result=dict(source='Instagram',fields=dict(name='Instagram Bar',address='Test street 123',instagramHandle='bar.ig',description='Viernes & Sábados 20 Hs.\nTodos los miércoles Jazz Club.'))
      elif path=='/api/admin/geocode':result=dict(results=[dict(lat=-34.9,lon=-56.17,name='Test street 123, Montevideo')])
-     elif path=='/api/admin/geocode/suggest':result=dict(results=[dict(lat=-34.9,lon=-56.17,name='Test street 123, Montevideo',address='Test street 123',city='Montevideo')])
+     elif path=='/api/admin/geocode/suggest':result=dict(results=[dict(lat=-34.9,lon=-56.17,name='Test street 123, Montevideo',address='Test street 123',city='Montevideo',precise=True)])
      elif path=='/api/admin/venues':
       if method=='POST':
        creates.append(body)
@@ -83,7 +83,11 @@ try:
      form.locator('[name=city]').fill('Montevideo');form.locator('[name=address]').fill('Test street 123')
     elif scenario=='instagram':
      assert form.locator('[name=address]').input_value()=='Test street 123'
-    if scenario!='google':form.locator('[data-v183-choice]').first.click()
+     page.wait_for_function("document.querySelector('.toca-location-widget').dataset.pendingLat==='-34.9'")
+     assert form.locator('[name=city]').input_value()=='Montevideo'
+     assert form.locator('.toca-location-widget').get_attribute('data-confirmed')=='false'
+     assert form.locator('[name=latitude]').input_value()==''
+    if scenario=='manual':form.locator('[data-v183-choice]').first.click()
     form.locator('[data-action=location-confirm]').click()
     page.wait_for_function("document.querySelector('.toca-location-widget').dataset.confirmed==='true'")
     if scenario=='instagram':
