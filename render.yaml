@@ -11,7 +11,7 @@ services:
       - key: JAVA_TOOL_OPTIONS
         value: "-Xmx256m"
       - key: TOKEN_SIMULATED_TOPUPS_ENABLED
-        value: "false"
+        value: "true"
       - key: JDBC_URL
         sync: false
       - key: DB_USERNAME
