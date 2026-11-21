@@ -208,6 +208,9 @@ try:
    page.get_by_role('link',name='TOCÁ - inicio',exact=True).click()
    expect(page).to_have_url(base+'/#/')
    expect(page.locator('.landing-expanded')).to_be_visible()
+   page.go_back()
+   expect(heading).to_be_focused()
+   expect(heading).to_have_css('outline-style','none')
    assert not errors,errors
    assert all(method in ['GET','OPTIONS'] for method,path in calls),calls
    assert not any('/requests' in path for method,path in calls if method!='GET')
