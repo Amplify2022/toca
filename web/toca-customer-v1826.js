@@ -118,6 +118,7 @@
     const requesting = !!sessionStorage.getItem(RETURN_KEY);
     const body = `<section class="toca-customer-page">
       <div class="toca-customer-card">
+        ${tocaAuthBack()}
         <span class="eyebrow">TU CUENTA · TU MÚSICA</span>
         <h1>${title}</h1>
         <p class="toca-customer-lead">${requesting?'Para pedir una canción, primero iniciá sesión o creá una cuenta. Después volvés automáticamente al bar.':'Entrá a TOCÁ para pedir canciones y guardar tus pedidos. Tu cuenta es independiente del Portal de bares.'}</p>
@@ -134,7 +135,7 @@
         ${register?'':'<div class="toca-auth-recovery"><a href="#/account?kind=customer" data-manage-account>¿Olvidaste tu contraseña?</a></div>'}
       </div>
     </section>`;
-    mount(body, 'auth');
+    mount(body, 'auth-form');
   };
 
   window.tocaCustomerLoginPage = renderAuth;
